@@ -19,6 +19,11 @@ secure link is what lets browsers use the microphone, camera and screen sharing;
 
 Closing the window keeps hosted sessions running in the tray. *Quit* stops them. Your data is in `%APPDATA%\LANChat`.
 
+**Updating:** unzip the new version anywhere and start its `LANChat.exe`. If an older LANChat is still running in the tray, the new one
+offers to close it and takes over (your chats are kept). The version is shown in the window title, the Sessions window and
+*Settings → About*. The look and features of a session come from the computer that **hosts** it — if a friend hosts with an older
+version you'll see the old look there (the app tells you), so send them the same zip.
+
 ## Running without the desktop app
 ```bash
 node server.js            # Node 18+; prints the address for friends and a private HOST link for you

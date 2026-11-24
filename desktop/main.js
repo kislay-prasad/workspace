@@ -117,8 +117,9 @@ function onServerEvent(s, name, p) {
 
 // ---------- window ----------
 function createWindow() {
-  win = new BrowserWindow({ width: 1180, height: 780, minWidth: 380, minHeight: 500, title: 'LANChat', icon: appIcon(), backgroundColor: '#464775', show: false, webPreferences: { contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.js') } });
+  win = new BrowserWindow({ width: 1180, height: 780, minWidth: 380, minHeight: 500, title: 'LANChat ' + app.getVersion(), icon: appIcon(), backgroundColor: '#f5f5f5', show: false, webPreferences: { contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.js') } });
   win.once('ready-to-show', () => { if (!hiddenStart) win.show(); });
+  win.setTitle('LANChat ' + app.getVersion()); win.on('page-title-updated', (e, title) => { e.preventDefault(); win.setTitle(`${title} — LANChat ${app.getVersion()}`); });
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, url) => { let same = false; try { same = new URL(url).origin === new URL(win.webContents.getURL()).origin; } catch {} if (!same) { e.preventDefault(); if (/^https?:/.test(url)) shell.openExternal(url); } });
   win.webContents.on('did-fail-load', (_e, code, desc, url, isMain) => { if (!isMain || code === -3 || url === 'about:blank') return; dialog.showMessageBox(win, { type: 'error', title: 'Could not connect', message: 'Could not reach the session.', detail: `${url}\n\n${desc}\n\nCheck you are on the same Wi-Fi as the host, that the host has LANChat open, and that the address is right.`, buttons: ['Choose another session'] }).then(() => showSessions()); });
@@ -140,7 +141,7 @@ async function openSession(id) {
   const s = cfg.sessions.find((x) => x.id === id); if (!s) return;
   let url;
   if (s.kind === 'host') { const r = await ensureRunning(s); if (!r) return; url = `http://localhost:${r.port}/#k=${s.adminKey}`; }
-  else { url = s.url; try { if (!startupOrigins.has(new URL(s.url).origin)) offerRestart(); } catch {} }
+  else { url = s.url; try { if (!startupOrigins.has(new URL(s.url).origin)) offerRestart(); } catch {} checkHostVersion(s); }
   cfg.active = s.id; save(); if (sessionsWin) sessionsWin.close(); openMain(url);
 }
 function offerRestart() {
@@ -149,6 +150,14 @@ function offerRestart() {
 const privateHost = (h) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|127\.|169\.254\.)/.test(h) || h === 'localhost' || /\.local$/i.test(h);
 // LAN sessions answer http:// and https:// on the same port; the app uses http:// (it unlocks calls itself), so a pasted https:// LAN link is switched over
 function normalizeUrl(raw) { try { const u = new URL(/^https?:\/\//i.test(raw) ? raw : 'http://' + raw); if (!/^https?:$/.test(u.protocol) || !u.hostname) return null; if (u.protocol === 'https:' && u.port && privateHost(u.hostname)) u.protocol = 'http:'; if (!u.port && u.protocol === 'http:') u.port = '3000'; return u.origin; } catch { return null; } }
+// The look and features of a session come from the computer that HOSTS it, so a host on an older LANChat means the old look.
+async function checkHostVersion(s) {
+  const c = await fetchConfig(s.url), theirs = (c && c.app) || '';
+  if (!c || (theirs && !newer(app.getVersion(), theirs)) || s.warnedVersion === (theirs || 'old')) return;
+  s.warnedVersion = theirs || 'old'; save();
+  dialog.showMessageBox(win || undefined, { type: 'info', title: 'Older LANChat on the host', message: `“${s.name}” is hosted with an older LANChat${theirs ? ' (' + theirs + ')' : ''}.`, detail: `You'll see the old look and features in this session until its host updates to LANChat ${app.getVersion()} (send them the same zip). Your own sessions use the new version.`, buttons: ['OK'] }).catch(() => {});
+}
+function fetchConfig(url) { return new Promise((resolve) => { const lib = url.startsWith('https') ? https : http; const req = lib.get(url + '/api/config', { timeout: 2500 }, (res) => { let b = ''; res.on('data', (c) => { if (b.length < 4000) b += c; }); res.on('end', () => { try { resolve(JSON.parse(b)); } catch { resolve(null); } }); }); req.on('error', () => resolve(null)); req.on('timeout', () => { req.destroy(); resolve(null); }); }); }
 function fetchName(url) { return new Promise((resolve) => { const lib = url.startsWith('https') ? https : http; const req = lib.get(url + '/api/config', { timeout: 2500 }, (res) => { let b = ''; res.on('data', (c) => { if (b.length < 2000) b += c; }); res.on('end', () => { try { resolve(String(JSON.parse(b).name || '').slice(0, 40)); } catch { resolve(''); } }); }); req.on('error', () => resolve('')); req.on('timeout', () => { req.destroy(); resolve(''); }); }); }
 
 // ---------- sessions window ----------
@@ -163,6 +172,7 @@ ipcMain.handle('sessions:list', (e) => {
   if (!fromSessions(e)) return {};
   const mine = (a, p) => [...running.values()].some((r) => r.port === p && isLocalAddr(a));
   return {
+    version: app.getVersion(),
     active: cfg.active,
     hosted: cfg.sessions.filter((s) => s.kind === 'host').map((s) => ({ id: s.id, name: s.name, running: running.has(s.id), port: running.get(s.id) && running.get(s.id).port, encrypted: running.has(s.id) ? running.get(s.id).app.encrypted() : fs.existsSync(path.join(s.dir, 'db.enc')) })),
     joined: cfg.sessions.filter((s) => s.kind === 'join').map((s) => ({ id: s.id, name: s.name, url: s.url })),
@@ -330,14 +340,61 @@ function buildMenu() {
   ]));
 }
 
+// ---------- one LANChat at a time; a newer copy takes over from an older one ----------
+// Closing the window keeps LANChat running in the tray, so after unzipping a new version the OLD one is often still running,
+// and starting the new LANChat.exe would only bring the old window back. From 4.2.1 on, a running copy steps aside when a
+// newer one starts; older copies don't know how, so the new copy finds them, asks, and closes them.
+const LOCK = { app: 'lanchat', version: app.getVersion() };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+app.on('second-instance', (_e, _argv, _cwd, data) => {
+  if (data && data.app === 'lanchat' && newer(String(data.version || ''), app.getVersion())) return stepAside();
+  showMain();
+});
+function stepAside() { quitting = true; for (const id of [...running.keys()]) { stopTunnel(id); try { running.get(id).app.stop(); } catch {} } app.exit(0); }
+const verAt = (exe) => { for (const d of [path.join(path.dirname(exe), 'resources', 'app'), path.join(path.dirname(exe), '..', 'Resources', 'app')]) { try { return String(JSON.parse(fs.readFileSync(path.join(d, 'package.json'), 'utf8')).version || ''); } catch {} } return ''; };
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+function otherCopies() { // main processes of other LANChat copies: [{ pid, exe, version }]
+  const name = path.basename(process.execPath), me = process.pid;
+  return new Promise((resolve) => {
+    if (process.platform === 'win32') {
+      const q = `Get-CimInstance Win32_Process -Filter "Name='${name.replace(/'/g, "''")}'" | Select-Object ProcessId,ExecutablePath,CommandLine | ConvertTo-Json -Compress`;
+      require('child_process').execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(q, 'utf16le').toString('base64')], { windowsHide: true, timeout: 20000 }, (err, out) => {
+        let a = []; try { a = JSON.parse(String(out || '').trim() || '[]'); } catch {} if (!Array.isArray(a)) a = [a];
+        resolve(a.filter((x) => x && x.ProcessId !== me && x.ExecutablePath && !/--type=/.test(x.CommandLine || '')).map((x) => ({ pid: x.ProcessId, exe: x.ExecutablePath })));
+      });
+    } else if (process.platform === 'linux') {
+      const out = []; for (const d of fs.readdirSync('/proc')) { if (!/^\d+$/.test(d) || Number(d) === me) continue; try { const exe = fs.readlinkSync(`/proc/${d}/exe`); if (path.basename(exe) !== name || /--type=/.test(fs.readFileSync(`/proc/${d}/cmdline`, 'utf8'))) continue; out.push({ pid: Number(d), exe }); } catch {} } resolve(out);
+    } else resolve([]); // macOS keeps one copy of an app running by itself
+  });
+}
+function closeCopy(pid) { if (process.platform === 'win32') spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }); else { try { process.kill(pid, 'SIGTERM'); } catch {} setTimeout(() => { if (alive(pid)) try { process.kill(pid, 'SIGKILL'); } catch {} }, 2500); } }
+// every running copy (4.2.1+) records its process id + version; a copy without a record is older than 4.2.1
+const INSTANCE = path.join(USER, 'instance.json');
+const writeInstance = () => { try { fs.mkdirSync(USER, { recursive: true }); fs.writeFileSync(INSTANCE, JSON.stringify({ pid: process.pid, version: app.getVersion(), exe: process.execPath })); } catch {} };
+async function takeOver() {
+  await sleep(1500); if (app.requestSingleInstanceLock(LOCK)) return true; // a copy from 4.2.1 on has stepped aside by itself
+  let rec = null; try { rec = JSON.parse(fs.readFileSync(INSTANCE, 'utf8')); } catch {}
+  const mine = path.resolve(process.execPath);
+  // a copy unzipped over this same folder still runs the OLD code it started with, so its files on disk prove nothing
+  const old = (await otherCopies()).map((o) => ({ ...o, version: rec && rec.pid === o.pid ? String(rec.version || '') : path.resolve(o.exe) === mine ? '' : verAt(o.exe) })).filter((o) => !o.version || newer(app.getVersion(), o.version));
+  if (!old.length) return false; // the same (or a newer) LANChat is already running and has been brought to the front
+  const ok = process.env.LANCHAT_REPLACE_OLDER === '1' || (await dialog.showMessageBox({ type: 'question', title: 'LANChat ' + app.getVersion(), message: `An older LANChat${old[0].version ? ' (' + old[0].version + ')' : ''} is still running.`, detail: `It is probably in the tray, near the clock: closing the window keeps LANChat running there.\n\nClose it and start the new version ${app.getVersion()}? Your chats and sessions are kept, and friends reconnect automatically.`, buttons: [`Close the old one and start ${app.getVersion()}`, 'Cancel'], defaultId: 0, cancelId: 1, noLink: true })).response === 0;
+  if (!ok) return false;
+  for (const o of old) closeCopy(o.pid);
+  for (let i = 0; i < 30; i++) { await sleep(400); if (old.every((o) => !alive(o.pid)) && app.requestSingleInstanceLock(LOCK)) return true; }
+  dialog.showErrorBox('LANChat', 'The older LANChat did not close. Right-click its tray icon (near the clock) > Quit, then start LANChat again.');
+  return false;
+}
+
 // ---------- boot ----------
-app.on('second-instance', () => showMain());
 app.on('before-quit', () => { quitting = true; for (const r of running.values()) try { r.app.flush(); } catch {} });
 app.on('window-all-closed', () => { if (quitting || !running.size) app.quit(); });
 app.on('activate', showMain);
 
-if (!app.requestSingleInstanceLock()) app.quit();
-else app.whenReady().then(async () => {
+const firstLock = app.requestSingleInstanceLock(LOCK);
+app.whenReady().then(async () => {
+  if (!firstLock && !(await takeOver())) return app.quit();
+  writeInstance();
   setupSecurity(); createTray(); buildMenu();
   try { if (cfg.startWithWindows) app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] }); } catch {}
   for (const s of cfg.sessions.filter((x) => x.kind === 'host' && x.autoStart !== false)) { try { await startSession(s); } catch (e) { console.error('autostart failed', e.message); } }

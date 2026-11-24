@@ -13,7 +13,7 @@ input[type=text],input[type=password]{font:inherit;min-height:32px;padding:5px 1
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line)}.row:first-of-type{border-top:0}.grow{flex:1;min-width:140px;display:flex;flex-direction:column}.grow>span{display:flex;align-items:center;gap:6px;font-weight:600}.grow small{color:var(--muted)}
 .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#8a8886}.dot.on{background:#6bb700}.pill{font-size:11px;font-weight:600;border:1px solid var(--line2);border-radius:10px;padding:0 7px;display:inline-flex;align-items:center;gap:3px}.pill .ic{width:12px;height:12px}
 </style>
-<div class="head"><img src="public/icon.svg" alt=""><div><h1>LANChat sessions</h1><p class="sub">A session is one chat group. You can host several on this computer, and join friends' sessions.</p></div></div>
+<div class="head"><img src="public/icon.svg" alt=""><div><h1>LANChat sessions <span id="ver" class="muted" style="font-size:13px;font-weight:400"></span></h1><p class="sub">A session is one chat group. You can host several on this computer, and join friends' sessions.</p></div></div>
 <div class="card"><h2><span data-ic="desktop"></span>Your sessions <span class="muted">(hosted on this computer)</span></h2><div id="hosted"><p class="muted">None yet — create one below.</p></div>
 <h2 style="margin-top:14px"><span data-ic="add"></span>Create a new session</h2>
 <form id="newf" class="row" style="border:0"><input type="text" id="nname" placeholder="Session name, e.g. Friday Gang" maxlength="40" required>
@@ -32,6 +32,7 @@ $('#newf').onsubmit = async (e) => { e.preventDefault(); const r = await ipcRend
 $('#jf').onsubmit = async (e) => { e.preventDefault(); if (!$('#jurl').value.trim()) return; const r = await ipcRenderer.invoke('sessions:join', $('#jurl').value); if (r && r.error) alert(r.error); };
 async function draw() {
   const d = await ipcRenderer.invoke('sessions:list');
+  $('#ver').textContent = d.version ? 'version ' + d.version : '';
   const H = $('#hosted'), J = $('#joined'), F = $('#found'); H.replaceChildren(); J.replaceChildren(); F.replaceChildren();
   for (const s of d.hosted) { const t = document.createElement('span'); const dot = document.createElement('span'); dot.className = 'dot' + (s.running ? ' on' : ''); t.append(dot, s.name); if (s.encrypted) { const p = document.createElement('span'); p.className = 'pill'; p.append(ic('lock_closed'), 'encrypted'); t.append(p); } if (s.id === d.active) { const p = document.createElement('span'); p.className = 'pill'; p.textContent = 'open now'; t.append(p); }
     H.append(row(t, s.running ? `Running · port ${s.port}` : 'Stopped', b('Open', () => ipcRenderer.invoke('sessions:open', s.id), 'p', 'open'), s.running ? b('Stop', () => ipcRenderer.invoke('sessions:stop', s.id), '', 'record_stop') : b('Start', () => ipcRenderer.invoke('sessions:start', s.id), '', 'play'), b('Delete…', () => ipcRenderer.invoke('sessions:delete', s.id), 'd', 'delete'))); }

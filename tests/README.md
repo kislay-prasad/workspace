@@ -10,4 +10,7 @@
 * `ui-cleanup.js` — the clean-up tools (delete old chats, delete people, start fresh).
 * `electron-call.js` — two desktop apps (Linux + xvfb): approval, video call, one-click **whole-screen** sharing seen by the friend.
   `ELECTRON_BIN=…/electron APP_DIR=…/app node tests/electron-call.js` (APP_DIR = desktop/*, lib/, public/ copied into one folder).
+* `electron-takeover.js` — an older LANChat left running in the tray is replaced when a newer copy starts (also when the new zip
+  was unzipped over the old folder); the same version started twice just comes to the front.
+  `ELECTRON_DIST=…/electron/dist OLD_APP=<older app folder> node tests/electron-takeover.js`
 

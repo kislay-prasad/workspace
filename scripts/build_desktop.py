@@ -29,6 +29,8 @@ START:  double-click LANChat.exe
   - Everyone who asks to join waits for YOUR approval (Manage, in the left bar).
   - Screen sharing: the Share button shares your whole screen; the small arrow next to it lets you pick a window.
 Your data lives in %APPDATA%\\LANChat. Closing the window keeps hosted sessions running in the tray; use Quit to stop.
+UPDATING: just start the new LANChat.exe. If the old one is still running in the tray, the new one asks to close it.
+  The title bar shows the version (e.g. "LANChat 4.2.1"). A friend's session looks old until that friend updates too.
 """,
  'linux': """LANChat - private chat sessions for you and your friends.
 START:  ./lanchat      (needs a desktop session; if it won't start, try ./lanchat --no-sandbox)
