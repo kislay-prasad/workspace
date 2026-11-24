@@ -1,6 +1,6 @@
 'use strict';
 // LANChat command-line server. Run:  node server.js
-// Environment: PORT, DATA_DIR, SESSION_NAME, PASSCODE, REQUIRE_APPROVAL=0 (open join), ADMIN_KEY, DB_PASSPHRASE, TRUST_PROXY=1, PUBLIC_URL (used when printing the host link)
+// Environment: PORT, DATA_DIR, SESSION_NAME, PASSCODE, REQUIRE_APPROVAL=0 (open join), ADMIN_KEY, DB_PASSPHRASE, TRUST_PROXY=1, PUBLIC_URL (used when printing the host link), HTTPS=0 (turn off the built-in https://)
 const path = require('path');
 const readline = require('readline');
 const { createApp } = require('./lib/app');
@@ -11,7 +11,7 @@ async function main() {
   const dataDir = process.env.DATA_DIR || path.join(__dirname, 'data'), port = Number(process.env.PORT) || 3000;
   const opts = {
     dataDir, name: process.env.SESSION_NAME || process.env.CHAT_NAME, adminKey: process.env.ADMIN_KEY, passphrase: process.env.DB_PASSPHRASE,
-    passcode: process.env.PASSCODE !== undefined ? process.env.PASSCODE : undefined, requireApproval: process.env.REQUIRE_APPROVAL === '0' ? false : undefined, trustProxy: process.env.TRUST_PROXY === '1',
+    passcode: process.env.PASSCODE !== undefined ? process.env.PASSCODE : undefined, requireApproval: process.env.REQUIRE_APPROVAL === '0' ? false : undefined, trustProxy: process.env.TRUST_PROXY === '1', https: process.env.HTTPS !== '0',
   };
   let app;
   for (;;) {
@@ -26,7 +26,8 @@ async function main() {
   await app.start(port);
   const p = app.port;
   console.log(`\n  ${app.getName()} is running. Friends on the same Wi-Fi can open one of these:\n`);
-  for (const a of app.lanAddresses()) console.log(`    ${a.url}${a.lan ? '' : '   (probably a VPN/virtual adapter - try the others first)'}`);
+  for (const a of app.lanAddresses()) console.log(`    ${a.secureUrl || a.url}${a.lan ? '' : '   (probably a VPN/virtual adapter - try the others first)'}`);
+  if (app.https) console.log('\n  Browsers warn "not private" the first time (this session made its own certificate): Advanced -> Proceed.\n  https:// is what lets browsers use the microphone, camera and screen sharing. Plain http:// works too, for chat only.');
   const base = (process.env.PUBLIC_URL || `http://localhost:${p}`).replace(/\/$/, '');
   console.log(`\n  HOST/ADMIN: open this link to sign in as the host (keep it private):\n\n    ${base}/#k=${app.adminKey}\n`);
   console.log('  Keep that link private: anyone with it can take over the host account.');

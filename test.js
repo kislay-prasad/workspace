@@ -376,6 +376,17 @@ async function section(name, fn) { try { await fn(); results.push([name, true]);
     assert.equal((await call('POST', '/api/call/signal', { chan: 'general', to: carol.id, kind: 'offer', data: { sdp: 'x' } }, bob.token)).s, 200); const sig = await cs.waitFor('callsig'); assert.equal(sig.from, bob.id); assert.equal(sig.kind, 'offer');
     assert.equal((await call('POST', '/api/call/signal', { chan: 'general', to: carol.id, kind: 'evil', data: {} }, bob.token)).s, 400);
     assert.equal((await call('POST', '/api/call/signal', { chan: 'general', to: carol.id, kind: 'ice', data: {} }, dave.token)).s, 400, 'outsider cannot inject');
+    // mic / camera / hand state and the single presenter are shared through callstate
+    assert.equal((await call('POST', '/api/call/media', { chan: 'general', mic: false, cam: true, hand: true }, bob.token)).s, 200);
+    let ev = await cs.waitFor('callstate', (x) => x.call && x.call.media[bob.id] && x.call.media[bob.id].hand); assert.deepEqual(ev.call.media[bob.id], { mic: false, cam: true, hand: true });
+    assert.equal((await call('POST', '/api/call/media', { chan: 'general', mic: true }, dave.token)).s, 400, 'only people in the call');
+    await call('POST', '/api/call/share', { chan: 'general', on: true }, bob.token); ev = await cs.waitFor('callstate', (x) => x.call && x.call.sharing === bob.id); assert.equal(ev.call.sharing, bob.id);
+    await call('POST', '/api/call/share', { chan: 'general', on: true }, carol.token); await cs.waitFor('callstate', (x) => x.call && x.call.sharing === carol.id); // carol takes over presenting
+    await call('POST', '/api/call/share', { chan: 'general', on: false }, bob.token); assert.equal(app.ctx.activeCalls(app.ctx.db.users[carol.id])[0].call.sharing, carol.id, 'bob stopping does not end carol\'s share');
+    assert.equal((await call('POST', '/api/call/react', { chan: 'general', emoji: '👏' }, carol.token)).s, 200); const re = await cs.waitFor('callreact'); assert.equal(re.emoji, '👏'); assert.equal(re.from, carol.id);
+    assert.equal((await call('POST', '/api/call/react', { chan: 'general', emoji: '<img>' }, carol.token)).s, 400, 'only the built-in reactions');
+    await call('POST', '/api/call/leave', { chan: 'general' }, carol.token); ev = await cs.waitFor('callstate', (x) => x.call && !x.call.participants.includes(carol.id)); assert.equal(ev.call.sharing, null, 'leaving ends your share'); assert(!ev.call.media[carol.id]);
+    await call('POST', '/api/call/join', { chan: 'general' }, carol.token);
     await call('POST', '/api/call/leave', { chan: 'general' }, bob.token); await call('POST', '/api/call/leave', { chan: 'general' }, carol.token); await cs.waitFor('callstate', (s) => s.call === null); cs.close();
     const dm = 'dm:' + [bob.id, carol.id].sort().join(':'), ds = sse(carol.token); await ds.waitFor('init'); await call('POST', '/api/call/start', { chan: dm, mode: 'voice' }, bob.token); await ds.waitFor('callring'); ds.close(); await call('POST', '/api/call/leave', { chan: dm }, bob.token);
   });
@@ -409,7 +420,7 @@ async function section(name, fn) { try { await fn(); results.push([name, true]);
     }
   });
   await section('hardening: auth required everywhere, headers, traversal, body limits, bad input', async () => {
-    const open = new Set(['POST /api/join', 'GET /api/join/status', 'POST /api/join/cancel', 'GET /api/config']);
+    const open = new Set(['POST /api/join', 'GET /api/join/status', 'POST /api/join/cancel', 'GET /api/config', 'POST /api/handoff/redeem']);
     for (const key of Object.keys(app.ctx.api)) { if (open.has(key)) continue; const [m, p] = key.split(' '); let r; try { r = await fetch(B + p, { method: m, body: m === 'POST' ? '{}' : undefined }); } catch (e) { throw new Error('fetch failed for ' + key + ': ' + (e.cause && e.cause.message)); } assert.equal(r.status, 401, key + ' must require a token'); }
     const idx = await fetch(B + '/'); assert(/default-src 'self'/.test(idx.headers.get('content-security-policy'))); assert.equal(idx.headers.get('x-content-type-options'), 'nosniff');
     for (const p of ['/..%2f..%2fetc/passwd', '/%2e%2e/server.js', '/lib/app.js', '/..%2flib%2fapp.js']) { const r = await fetch(B + p); assert([403, 404].includes(r.status), p + ' → ' + r.status); }
@@ -450,6 +461,47 @@ async function section(name, fn) { try { await fn(); results.push([name, true]);
     const a = createApp({ dataDir: dir, publicDir: path.join(__dirname, 'public') }); const pt = await a.start(3960 + Math.floor(Math.random() * 9));
     assert.equal(a.ctx.db.messages.length, before); const r = await fetch(`http://127.0.0.1:${pt}/api/messages?chan=general`, { headers: { 'x-token': tok } }); assert.equal(r.status, 200, 'old token still valid after restart');
     assert.equal(a.ctx.db.settings.name, 'Friday Gang'); a.stop();
+  });
+
+  await section('https on the same port: certificate, keep-alive, live events, uploads, moving a browser to https', async () => {
+    const https = require('https'), http = require('http'), crypto = require('crypto');
+    const dir = path.join(tmp, 'tls'), a = createApp({ dataDir: dir, requireApproval: false, publicDir: path.join(__dirname, 'public') }), pt = await a.start(3960 + Math.floor(Math.random() * 9));
+    const cert = fs.readFileSync(path.join(dir, 'tls-cert.pem'), 'utf8'), x = new crypto.X509Certificate(cert);
+    assert(a.https, 'https is on by default'); assert(x.checkIP('127.0.0.1'), 'the certificate names 127.0.0.1'); assert(!x.ca, 'not a CA');
+    assert(new Date(x.validTo).getTime() - Date.now() < 826 * 86400000, 'valid for less than 825 days (Apple rule)');
+    const agents = { https: new https.Agent({ keepAlive: true, ca: cert, maxSockets: 1 }), http: new http.Agent({ keepAlive: true, maxSockets: 1 }) };
+    const req = (proto, method, p, b, tok, raw) => new Promise((resolve, reject) => {
+      const lib = proto === 'https' ? https : http, data = raw || (b === undefined ? null : Buffer.from(JSON.stringify(b)));
+      const r = lib.request({ host: '127.0.0.1', port: pt, path: p, method, agent: agents[proto], headers: { 'x-token': tok || '', 'content-type': 'application/json', ...(data ? { 'content-length': data.length } : {}) } }, (res) => { const ch = [], sock = res.socket; res.on('data', (c) => ch.push(c)); res.on('end', () => { const s = Buffer.concat(ch).toString(); let d = {}; try { d = JSON.parse(s); } catch {} resolve({ s: res.statusCode, d, sock }); }); });
+      r.on('error', reject); if (data) r.write(data); r.end();
+    });
+    const c1 = await req('https', 'GET', '/api/config'); assert.equal(c1.s, 200); assert.equal(c1.d.https, true); assert(c1.sock.encrypted, 'really TLS');
+    const c2 = await req('http', 'GET', '/api/config'); assert.equal(c2.s, 200); assert(!c2.sock.encrypted, 'plain http still works');
+    // keep-alive: several requests ride one connection, on both protocols
+    for (const proto of ['https', 'http']) { const socks = new Set(); for (let i = 0; i < 4; i++) socks.add((await req(proto, 'GET', '/api/config')).sock); assert.equal(socks.size, 1, proto + ' keep-alive reuses the connection'); }
+    const j = await req('https', 'POST', '/api/join', { name: 'Tia', deviceId: 'tia' }); assert.equal(j.s, 200, JSON.stringify(j.d)); const tok = j.d.token;
+    // live events over https, message sent over http arrives
+    const evs = []; const ac = new AbortController();
+    const sseReq = https.get({ host: '127.0.0.1', port: pt, path: '/api/events?token=' + tok, ca: cert, signal: ac.signal }, (res) => { let buf = ''; res.on('data', (ch) => { buf += ch; let i; while ((i = buf.indexOf('\n\n')) >= 0) { const blk = buf.slice(0, i); buf = buf.slice(i + 2); const ev = /event: (\w+)/.exec(blk), dt = /data: (.*)/.exec(blk); if (ev && dt) evs.push([ev[1], dt[1]]); } }); }); sseReq.on('error', () => {});
+    for (let i = 0; i < 80 && !evs.some((e) => e[0] === 'init'); i++) await wait(25); assert(evs.some((e) => e[0] === 'init'), 'init arrives over https');
+    await req('http', 'POST', '/api/send', { chan: 'general', text: 'over plain http' }, tok);
+    for (let i = 0; i < 80 && !evs.some((e) => e[0] === 'message' && e[1].includes('over plain http')); i++) await wait(25); assert(evs.some((e) => e[0] === 'message'), 'message pushed to the https listener');
+    ac.abort();
+    // a 3 MB upload over https
+    const big = crypto.randomBytes(3 * 1024 * 1024), up = await req('https', 'POST', '/api/upload?name=big.bin', undefined, tok, big); assert.equal(up.s, 200, JSON.stringify(up.d)); assert.equal(up.d.size, big.length);
+    // a browser on http:// moves to https:// with a one-time code (no new approval)
+    const ho = await req('http', 'POST', '/api/handoff', {}, tok); assert.equal(ho.s, 200); assert(/^[a-f0-9]{32}$/.test(ho.d.code));
+    const rd = await req('https', 'POST', '/api/handoff/redeem', { code: ho.d.code, deviceId: 'tia2' }); assert.equal(rd.s, 200); assert.equal(rd.d.me.id, j.d.me.id, 'same account'); assert.notEqual(rd.d.token, tok, 'a new sign-in for the https page');
+    assert.equal((await req('https', 'POST', '/api/handoff/redeem', { code: ho.d.code })).s, 404, 'codes work once');
+    assert.equal((await req('https', 'POST', '/api/handoff', {})).s, 401, 'only signed-in people get a code');
+    // garbage and idle connections do not crash the listener
+    await new Promise((r) => { const s = require('net').connect(pt, '127.0.0.1', () => { s.write(Buffer.from([0x16, 3, 1, 0, 5, 1, 2, 3, 4, 5])); setTimeout(() => { s.destroy(); r(); }, 100); }); s.on('error', r); });
+    await new Promise((r) => { const s = require('net').connect(pt, '127.0.0.1', () => { s.write('NOT HTTP\r\n\r\n'); setTimeout(() => { s.destroy(); r(); }, 100); }); s.on('error', r); });
+    assert.equal((await req('https', 'GET', '/api/config')).s, 200, 'still serving');
+    // the certificate survives restarts (browsers remember the "proceed" choice)
+    agents.https.destroy(); agents.http.destroy(); a.stop(); const b2 = createApp({ dataDir: dir, publicDir: path.join(__dirname, 'public') }); await b2.start(pt);
+    assert.equal(fs.readFileSync(path.join(dir, 'tls-cert.pem'), 'utf8'), cert, 'same certificate after restart'); b2.stop();
+    const off = createApp({ dataDir: path.join(tmp, 'tls-off'), https: false, publicDir: path.join(__dirname, 'public') }); await off.start(pt + 20); assert(!off.https); assert.equal((await fetch(`http://127.0.0.1:${pt + 20}/api/config`).then((r) => r.json())).https, false); off.stop();
   });
 
   await section('clean-up tools: delete old messages, clear chats, delete people, delete my account, start fresh', async () => {

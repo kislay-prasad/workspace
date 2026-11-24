@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>LANChat</title>
-<meta name="theme-color" content="#464775">
+<meta name="theme-color" content="#5b5fc7">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="LANChat">
@@ -18,7 +18,7 @@
 
 <div id="login" class="login hidden" role="main">
   <form id="loginForm" class="card" autocomplete="off">
-    <div class="logo" aria-hidden="true">💬</div>
+    <div class="logo" aria-hidden="true"><img src="icon.svg" alt="" width="56" height="56"></div>
     <h1 id="loginTitle">LANChat</h1>
     <p id="loginSub" data-i18n="loginSub">Chat with everyone on this Wi-Fi. Nothing leaves your network.</p>
     <p id="hostNote" class="hostnote hidden" data-i18n="hostNote">You are the host of this session — you approve who joins.</p>
@@ -34,7 +34,7 @@
 
 <div id="waiting" class="login hidden" role="main">
   <div class="card">
-    <div class="logo spin" aria-hidden="true">⏳</div>
+    <div class="spinner" aria-hidden="true"></div>
     <h1 data-i18n="waitingTitle">Waiting for approval</h1>
     <p id="waitingMsg" data-i18n="waitingMsg">The host has been asked to let you in. Keep this page open.</p>
     <button class="secondary" id="cancelWait" data-i18n="cancel">Cancel</button>
@@ -43,23 +43,26 @@
 
 <div id="app" class="app hidden">
   <div id="banner" class="banner hidden" role="status"></div>
-  <aside id="sidebar" class="sidebar" aria-label="Chats">
-    <div class="side-head">
-      <div class="brand" id="brand">💬 LANChat</div>
-      <div class="side-actions">
-        <button id="inviteBtn" class="invite" data-i18n="invite" title="Invite friends">＋ Invite</button>
-        <button id="gearBtn" class="icon" aria-label="Menu" title="Menu" aria-haspopup="menu">⚙</button>
-      </div>
+  <header id="topbar" class="topbar">
+    <div class="brand" id="brand"><img src="icon.svg" alt="" width="24" height="24"><span id="brandName">LANChat</span></div>
+    <div class="topsearch" role="search"><span id="searchIcon" class="sicon" aria-hidden="true"></span><input id="search" type="search" data-i18n-ph="search" placeholder="Search" autocomplete="off" aria-label="Search"></div>
+    <div class="top-actions">
+      <button id="searchBtn" class="icon only-phone" aria-label="Search" title="Search"></button>
+      <button id="inviteBtn" class="invite" title="Invite friends"><span id="inviteIcon"></span><span data-i18n="invite">Invite</span></button>
+      <button id="gearBtn" class="icon" aria-label="Settings and more" title="Settings and more" aria-haspopup="menu"></button>
+      <div id="meBox" class="me"></div>
     </div>
-    <input id="search" class="search" type="search" data-i18n-ph="search" placeholder="Search (Enter)" autocomplete="off" aria-label="Search">
-    <nav id="nav" class="nav"></nav>
-    <div id="meBox" class="me"></div>
-  </aside>
-  <div id="scrim" class="scrim"></div>
+  </header>
+  <nav id="rail" class="rail" aria-label="App bar"></nav>
+  <div id="sidebar" class="sidebar" role="complementary" aria-label="Chats">
+    <div class="side-head"><h1 id="sideTitle" class="side-title">Chat</h1><div id="sideActions" class="side-actions"></div></div>
+    <div id="nav" class="nav"></div>
+  </div>
 
   <main class="main" id="main">
     <header class="chat-head">
-      <button id="menuBtn" class="icon menu" aria-label="Chats">☰</button>
+      <button id="menuBtn" class="icon menu" aria-label="Back to chats" title="Back to chats"></button>
+      <div id="headAvatar" class="head-av"></div>
       <div class="head-title"><h1 id="title" class="title"></h1><div id="topic" class="topic"></div></div>
       <div class="head-actions" id="headActions"></div>
     </header>
@@ -67,7 +70,7 @@
     <div id="callBar" class="callbar hidden"></div>
     <div id="chatView" class="chatview">
       <div id="msgs" class="msgs" tabindex="0" role="log" aria-label="Messages"></div>
-      <button id="toBottom" class="tobottom hidden" aria-label="Latest messages">↓</button>
+      <button id="toBottom" class="tobottom hidden" aria-label="Latest messages"></button>
       <div id="typing" class="typing" aria-hidden="true"></div>
       <div id="composerHost"></div>
     </div>
@@ -86,6 +89,7 @@
 <div id="sr" class="sr-only" aria-live="polite"></div>
 
 <script src="qrcode.js"></script>
+<script src="js/icons.js"></script>
 <script src="js/i18n.js"></script>
 <script src="js/core.js"></script>
 <script src="js/render.js"></script>

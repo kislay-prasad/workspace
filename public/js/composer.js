@@ -20,15 +20,16 @@
     const p = $('#picker'); let tab = o.reactions ? '😀' : (LC.ls.get('lc_recent', []).length ? 'recent' : '😀'), q = '';
     const draw = () => {
       const recent = LC.ls.get('lc_recent', []), names = Object.keys(S.emojis).sort();
-      const tabs = [['recent', '🕘'], ...Object.keys(EMOJI).map((k) => [k, k]), ['custom', '⭐'], ...(o.stickers ? [['stickers', '🎭']] : [])];
+      const tabs = [['recent', 'clock'], ...Object.keys(EMOJI).map((k) => [k, k]), ['custom', 'star'], ...(o.stickers ? [['stickers', 'sticker']] : [])];
       const pick = (e) => { if (!/^:/.test(e)) LC.ls.set('lc_recent', [e, ...LC.ls.get('lc_recent', []).filter((x) => x !== e)].slice(0, 24)); p.classList.add('hidden'); onPick(e); };
       let grid;
       if (tab === 'custom') grid = el('div', { class: 'grid cgrid' }, names.filter((n) => n.includes(q.toLowerCase())).map((n) => el('button', { title: ':' + n + ':', onclick: () => pick(':' + n + ':') }, el('img', { class: 'cemoji big', src: LC.fileUrl({ id: S.emojis[n], name: n + '.png' }, true), alt: ':' + n + ':' }))), !names.length ? el('p', { class: 'muted small', text: t('noCustomEmoji') }) : null);
       else if (tab === 'stickers') grid = el('div', { class: 'grid sgrid' }, STICKERS.map((e) => el('button', { class: 'sticker', text: e, onclick: () => { p.classList.add('hidden'); o.onSticker(e); } })));
       else grid = el('div', { class: 'grid' }, (tab === 'recent' ? recent : EMOJI[tab].split(' ')).map((e) => el('button', { text: e, onclick: () => pick(e) })));
-      p.replaceChildren(el('div', { class: 'ptabs', role: 'tablist' }, tabs.map(([k, ic]) => el('button', { class: k === tab ? 'on' : '', role: 'tab', 'aria-selected': k === tab, text: ic, onclick: () => { tab = k; draw(); } }))),
+      const tabName = { recent: t('recent'), custom: t('customEmoji'), stickers: t('stickers') };
+      p.replaceChildren(el('div', { class: 'ptabs', role: 'tablist' }, tabs.map(([k, ic]) => el('button', { class: k === tab ? 'on' : '', role: 'tab', 'aria-selected': String(k === tab), 'aria-label': tabName[k] || ic, title: tabName[k] || '', onclick: () => { tab = k; draw(); } }, LC.hasIcon(ic) ? LC.icon(ic) : ic))),
         tab === 'custom' ? el('input', { class: 'psearch', placeholder: t('searchEmoji'), value: q, oninput: (e) => { q = e.target.value; const pos = e.target.selectionStart; draw(); const i = p.querySelector('.psearch'); i.focus(); i.setSelectionRange(pos, pos); } }) : null, grid,
-        tab === 'custom' ? el('button', { class: 'secondary sm', text: '＋ ' + t('addEmoji'), onclick: () => { p.classList.add('hidden'); LC.emojiManager(); } }) : null);
+        tab === 'custom' ? el('button', { class: 'secondary sm withicon', onclick: () => { p.classList.add('hidden'); LC.emojiManager(); } }, LC.icon('add'), t('addEmoji')) : null);
     };
     draw(); p.classList.remove('hidden'); p.style.visibility = 'hidden';
     const r = anchor.getBoundingClientRect(), w = p.offsetWidth, h = p.offsetHeight;
@@ -96,12 +97,12 @@
     const ta = el('textarea', { rows: 1, maxlength: 8000, placeholder: cfg.compact ? t('replyPlaceholder') : t('typeMessage'), 'aria-label': t('typeMessage') });
     const chips = el('div', { class: 'chips' }), ctx = el('div', { class: 'ctx hidden' }), notice = el('div', { class: 'notice hidden' }), recbar = el('div', { class: 'recbar hidden' }), ac = el('div', { class: 'ac hidden', role: 'listbox' });
     const fileIn = el('input', { type: 'file', multiple: true, class: 'hidden', onchange: (e) => { addFiles([...e.target.files]); e.target.value = ''; } });
-    const sendBtn = el('button', { class: 'send', title: t('send'), 'aria-label': t('send'), text: '➤', onclick: () => send() });
-    const ttlDot = el('span', { class: 'ttldot hidden', text: '⏱' });
-    const btn = (text, title, fn, cls = '') => el('button', { class: 'icon ' + cls, text, title, 'aria-label': title, onclick: fn });
-    const micBtn = btn('🎙', t('voiceNote'), () => toggleVoice(), 'mic'), emojiBtn = btn('😊', t('emoji'), (e) => LC.openPicker(e.currentTarget, (em) => insert(em), { stickers: !cfg.compact, onSticker: (em) => send({ text: em, force: true }) }), 'emojibtn');
-    const moreBtn = btn('⋯', t('moreOptions'), (e) => moreMenu(e.currentTarget), 'morebtn'); moreBtn.append(ttlDot);
-    const row = el('div', { class: 'row' }, btn('📎', t('attach'), (e) => attachMenu(e.currentTarget)), ta, emojiBtn, micBtn, moreBtn, sendBtn);
+    const sendBtn = el('button', { class: 'send', title: t('send'), 'aria-label': t('send'), onclick: () => send() }, LC.icon('send', { filled: true }));
+    const ttlDot = el('span', { class: 'ttldot hidden' }, LC.icon('timer'));
+    const btn = (icon, title, fn, cls = '') => el('button', { class: 'icon ' + cls, title, 'aria-label': title, type: 'button', onclick: fn }, LC.icon(icon));
+    const micBtn = btn('mic', t('voiceNote'), () => toggleVoice(), 'mic'), emojiBtn = btn('emoji', t('emoji'), (e) => LC.openPicker(e.currentTarget, (em) => insert(em), { stickers: !cfg.compact, onSticker: (em) => send({ text: em, force: true }) }), 'emojibtn');
+    const moreBtn = btn('more_horizontal', t('moreOptions'), (e) => moreMenu(e.currentTarget), 'morebtn'); moreBtn.append(ttlDot);
+    const row = el('div', { class: 'row' }, ta, el('div', { class: 'ctools' }, emojiBtn, btn('attach', t('attach'), (e) => attachMenu(e.currentTarget), 'attachbtn'), micBtn, moreBtn, el('span', { class: 'csep', 'aria-hidden': 'true' }), sendBtn));
     const root = el('div', { class: 'composer' + (cfg.compact ? ' compact' : ''), 'data-composer': cfg.compact ? 'thread' : 'main' }, notice, ctx, chips, recbar, row, ac, fileIn);
 
     const autosize = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; };
@@ -109,13 +110,13 @@
     const saveDraft = LC.debounce(() => { if (editing) return; const v = ta.value; if (v) LC.ls.set(key(), v); else LC.ls.del(key()); }, 300);
     const renderCtx = () => {
       ctx.replaceChildren();
-      if (editing) ctx.append(el('span', { text: '✎ ' + t('editingMsg') }), el('button', { class: 'icon', text: '✕', 'aria-label': t('cancel'), onclick: cancelCtx }));
-      else if (replyTo) ctx.append(el('span', {}, '↩ ' + t('replyingTo') + ' ', el('b', { text: LC.uname(replyTo.from) }), el('span', { class: 'muted', text: ' — ' + LC.snippet(replyTo).slice(0, 60) })), el('button', { class: 'icon', text: '✕', 'aria-label': t('cancel'), onclick: cancelCtx }));
+      if (editing) ctx.append(el('span', {}, LC.icon('edit'), ' ' + t('editingMsg')), LC.ibtn('dismiss', t('cancel'), cancelCtx));
+      else if (replyTo) ctx.append(el('span', {}, LC.icon('arrow_reply'), ' ' + t('replyingTo') + ' ', el('b', { text: LC.uname(replyTo.from) }), el('span', { class: 'muted', text: ' — ' + LC.snippet(replyTo).slice(0, 60) })), LC.ibtn('dismiss', t('cancel'), cancelCtx));
       ctx.classList.toggle('hidden', !editing && !replyTo);
     };
     const cancelCtx = () => { if (editing) { ta.value = LC.ls.get(key(), ''); } editing = null; replyTo = null; renderCtx(); autosize(); };
     const renderChips = () => {
-      chips.replaceChildren(...files.map((f) => el('div', { class: 'chip' + (f.status === 'error' ? ' err' : '') }, el('span', { class: 'cn', text: (f.status === 'error' ? '⚠ ' : f.status === 'done' ? '✓ ' : '') + f.name + ' · ' + LC.fmtSize(f.size) }), f.status === 'uploading' ? el('span', { class: 'progress', role: 'progressbar', 'aria-valuenow': Math.round(f.pct * 100) }, el('i', { style: { width: Math.round(f.pct * 100) + '%' } })) : null, f.status === 'error' ? el('span', { class: 'small', text: f.err }) : null, el('button', { class: 'icon', text: '✕', 'aria-label': t('remove'), onclick: () => { if (f.up) f.up.abort(); files = files.filter((x) => x !== f); renderChips(); update(); } }))));
+      chips.replaceChildren(...files.map((f) => el('div', { class: 'chip' + (f.status === 'error' ? ' err' : '') }, f.status === 'error' ? LC.icon('warning') : f.status === 'done' ? LC.icon('checkmark_circle', { filled: true, cls: 'ok' }) : LC.icon('document'), el('span', { class: 'cn', text: f.name + ' · ' + LC.fmtSize(f.size) }), f.status === 'uploading' ? el('span', { class: 'progress', role: 'progressbar', 'aria-valuenow': Math.round(f.pct * 100) }, el('i', { style: { width: Math.round(f.pct * 100) + '%' } })) : null, f.status === 'error' ? el('span', { class: 'small', text: f.err }) : null, LC.ibtn('dismiss', t('remove'), () => { if (f.up) f.up.abort(); files = files.filter((x) => x !== f); renderChips(); update(); }))));
       chips.classList.toggle('hidden', !files.length);
     };
     const uploading = () => files.some((f) => f.status === 'uploading');
@@ -211,41 +212,41 @@
 
     // ----- menus & creators -----
     function attachMenu(anchor) {
-      LC.menu(anchor, [{ icon: '📄', label: t('attachFiles'), fn: () => fileIn.click() }, { icon: '🖼', label: t('attachPhoto'), fn: () => { fileIn.accept = 'image/*,video/*'; fileIn.click(); fileIn.accept = ''; } }, { icon: '🖥', label: t('recordScreen'), fn: () => recordClip('screen') }, { icon: '📷', label: t('recordCamera'), fn: () => recordClip('camera') }]);
+      LC.menu(anchor, [{ icon: 'document', label: t('attachFiles'), fn: () => fileIn.click() }, { icon: 'image', label: t('attachPhoto'), fn: () => { fileIn.accept = 'image/*,video/*'; fileIn.click(); fileIn.accept = ''; } }, { icon: 'desktop', label: t('recordScreen'), fn: () => recordClip('screen') }, { icon: 'camera', label: t('recordCamera'), fn: () => recordClip('camera') }]);
     }
     function moreMenu(anchor) {
       const ttls = [[undefined, t('ttlDefault')], [0, t('ttlOff')], [60, t('ttl1m')], [3600, t('ttl1h')], [86400, t('ttl1d')], [604800, t('ttl1w')]];
       LC.menu(anchor, [
-        !cfg.compact ? { icon: '📊', label: t('createPoll'), fn: () => pollDialog(false) } : null, !cfg.compact ? { icon: '🧠', label: t('createQuiz'), fn: () => pollDialog(true) } : null,
-        !cfg.compact ? { icon: '🎮', label: t('startGame'), fn: () => send({ game: { type: 'ttt' }, force: true }) } : null, !cfg.compact ? 'sep' : null,
-        { icon: '🕑', label: t('scheduleSend'), fn: () => scheduleDialog() }, { icon: '📋', label: t('scheduledMsgs'), fn: () => LC.scheduledList() }, 'sep',
-        ...ttls.map(([v, label]) => ({ label: (v === undefined ? '⏱ ' : '') + label, checked: ttlChoice === v, fn: () => { ttlChoice = v; refreshTtl(); } })), 'sep',
-        { icon: LC.ui.compress ? '☑' : '☐', label: t('compressImages'), fn: () => LC.setUi({ compress: !LC.ui.compress }) },
+        !cfg.compact ? { icon: 'poll', label: t('createPoll'), fn: () => pollDialog(false) } : null, !cfg.compact ? { icon: 'lightbulb', label: t('createQuiz'), fn: () => pollDialog(true) } : null,
+        !cfg.compact ? { icon: 'games', label: t('startGame'), fn: () => send({ game: { type: 'ttt' }, force: true }) } : null, !cfg.compact ? 'sep' : null,
+        { icon: 'send_clock', label: t('scheduleSend'), fn: () => scheduleDialog() }, { icon: 'calendar_clock', label: t('scheduledMsgs'), fn: () => LC.scheduledList() }, 'sep',
+        ...ttls.map(([v, label]) => ({ icon: v === undefined ? 'timer' : '', label, checked: ttlChoice === v, fn: () => { ttlChoice = v; refreshTtl(); } })), 'sep',
+        { icon: 'image', label: t('compressImages'), checked: !!LC.ui.compress, fn: () => LC.setUi({ compress: !LC.ui.compress }) },
       ]);
     }
     const refreshTtl = () => { ttlDot.classList.toggle('hidden', ttlChoice === undefined); ttlDot.title = ttlChoice === undefined ? '' : ttlChoice ? t('ttlTitle', { t: LC.ttlLabel(ttlChoice) }) : t('ttlOff'); };
     function scheduleDialog() {
       const d = new Date(Date.now() + 3600000); d.setMinutes(0, 0, 0); const pad = (n) => String(n).padStart(2, '0');
       const inp = el('input', { type: 'datetime-local', value: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`, 'aria-label': t('scheduleSend') });
-      LC.modal([el('h2', { text: '🕑 ' + t('scheduleSend') }), el('p', { class: 'muted small', text: t('scheduleHelp') }), inp, el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('cancel'), onclick: LC.closeModal }), el('button', { class: 'primary', text: t('schedule'), onclick: () => { const at = new Date(inp.value).getTime(); if (!at || at < Date.now() + 10000) return LC.toast(t('pickFuture')); LC.closeModal(); send({ sendAt: at }); } }))]);
+      LC.modal([el('h2', {}, LC.icon('send_clock'), ' ' + t('scheduleSend')), el('p', { class: 'muted small', text: t('scheduleHelp') }), inp, el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('cancel'), onclick: LC.closeModal }), el('button', { class: 'primary', text: t('schedule'), onclick: () => { const at = new Date(inp.value).getTime(); if (!at || at < Date.now() + 10000) return LC.toast(t('pickFuture')); LC.closeModal(); send({ sendAt: at }); } }))]);
     }
     function pollDialog(quiz) {
       let correct = 0; const q = el('input', { placeholder: quiz ? t('quizQuestion') : t('pollQuestion'), maxlength: 200, 'aria-label': t('pollQuestion') }), list = el('div', { class: 'optlist' }), multi = el('input', { type: 'checkbox' });
       const rows = []; const addRow = (v = '') => { if (rows.length >= 10) return; const i = rows.length, inp = el('input', { placeholder: t('optionN', { n: i + 1 }), maxlength: 100, value: v }); const r = el('div', { class: 'optrow' }, quiz ? el('input', { type: 'radio', name: 'correct', checked: i === 0, 'aria-label': t('correctAnswer'), title: t('correctAnswer'), onchange: () => { correct = rows.findIndex((x) => x.r === r); } }) : null, inp); rows.push({ r, inp }); list.append(r); };
       addRow(); addRow();
-      LC.modal([el('h2', { text: (quiz ? '🧠 ' + t('createQuiz') : '📊 ' + t('createPoll')) }), q, list, el('button', { class: 'secondary sm', text: '＋ ' + t('addOption'), onclick: () => addRow() }), quiz ? el('p', { class: 'muted small', text: t('quizPickCorrect') }) : el('label', { class: 'check' }, multi, ' ' + t('allowMultiple')),
+      LC.modal([el('h2', {}, LC.icon(quiz ? 'lightbulb' : 'poll'), ' ' + (quiz ? t('createQuiz') : t('createPoll'))), q, list, el('button', { class: 'secondary sm withicon', onclick: () => addRow() }, LC.icon('add'), t('addOption')), quiz ? el('p', { class: 'muted small', text: t('quizPickCorrect') }) : el('label', { class: 'check' }, multi, ' ' + t('allowMultiple')),
         el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('cancel'), onclick: LC.closeModal }), el('button', { class: 'primary', text: t('post'), onclick: () => { const options = rows.map((x) => x.inp.value.trim()); const kept = options.map((v, i) => [v, i]).filter(([v]) => v); if (!q.value.trim() || kept.length < 2) return LC.toast(t('pollNeeds')); LC.closeModal(); send({ poll: { q: q.value, options: kept.map(([v]) => v), multi: multi.checked, correct: quiz ? kept.findIndex(([, i]) => i === correct) : undefined }, force: true }); } }))]);
     }
 
     // ----- recorders -----
     async function toggleVoice() {
       if (recorder) return stopRecording(true);
-      if (!LC.canRecord()) return LC.toast(t('needSecure'));
+      if (!LC.canRecord()) return LC.needSecure();
       if (!guard()) return;
       try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); startRecording(stream, 'voice'); } catch (e) { LC.toast(t('micDenied')); }
     }
     async function recordClip(kind) {
-      if (!LC.canRecord() || (kind === 'screen' && !navigator.mediaDevices.getDisplayMedia)) return LC.toast(t('needSecure')); if (!guard()) return;
+      if (!LC.canRecord() || (kind === 'screen' && !navigator.mediaDevices.getDisplayMedia)) return LC.needSecure(); if (!guard()) return;
       try { const stream = kind === 'screen' ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }) : await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); startRecording(stream, 'clip'); } catch (e) { LC.toast(t('captureDenied')); }
     }
     function startRecording(stream, kind) {
@@ -254,7 +255,7 @@
       rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
       const timer = el('b', { text: '0:00' }), tick = setInterval(() => { const s = Math.floor((Date.now() - t0) / 1000); timer.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; if (s >= (kind === 'voice' ? 600 : 180)) stopRecording(true); }, 500);
       recorder = { rec, stream, kind, tick, cancelled: false }; rec.start(500);
-      recbar.replaceChildren(el('span', { class: 'recdot', text: '●' }), el('span', { text: (kind === 'voice' ? t('recording') : t('recordingClip')) + ' ' }), timer, el('button', { class: 'secondary sm', text: t('cancel'), onclick: () => stopRecording(false) }), el('button', { class: 'primary sm', text: kind === 'voice' ? t('sendVoice') : t('attachClip'), onclick: () => stopRecording(true) }));
+      recbar.replaceChildren(el('span', { class: 'recdot', 'aria-hidden': 'true' }), el('span', { text: (kind === 'voice' ? t('recording') : t('recordingClip')) + ' ' }), timer, el('button', { class: 'secondary sm', text: t('cancel'), onclick: () => stopRecording(false) }), el('button', { class: 'primary sm', text: kind === 'voice' ? t('sendVoice') : t('attachClip'), onclick: () => stopRecording(true) }));
       recbar.classList.remove('hidden'); micBtn.classList.add('live');
       stream.getTracks().forEach((tr) => { tr.onended = () => recorder && stopRecording(true); });
       rec.onstop = () => {

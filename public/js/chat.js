@@ -3,100 +3,183 @@
 (() => {
   const LC = window.LC, { el, S, $ } = LC, t = (k, v) => LC.t(k, v);
   const caches = new Map(); // chan -> Map(id -> {sig, node})
-  let loadingOlder = false, loadingNewer = false, stick = true, threadMsgs = [], threadCache = new Map(), navQueued = false;
+  let loadingOlder = false, loadingNewer = false, stick = true, threadMsgs = [], threadCache = new Map(), navQueued = false, booted = false;
 
   const raf = (fn) => requestAnimationFrame(fn);
   LC.renderNav = () => { if (navQueued) return; navQueued = true; raf(() => { navQueued = false; renderNavNow(); }); };
 
-  // ---------- sidebar ----------
-  const menuToggle = (open) => { $('#sidebar').classList.toggle('open', open); $('#scrim').classList.toggle('open', open); };
+  // ---------- app bar (left rail) + chat list ----------
+  const PHONE = () => matchMedia('(max-width: 760px)').matches;
+  // phones show either the chat list (Teams-style bottom bar) or one conversation; the visible one is the page's main region
+  const menuToggle = (open) => { $('#app').classList.toggle('list-mode', !!open); const side = $('#sidebar'); side.setAttribute('role', open && PHONE() ? 'main' : 'complementary'); if (open) LC.renderNav(); };
   LC.menuToggle = menuToggle;
+  const lang = () => (LC.ui.lang === 'auto' ? undefined : LC.ui.lang);
+  LC.shortTime = (ts) => { const d = new Date(ts), n = new Date(); if (d.toDateString() === n.toDateString()) return LC.fmtTime(ts); const days = (n - d) / 86400000; return days < 6 ? d.toLocaleDateString(lang(), { weekday: 'short' }) : d.toLocaleDateString(lang(), { day: 'numeric', month: 'numeric' }); };
+  const RAIL = [['activity', 'alert', 'railActivity'], ['chat', 'chat', 'railChat'], ['calls', 'call', 'railCalls'], ['saved', 'bookmark', 'railSaved']];
+  LC.setPane = (pane) => { S.pane = pane; if (PHONE()) menuToggle(true); renderRail(); renderNavNow(); };
+  function renderRail() {
+    const rail = $('#rail'); if (!rail || !S.me) return;
+    const badge = { activity: Object.values(S.mentions).reduce((a, b) => a + b, 0), chat: LC.totalUnread(), calls: Object.keys(S.calls).length };
+    const item = (key, icon, label, n, fn, active) => el('button', { class: 'rbtn' + (active ? ' on' : ''), 'data-pane': key, 'aria-current': active ? 'page' : null, 'aria-label': label + (n ? ` (${n})` : ''), title: label, onclick: fn },
+      el('span', { class: 'rico' }, LC.icon(icon, { filled: active }), n ? el('span', { class: 'rbadge' + (key === 'calls' ? ' live' : ''), text: n > 99 ? '99+' : String(n) }) : null), el('span', { class: 'rlabel', text: label }));
+    rail.replaceChildren(el('div', { class: 'rtop' }, ...RAIL.map(([k, ic, lab]) => item(k, ic, t(lab), badge[k] || 0, () => LC.setPane(k), S.pane === k))),
+      el('div', { class: 'rbottom' }, LC.isAdmin() ? item('manage', 'shield_person', t('railManage'), S.pendingReqs.length, () => LC.adminPanel(), false) : null, item('settings', 'settings', t('settings'), 0, () => LC.settingsPanel(), false)));
+  }
+  LC.renderRail = renderRail;
   function chatEntries() {
     const prefs = LC.prefs(), pinned = prefs.pinnedChats || [], archived = new Set(prefs.archived || []);
-    const chans = [...S.channels.values()].map((c) => ({ id: c.id, kind: c.members ? 'group' : 'channel', c })), people = [...S.users.values()].filter((u) => u.id !== S.me.id && !u.removed).map((u) => ({ id: LC.dmId(S.me.id, u.id), kind: 'dm', u }));
+    const chans = [...S.channels.values()].map((c) => ({ id: c.id, kind: c.members ? 'group' : 'channel', c })), people = [...S.users.values()].filter((u) => u.id !== S.me.id && !u.removed && !u.deleted).map((u) => ({ id: LC.dmId(S.me.id, u.id), kind: 'dm', u }));
     const all = new Map([...chans, ...people].map((e) => [e.id, e]));
     return { all, pinned: pinned.map((id) => all.get(id)).filter(Boolean), archived, chans, people };
   }
-  function navItem(e, o = {}) {
-    const id = e.id, un = S.unread[id] || 0, mn = S.mentions[id] || 0, muted = LC.isMuted(id);
-    const lead = e.kind === 'dm' ? LC.avatar(e.u, 'sm', true) : el('span', { class: 'hash', text: e.kind === 'group' ? '🔒' : '#' });
-    const name = e.kind === 'dm' ? LC.uname(e.u.id) : e.c.name;
-    const status = e.kind === 'dm' && (e.u.statusEmoji || e.u.statusText) ? el('span', { class: 'st', text: e.u.statusEmoji || '💬', title: e.u.statusText }) : null;
-    const main = el('button', { class: 'itemmain', 'aria-current': S.chan === id ? 'page' : null, onclick: () => LC.openChat(id) },
-      lead, el('span', { class: 'name', text: name }), status, o.fav ? el('span', { class: 'fav', text: '⭐', 'aria-label': t('favorite') }) : null, muted ? el('span', { class: 'mutedmark', text: '🔕', 'aria-label': t('muted') }) : null,
-      mn ? el('span', { class: 'badge mention', text: '@' + mn, 'aria-label': t('unreadMentions', { n: mn }) }) : un && !muted ? el('span', { class: 'badge', text: un > 99 ? '99+' : un, 'aria-label': t('unreadMsgs', { n: un }) }) : un ? el('span', { class: 'dotmark', 'aria-label': t('unreadMsgs', { n: un }) }) : null);
-    const node = el('div', { class: 'item' + (S.chan === id ? ' active' : '') + (un ? ' unread' : '') + (muted ? ' muted' : ''), 'data-chan': id, oncontextmenu: (ev) => { ev.preventDefault(); chatMenu({ x: ev.clientX, y: ev.clientY }, e); } },
-      main, el('button', { class: 'kebab', 'aria-label': t('chatOptions'), 'aria-haspopup': 'menu', text: '⋯', onclick: (ev) => { ev.stopPropagation(); chatMenu(ev.currentTarget, e); } }));
-    return node;
+  const PALETTE = ['#5b5fc7', '#038387', '#c239b3', '#ca5010', '#498205', '#0078d4', '#986f0b', '#d13438', '#4f6bed', '#7a5af5'];
+  const colorOf = (id) => PALETTE[[...id].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7) % PALETTE.length];
+  // the round/square picture in front of a chat: a person, a group, or a channel tile
+  LC.chatLead = (id, size = '') => {
+    const i = LC.chanInfo(id);
+    if (i.kind === 'dm') return LC.avatar(i.peer, size, true);
+    if (i.kind === 'group') return el('div', { class: 'av tile group ' + size, 'aria-hidden': 'true', style: `background:${colorOf(id)}` }, LC.icon('people_team', { filled: true }));
+    return el('div', { class: 'av tile ' + size, 'aria-hidden': 'true', style: `background:${colorOf(id)}`, text: ((i.c && i.c.name) || '#').trim()[0].toUpperCase() });
+  };
+  const briefOf = (m) => ({ id: m.id, from: m.from || null, ts: m.ts, text: m.deleted ? '' : String(m.text || '').slice(0, 140), system: m.system || undefined, kind: m.kind, deleted: m.deleted || undefined, file: !m.deleted && m.files && m.files.length ? m.files[0].name : undefined, poll: !m.deleted && m.poll ? m.poll.q : undefined, game: !m.deleted && m.game ? true : undefined });
+  function previewOf(chan) {
+    const m = S.last[chan]; if (!m) return '';
+    if (m.deleted) return t('deleted'); if (m.system) return LC.sysText(m).text;
+    const who = m.from === S.me.id ? t('you') + ': ' : m.from && !chan.startsWith('dm:') ? LC.uname(m.from).split(' ')[0] + ': ' : '';
+    return who + (m.text ? LC.plain(m.text) : m.poll ? t('pollPreview', { q: m.poll }) : m.game ? t('ttt') : m.file ? t('filePreview', { name: m.file }) : '');
   }
+  function navItem(e, o = {}) {
+    const id = e.id, un = S.unread[id] || 0, mn = S.mentions[id] || 0, muted = LC.isMuted(id), last = S.last[id];
+    const name = e.kind === 'dm' ? LC.uname(e.u.id) : e.c.name, prev = previewOf(id) || (e.kind === 'dm' ? (e.u.statusText ? (e.u.statusEmoji || '') + ' ' + e.u.statusText : t(e.u.presence)) : e.kind === 'channel' ? e.c.topic || '' : '');
+    const main = el('button', { class: 'itemmain', 'aria-current': S.chan === id ? 'page' : null, onclick: () => LC.openChat(id) },
+      LC.chatLead(id),
+      el('span', { class: 'itext' },
+        el('span', { class: 'irow' }, el('span', { class: 'name', text: name }), o.fav ? LC.icon('star', { filled: true, cls: 'fav', label: t('favorite') }) : null, last ? el('time', { class: 'itime', text: LC.shortTime(last.ts) }) : null),
+        el('span', { class: 'irow' }, el('span', { class: 'prev', text: prev }), muted ? LC.icon('alert_off', { cls: 'mutedmark', label: t('muted') }) : null,
+          mn ? el('span', { class: 'badge mention', text: '@' + mn, 'aria-label': t('unreadMentions', { n: mn }) }) : un && !muted ? el('span', { class: 'badge', text: un > 99 ? '99+' : un, 'aria-label': t('unreadMsgs', { n: un }) }) : un ? el('span', { class: 'dotmark', 'aria-label': t('unreadMsgs', { n: un }) }) : null)));
+    return el('div', { class: 'item' + (S.chan === id ? ' active' : '') + (un ? ' unread' : '') + (muted ? ' muted' : ''), 'data-chan': id, oncontextmenu: (ev) => { ev.preventDefault(); chatMenu({ x: ev.clientX, y: ev.clientY }, e); } },
+      main, el('button', { class: 'kebab', 'aria-label': t('chatOptions'), title: t('chatOptions'), 'aria-haspopup': 'menu', onclick: (ev) => { ev.stopPropagation(); chatMenu(ev.currentTarget, e); } }, LC.icon('more_horizontal')));
+  }
+  const collapsed = () => LC.ls.get('lc_collapsed', {});
+  const section = (key, label, action) => {
+    const shut = !!collapsed()[key];
+    return el('div', { class: 'sec' }, el('button', { class: 'sectoggle', 'aria-expanded': String(!shut), onclick: () => { const c = collapsed(); c[key] = !shut; LC.ls.set('lc_collapsed', c); LC.renderNav(); } }, LC.icon(shut ? 'chevron_right' : 'chevron_down'), el('span', { text: label })), action || null);
+  };
+  const emptyState = (icon, text) => el('div', { class: 'empty' }, LC.icon(icon, { cls: 'big' }), el('p', { text }));
   function renderNavNow() {
-    const nav = $('#nav'); if (!nav || !S.me) return; const scroll = nav.scrollTop; nav.replaceChildren();
-    const { pinned, archived, chans, people } = chatEntries(), prefs = LC.prefs(), favs = new Set(prefs.favorites || []), pinSet = new Set(pinned.map((e) => e.id));
-    const section = (label, action) => el('div', { class: 'sec' }, el('span', { text: label }), action || null);
-    if (pinned.length) { nav.append(section(t('pinnedChats'))); pinned.forEach((e) => nav.append(navItem(e, { fav: e.kind === 'dm' && favs.has(e.u.id) }))); }
+    const nav = $('#nav'); if (!nav || !S.me) return; const scroll = nav.scrollTop;
+    renderRail(); renderMe(); LC.updateBadge();
+    const titles = { chat: t('railChat'), activity: t('railActivity'), calls: t('railCalls'), saved: t('savedMsgs') };
+    $('#sideTitle').textContent = titles[S.pane] || titles.chat;
+    $('#sideActions').replaceChildren(...(S.pane === 'chat' ? [LC.ibtn('filter', t('quickSwitcher'), () => LC.quickSwitch()), LC.ibtn('compose', t('newChannel'), () => LC.newChannelDialog())] : S.pane === 'activity' ? [LC.ibtn('mail_read', t('markAllRead'), () => Object.keys(S.unread).filter((c) => S.unread[c] || S.mentions[c]).forEach((c) => LC.api('/api/read', { chan: c })))] : []));
+    if (S.pane === 'activity') return renderActivity(nav);
+    if (S.pane === 'calls') return renderCalls(nav);
+    if (S.pane === 'saved') return renderSaved(nav);
+    nav.replaceChildren();
+    const { pinned, archived, chans, people } = chatEntries(), prefs = LC.prefs(), favs = new Set(prefs.favorites || []), pinSet = new Set(pinned.map((e) => e.id)), shut = collapsed();
     const rest = (e) => !pinSet.has(e.id) && !archived.has(e.id);
-    nav.append(section(t('channels'), el('button', { class: 'plus', text: '+', title: t('newChannel'), 'aria-label': t('newChannel'), onclick: () => LC.newChannelDialog() })));
-    const pubs = chans.filter((e) => e.kind === 'channel' && rest(e)), byName = (a, b) => (a.id === 'general' ? -1 : b.id === 'general' ? 1 : a.c.name.localeCompare(b.c.name));
-    const cats = new Map(); for (const e of pubs) (cats.get(e.c.category || '') || cats.set(e.c.category || '', []).get(e.c.category || '')).push(e);
-    for (const [cat, list] of [...cats].sort((a, b) => (a[0] === '' ? -1 : b[0] === '' ? 1 : a[0].localeCompare(b[0])))) { if (cat) nav.append(el('div', { class: 'cat', text: cat })); list.sort(byName).forEach((e) => nav.append(navItem(e))); }
-    const groups = chans.filter((e) => e.kind === 'group' && rest(e)).sort(byName); if (groups.length) { nav.append(section(t('groups'))); groups.forEach((e) => nav.append(navItem(e))); }
-    const ppl = people.filter(rest).sort((a, b) => (favs.has(b.u.id) - favs.has(a.u.id)) || ((b.u.presence !== 'offline') - (a.u.presence !== 'offline')) || LC.uname(a.u.id).localeCompare(LC.uname(b.u.id)));
-    nav.append(section(t('people'))); ppl.forEach((e) => nav.append(navItem(e, { fav: favs.has(e.u.id) })));
-    if (S.users.size <= 1) nav.append(el('div', { class: 'empty small', text: t('nobodyYet') }));
+    if (pinned.length) { nav.append(section('pinned', t('pinnedChats'))); if (!shut.pinned) pinned.forEach((e) => nav.append(navItem(e, { fav: e.kind === 'dm' && favs.has(e.u.id) }))); }
+    nav.append(section('channels', t('channels'), LC.ibtn('add', t('newChannel'), () => LC.newChannelDialog(), { cls: 'icon plus' })));
+    if (!shut.channels) {
+      const pubs = chans.filter((e) => e.kind === 'channel' && rest(e)), byName = (a, b) => (a.id === 'general' ? -1 : b.id === 'general' ? 1 : a.c.name.localeCompare(b.c.name));
+      const cats = new Map(); for (const e of pubs) (cats.get(e.c.category || '') || cats.set(e.c.category || '', []).get(e.c.category || '')).push(e);
+      for (const [cat, list] of [...cats].sort((a, b) => (a[0] === '' ? -1 : b[0] === '' ? 1 : a[0].localeCompare(b[0])))) { if (cat) nav.append(el('div', { class: 'cat', text: cat })); list.sort(byName).forEach((e) => nav.append(navItem(e))); }
+    }
+    // recent chats (groups + people you have talked to), newest first, like Teams
+    const lastTs = (e) => (S.last[e.id] ? S.last[e.id].ts : 0);
+    const recent = [...chans.filter((e) => e.kind === 'group'), ...people.filter((e) => S.last[e.id])].filter(rest).sort((a, b) => lastTs(b) - lastTs(a) || (a.kind === 'dm' ? LC.uname(a.u.id) : a.c.name).localeCompare(b.kind === 'dm' ? LC.uname(b.u.id) : b.c.name));
+    if (recent.length) { nav.append(section('recent', t('recentChats'))); if (!shut.recent) recent.forEach((e) => nav.append(navItem(e, { fav: e.kind === 'dm' && favs.has(e.u.id) }))); }
+    const ppl = people.filter((e) => rest(e) && !S.last[e.id]).sort((a, b) => (favs.has(b.u.id) - favs.has(a.u.id)) || ((b.u.presence !== 'offline') - (a.u.presence !== 'offline')) || LC.uname(a.u.id).localeCompare(LC.uname(b.u.id)));
+    nav.append(section('people', t('people'))); if (!shut.people) ppl.forEach((e) => nav.append(navItem(e, { fav: favs.has(e.u.id) })));
+    if (people.length === 0) nav.append(el('div', { class: 'empty small', text: t('nobodyYet') }));
     const arch = [...archived].map((id) => chatEntries().all.get(id)).filter(Boolean);
-    if (arch.length) { const open = LC.ls.get('lc_archopen', false); nav.append(el('button', { class: 'sec toggle', onclick: () => { LC.ls.set('lc_archopen', !open); LC.renderNav(); }, 'aria-expanded': open }, el('span', { text: (open ? '▾ ' : '▸ ') + t('archived') + ` (${arch.length})` }))); if (open) arch.forEach((e) => nav.append(navItem(e))); }
-    nav.scrollTop = scroll; renderMe(); LC.updateBadge();
+    if (arch.length) { nav.append(section('archived', t('archived') + ` (${arch.length})`)); if (!shut.archived) arch.forEach((e) => nav.append(navItem(e))); }
+    nav.scrollTop = scroll;
+  }
+  async function renderActivity(nav) {
+    nav.replaceChildren(el('p', { class: 'muted small pad', text: t('loading') }));
+    try {
+      const { results } = await LC.api('/api/search?has=mention'); if (S.pane !== 'activity') return;
+      nav.replaceChildren(...(results.length ? results.slice(0, 80).map((m) => el('button', { class: 'act' + ((S.unread[m.chan] || 0) && m.seq > (S.read[m.chan] || 0) ? ' unread' : ''), onclick: () => LC.jumpToMessage(m.chan, m.id) }, LC.avatar(S.users.get(m.from), '', false),
+        el('span', { class: 'itext' }, el('span', { class: 'irow' }, el('b', { class: 'name', text: LC.uname(m.from) }), el('time', { class: 'itime', text: LC.shortTime(m.ts) })), el('span', { class: 'small muted', text: t('mentionedIn', { where: LC.chanInfo(m.chan).title }) }), el('span', { class: 'prev', text: LC.snippet(m) })))) : [emptyState('alert', t('noActivity'))]));
+    } catch (e) { nav.replaceChildren(el('p', { class: 'err pad', text: e.message })); }
+  }
+  function renderCalls(nav) {
+    const live = Object.entries(S.calls), people = [...S.users.values()].filter((u) => u.id !== S.me.id && !u.removed && !u.deleted).sort((a, b) => ((b.presence !== 'offline') - (a.presence !== 'offline')) || LC.uname(a.id).localeCompare(LC.uname(b.id)));
+    const head = (label) => el('div', { class: 'sec' }, el('span', { class: 'sectitle', text: label }));
+    nav.replaceChildren(head(t('activeCalls')), ...(live.length ? live.map(([chan, c]) => el('div', { class: 'callrow' }, el('span', { class: 'livecall' }, LC.icon(c.mode === 'video' ? 'video' : 'call', { filled: true })), el('span', { class: 'itext' }, el('b', { class: 'name', text: LC.chanInfo(chan).title }), el('span', { class: 'prev', text: c.participants.map(LC.uname).join(', ') })),
+      LC.inCall() && LC.callChan() === chan ? el('button', { class: 'secondary sm', text: t('openCall'), onclick: () => LC.showCall() }) : el('button', { class: 'primary sm', text: t('joinCall'), onclick: async () => { await LC.openChat(chan); LC.joinCall(chan); } }))) : [el('p', { class: 'muted small pad', text: t('noActiveCalls') })]),
+    head(t('people')), ...people.map((u) => { const dm = LC.dmId(S.me.id, u.id); return el('div', { class: 'callrow' }, LC.avatar(u, '', true), el('span', { class: 'itext' }, el('b', { class: 'name', text: LC.uname(u.id) }), el('span', { class: 'prev', text: t(u.presence) })), LC.ibtn('video', t('videoCallWith', { name: LC.uname(u.id) }), async () => { await LC.openChat(dm); LC.startCall(dm, 'video'); }), LC.ibtn('call', t('voiceCallWith', { name: LC.uname(u.id) }), async () => { await LC.openChat(dm); LC.startCall(dm, 'voice'); })); }),
+    ...(people.length ? [] : [el('div', { class: 'empty small', text: t('nobodyYet') })]));
+  }
+  async function renderSaved(nav) {
+    const ids = LC.prefs().saved || []; if (!ids.length) return nav.replaceChildren(emptyState('bookmark', t('noSaved')));
+    nav.replaceChildren(el('p', { class: 'muted small pad', text: t('loading') }));
+    try {
+      const { messages } = await LC.api('/api/messages/byids', { ids }); if (S.pane !== 'saved') return;
+      nav.replaceChildren(...(messages.length ? messages.sort((a, b) => b.ts - a.ts).map((m) => el('div', { class: 'act' }, el('button', { class: 'plain actmain', onclick: () => LC.jumpToMessage(m.chan, m.id) }, LC.avatar(S.users.get(m.from), '', false), el('span', { class: 'itext' }, el('span', { class: 'irow' }, el('b', { class: 'name', text: LC.uname(m.from) }), el('time', { class: 'itime', text: LC.shortTime(m.ts) })), el('span', { class: 'small muted', text: LC.chanInfo(m.chan).title }), el('span', { class: 'prev', text: LC.snippet(m) }))),
+        LC.ibtn('bookmark_off', t('unsave'), () => LC.setPrefs({ saved: (LC.prefs().saved || []).filter((x) => x !== m.id) }).then(() => renderSaved(nav))))) : [emptyState('bookmark', t('noSaved'))]));
+    } catch (e) { nav.replaceChildren(el('p', { class: 'err pad', text: e.message })); }
   }
   function renderMe() {
-    const box = $('#meBox'); if (!box) return; const m = S.me, pc = S.pendingReqs.length;
-    box.replaceChildren(el('button', { class: 'meb', onclick: (e) => presenceMenu(e.currentTarget), 'aria-label': t('myStatus'), 'aria-haspopup': 'menu' }, LC.avatar(m, '', true), el('span', { class: 'mi' }, el('b', { text: m.name }), el('small', { text: (m.statusEmoji ? m.statusEmoji + ' ' : '') + (m.statusText || t(m.presence === 'invisible' ? 'invisible' : m.presence)) }))),
-      LC.isAdmin() ? el('button', { class: 'icon adminbtn', title: t('manage'), 'aria-label': t('manage') + (pc ? ` (${pc})` : ''), onclick: () => LC.adminPanel(), text: '🛡' }, pc ? el('span', { class: 'badge', text: pc }) : null) : null);
+    const box = $('#meBox'); if (!box || !S.me) return; const m = S.me;
+    box.replaceChildren(el('button', { class: 'meb', onclick: (e) => presenceMenu(e.currentTarget), 'aria-label': t('myStatus') + ': ' + m.name, title: m.name + ' · ' + (m.statusText || t(m.presence === 'invisible' ? 'invisible' : m.presence)), 'aria-haspopup': 'menu' }, LC.avatar(m, '', true)));
   }
   function presenceMenu(anchor) {
     const set = (state) => LC.api('/api/presence', { state }).catch((e) => LC.toast(e.message)), cur = S.me.presence;
-    LC.menu(anchor, [{ icon: '🟢', label: t('online'), checked: cur === 'auto', fn: () => set('auto') }, { icon: '🟡', label: t('away'), checked: cur === 'away', fn: () => set('away') }, { icon: '🔴', label: t('dnd'), checked: cur === 'dnd', fn: () => set('dnd') }, { icon: '⚫', label: t('invisible'), checked: cur === 'invisible', fn: () => set('invisible') }, 'sep', { icon: '✎', label: t('editProfile'), fn: () => LC.settingsPanel('profile') }]);
+    LC.menu(anchor, [{ icon: 'person', label: S.me.name + (S.me.statusText ? ' — ' + S.me.statusText : ''), disabled: true }, 'sep',
+      { icon: 'presence_available', iconCls: 'p-online', label: t('online'), checked: cur === 'auto', fn: () => set('auto') }, { icon: 'presence_away', iconCls: 'p-away', label: t('away'), checked: cur === 'away', fn: () => set('away') },
+      { icon: 'presence_dnd', iconCls: 'p-dnd', label: t('dnd'), checked: cur === 'dnd', fn: () => set('dnd') }, { icon: 'presence_offline', iconCls: 'p-offline', label: t('invisible'), checked: cur === 'invisible', fn: () => set('invisible') }, 'sep',
+      { icon: 'person_edit', label: t('editProfile'), fn: () => LC.settingsPanel('profile') }, { icon: 'settings', label: t('settings'), fn: () => LC.settingsPanel() },
+      { icon: 'sign_out', label: t('signOut'), fn: async () => { if (await LC.confirm(t('confirmSignOut'))) LC.signOut('manual'); } }]);
   }
   function chatMenu(anchor, e) {
     const prefs = LC.prefs(), id = e.id, pinned = prefs.pinnedChats || [], isPin = pinned.includes(id), arch = (prefs.archived || []).includes(id), muted = LC.isMuted(id), idx = pinned.indexOf(id);
     const setMute = (ms) => LC.setPrefs({ muted: { ...(prefs.muted || {}), [id]: ms === true ? true : Date.now() + ms } }), unmute = () => { const m = { ...(prefs.muted || {}) }; delete m[id]; LC.setPrefs({ muted: m }); };
     const moveBy = (d) => { const a = [...pinned]; a.splice(idx, 1); a.splice(idx + d, 0, id); LC.setPrefs({ pinnedChats: a }); };
     LC.menu(anchor, [
-      { icon: '📌', label: isPin ? t('unpinChat') : t('pinChat'), fn: () => LC.setPrefs({ pinnedChats: isPin ? pinned.filter((x) => x !== id) : [...pinned, id] }) },
-      isPin && idx > 0 ? { icon: '⬆', label: t('moveUp'), fn: () => moveBy(-1) } : null, isPin && idx < pinned.length - 1 ? { icon: '⬇', label: t('moveDown'), fn: () => moveBy(1) } : null, 'sep',
-      muted ? { icon: '🔔', label: t('unmute'), fn: unmute } : null, !muted ? { icon: '🔕', label: t('mute1h'), fn: () => setMute(3600e3) } : null, !muted ? { icon: '🔕', label: t('mute8h'), fn: () => setMute(8 * 3600e3) } : null, !muted ? { icon: '🔕', label: t('muteForever'), fn: () => setMute(true) } : null, 'sep',
-      { icon: arch ? '📤' : '🗄', label: arch ? t('unarchive') : t('archive'), fn: () => LC.setPrefs({ archived: arch ? (prefs.archived || []).filter((x) => x !== id) : [...(prefs.archived || []), id] }) },
-      (S.unread[id] || 0) ? { icon: '✔', label: t('markRead'), fn: () => LC.api('/api/read', { chan: id }) } : null,
-      e.kind === 'dm' ? 'sep' : null, e.kind === 'dm' ? { icon: '⭐', label: (prefs.favorites || []).includes(e.u.id) ? t('unfavorite') : t('favorite'), fn: () => LC.toggleFavorite(e.u.id) } : null, e.kind === 'dm' ? { icon: '🏷', label: t('setNickname'), fn: () => LC.nicknameDialog(e.u.id) } : null,
-      e.kind !== 'dm' ? { icon: 'ⓘ', label: t('chatInfo'), fn: () => LC.chatInfo(id) } : null,
+      { icon: isPin ? 'pin_off' : 'pin', label: isPin ? t('unpinChat') : t('pinChat'), fn: () => LC.setPrefs({ pinnedChats: isPin ? pinned.filter((x) => x !== id) : [...pinned, id] }) },
+      isPin && idx > 0 ? { icon: 'arrow_up', label: t('moveUp'), fn: () => moveBy(-1) } : null, isPin && idx < pinned.length - 1 ? { icon: 'arrow_down', label: t('moveDown'), fn: () => moveBy(1) } : null, 'sep',
+      muted ? { icon: 'alert', label: t('unmute'), fn: unmute } : null, !muted ? { icon: 'alert_off', label: t('mute1h'), fn: () => setMute(3600e3) } : null, !muted ? { icon: 'alert_off', label: t('mute8h'), fn: () => setMute(8 * 3600e3) } : null, !muted ? { icon: 'alert_off', label: t('muteForever'), fn: () => setMute(true) } : null, 'sep',
+      { icon: arch ? 'archive_arrow_back' : 'archive', label: arch ? t('unarchive') : t('archive'), fn: () => LC.setPrefs({ archived: arch ? (prefs.archived || []).filter((x) => x !== id) : [...(prefs.archived || []), id] }) },
+      (S.unread[id] || 0) ? { icon: 'mail_read', label: t('markRead'), fn: () => LC.api('/api/read', { chan: id }) } : null,
+      e.kind === 'dm' ? 'sep' : null, e.kind === 'dm' ? { icon: 'star', label: (prefs.favorites || []).includes(e.u.id) ? t('unfavorite') : t('favorite'), fn: () => LC.toggleFavorite(e.u.id) } : null, e.kind === 'dm' ? { icon: 'tag', label: t('setNickname'), fn: () => LC.nicknameDialog(e.u.id) } : null,
+      e.kind !== 'dm' ? { icon: 'info', label: t('chatInfo'), fn: () => LC.chatInfo(id) } : null,
     ]);
   }
+  LC.chatMenu = (anchor, id) => { const e = chatEntries().all.get(id); if (e) chatMenu(anchor, e); };
   LC.toggleFavorite = (uid) => { const f = LC.prefs().favorites || []; LC.setPrefs({ favorites: f.includes(uid) ? f.filter((x) => x !== uid) : [...f, uid] }); };
   LC.nicknameDialog = async (uid) => { const cur = (LC.prefs().nicknames || {})[uid] || '', v = await LC.prompt(t('nicknameFor', { name: LC.realName(uid) }), { value: cur, max: 24, placeholder: t('nicknameHint') }); if (v === null) return; const n = { ...(LC.prefs().nicknames || {}) }; if (v.trim()) n[uid] = v.trim(); else delete n[uid]; LC.setPrefs({ nicknames: n }); };
   LC.userMenu = (anchor, uid) => {
-    const u = S.users.get(uid); if (!u) return; const me = uid === S.me.id;
-    LC.menu(anchor, [me ? { icon: '✎', label: t('editProfile'), fn: () => LC.settingsPanel('profile') } : { icon: '💬', label: t('messageUser', { name: LC.uname(uid) }), fn: () => LC.openChat(LC.dmId(S.me.id, uid)) },
-      !me ? { icon: '🏷', label: t('setNickname'), fn: () => LC.nicknameDialog(uid) } : null, !me ? { icon: '⭐', label: (LC.prefs().favorites || []).includes(uid) ? t('unfavorite') : t('favorite'), fn: () => LC.toggleFavorite(uid) } : null,
-      !me && LC.isAdmin() ? 'sep' : null, !me && LC.isAdmin() ? { icon: '🛡', label: t('manageUser'), fn: () => LC.adminPanel('people', uid) } : null,
-      u.statusText ? 'sep' : null, u.statusText ? { icon: u.statusEmoji || '💬', label: u.statusText, disabled: true } : null]);
+    const u = S.users.get(uid); if (!u) return; const me = uid === S.me.id, dm = LC.dmId(S.me.id, uid);
+    LC.menu(anchor, [me ? { icon: 'person_edit', label: t('editProfile'), fn: () => LC.settingsPanel('profile') } : { icon: 'chat', label: t('messageUser', { name: LC.uname(uid) }), fn: () => LC.openChat(dm) },
+      !me ? { icon: 'video', label: t('videoCall'), fn: async () => { await LC.openChat(dm); LC.startCall(dm, 'video'); } } : null, !me ? { icon: 'call', label: t('voiceCall'), fn: async () => { await LC.openChat(dm); LC.startCall(dm, 'voice'); } } : null,
+      !me ? { icon: 'tag', label: t('setNickname'), fn: () => LC.nicknameDialog(uid) } : null, !me ? { icon: 'star', label: (LC.prefs().favorites || []).includes(uid) ? t('unfavorite') : t('favorite'), fn: () => LC.toggleFavorite(uid) } : null,
+      !me && LC.isAdmin() ? 'sep' : null, !me && LC.isAdmin() ? { icon: 'shield_person', label: t('manageUser'), fn: () => LC.adminPanel('people', uid) } : null,
+      u.statusText ? 'sep' : null, u.statusText ? { icon: u.statusEmoji || 'comment', label: u.statusText, disabled: true } : null]);
   };
 
   // ---------- header, tabs ----------
-  const TABS = [['chat', '💬', 'tabChat'], ['files', '📁', 'tabFiles'], ['notes', '📝', 'tabNotes'], ['board', '🎨', 'tabBoard'], ['todos', '✅', 'tabTodos'], ['calendar', '📅', 'tabCalendar']];
+  const TABS = [['chat', 'chat', 'tabChat'], ['files', 'folder', 'tabFiles'], ['notes', 'note', 'tabNotes'], ['board', 'whiteboard', 'tabBoard'], ['todos', 'task_list_ltr', 'tabTodos'], ['calendar', 'calendar_ltr', 'tabCalendar']];
   function renderHeader() {
     const i = LC.chanInfo(S.chan); if (!S.chan) return;
-    $('#title').textContent = i.title; const topic = $('#topic');
-    if (i.kind === 'dm') { const u = i.peer; topic.textContent = u ? (u.presence !== 'offline' ? t(u.presence) : u.lastSeen ? t('lastSeen', { when: LC.fmtDateTime(u.lastSeen) }) : t('offline')) + (u.statusText ? ' · ' + (u.statusEmoji || '') + ' ' + u.statusText : '') : ''; }
-    else if (i.c && i.c.members) topic.textContent = i.c.members.map(LC.uname).join(', '); else topic.textContent = [i.topic, i.c && i.c.readonly ? '📢 ' + t('announcements') : '', i.c && i.c.slow ? '🐢 ' + t('slowMode', { n: i.c.slow }) : '', i.c && i.c.ttl ? '⏱ ' + LC.ttlLabel(i.c.ttl) : ''].filter(Boolean).join(' · ');
-    const acts = $('#headActions'), call = S.calls[S.chan], cb = (ic, label, fn) => el('button', { class: 'icon', title: label, 'aria-label': label, text: ic, onclick: fn });
-    acts.replaceChildren(cb('📞', t('voiceCall'), () => LC.startCall(S.chan, 'voice')), cb('📹', t('videoCall'), () => LC.startCall(S.chan, 'video')), cb('📌', t('pinnedMsgs'), () => LC.pinnedList()), cb('🔎', t('searchInChat'), () => LC.openSearch({ chan: S.chan })), cb('📅', t('jumpToDate'), (e) => jumpDateMenu(e.currentTarget)), cb('ⓘ', t('chatInfo'), () => LC.chatInfo(S.chan)));
-    void call; LC.renderCallBar && LC.renderCallBar();
+    $('#title').textContent = i.title; $('#headAvatar').replaceChildren(LC.chatLead(S.chan)); const topic = $('#topic');
+    if (i.kind === 'dm') { const u = i.peer; topic.replaceChildren(u ? (u.presence !== 'offline' ? t(u.presence) : u.lastSeen ? t('lastSeen', { when: LC.fmtDateTime(u.lastSeen) }) : t('offline')) + (u.statusText ? ' · ' + (u.statusEmoji || '') + ' ' + u.statusText : '') : ''); }
+    else if (i.c && i.c.members) topic.replaceChildren(t('peopleCount', { n: i.c.members.length }) + ' · ' + i.c.members.map(LC.uname).join(', '));
+    else { const bits = []; if (i.topic) bits.push(i.topic); if (i.c && i.c.readonly) bits.push(el('span', { class: 'tbit' }, LC.icon('megaphone'), t('announcements'))); if (i.c && i.c.slow) bits.push(el('span', { class: 'tbit' }, LC.icon('animal_turtle'), t('slowMode', { n: i.c.slow }))); if (i.c && i.c.ttl) bits.push(el('span', { class: 'tbit' }, LC.icon('timer'), LC.ttlLabel(i.c.ttl))); topic.replaceChildren(...bits.flatMap((b, k) => (k ? [' · ', b] : [b]))); }
+    const acts = $('#headActions'), live = S.calls[S.chan];
+    acts.replaceChildren(
+      el('div', { class: 'callgroup' + (live ? ' live' : ''), role: 'group', 'aria-label': t('call') }, LC.ibtn('video', live ? t('joinCall') : t('videoCall'), () => (live ? LC.joinCall(S.chan, 'video') : LC.startCall(S.chan, 'video')), { cls: 'icon cg' }), LC.ibtn('call', live ? t('joinCall') : t('voiceCall'), () => (live ? LC.joinCall(S.chan, 'voice') : LC.startCall(S.chan, 'voice')), { cls: 'icon cg' })),
+      LC.ibtn('search', t('searchInChat'), () => LC.openSearch({ chan: S.chan })), LC.ibtn('pin', t('pinnedMsgs'), () => LC.pinnedList()), LC.ibtn('info', t('chatInfo'), () => LC.chatInfo(S.chan)),
+      LC.ibtn('more_horizontal', t('moreOptions'), (e) => LC.menu(e.currentTarget, [{ icon: 'calendar_arrow_right', label: t('jumpToDate'), fn: () => jumpDateMenu() }, { icon: 'chat_multiple', label: t('chatOptions'), fn: () => LC.chatMenu(e.target.closest('button') || $('#headActions'), S.chan) }]), { menu: true }));
+    LC.renderCallBar && LC.renderCallBar();
   }
   LC.renderHeader = renderHeader;
-  function jumpDateMenu(anchor) {
-    const inp = el('input', { type: 'date', 'aria-label': t('jumpToDate') }); LC.modal([el('h2', { text: '📅 ' + t('jumpToDate') }), inp, el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('cancel'), onclick: LC.closeModal }), el('button', { class: 'primary', text: t('go'), onclick: () => { if (!inp.value) return; LC.closeModal(); LC.jumpToDate(new Date(inp.value + 'T00:00:00').getTime()); } }))]); void anchor;
+  function jumpDateMenu() {
+    const inp = el('input', { type: 'date', 'aria-label': t('jumpToDate') }); LC.modal([el('h2', {}, LC.icon('calendar_arrow_right'), ' ' + t('jumpToDate')), inp, el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('cancel'), onclick: LC.closeModal }), el('button', { class: 'primary', text: t('go'), onclick: () => { if (!inp.value) return; LC.closeModal(); LC.jumpToDate(new Date(inp.value + 'T00:00:00').getTime()); } }))]);
   }
   function renderTabs() {
-    const box = $('#tabs'); box.replaceChildren(...TABS.map(([k, ic, lab]) => el('button', { class: 'tab' + (S.tab === k ? ' on' : ''), role: 'tab', 'aria-selected': S.tab === k, onclick: () => LC.setTab(k) }, el('span', { 'aria-hidden': 'true', text: ic }), ' ' + t(lab))));
+    const box = $('#tabs'); box.replaceChildren(...TABS.map(([k, ic, lab]) => el('button', { class: 'tab' + (S.tab === k ? ' on' : ''), role: 'tab', 'aria-selected': String(S.tab === k), onclick: () => LC.setTab(k) }, LC.icon(ic, { filled: S.tab === k }), el('span', { text: t(lab) }))));
   }
   LC.setTab = (tab) => {
     S.tab = tab; renderTabs(); const chat = tab === 'chat'; $('#chatView').classList.toggle('hidden', !chat); $('#tabView').classList.toggle('hidden', chat);
@@ -154,9 +237,9 @@
     const box = $('#msgs'); if (!box || !S.chan || S.tab !== 'chat') return; const w = S.win[S.chan]; if (!w) return;
     const near = box.scrollHeight - box.scrollTop - box.clientHeight < 140; let cache = caches.get(S.chan); if (!cache) caches.set(S.chan, cache = new Map());
     const nodes = [], list = w.msgs, lastMineId = [...list].reverse().find((m) => m.from === S.me.id && !m.deleted && !m.thread);
-    if (w.error) nodes.push(el('div', { class: 'empty' }, el('div', { class: 'big', text: '🔒' }), el('div', { text: w.error })));
+    if (w.error) nodes.push(el('div', { class: 'empty' }, LC.icon('lock_closed', { cls: 'big' }), el('div', { text: w.error })));
     if (w.older) nodes.push(el('button', { class: 'more', text: t('loadEarlier'), onclick: loadOlder }));
-    if (!list.length && !w.error) nodes.push(el('div', { class: 'empty' }, el('div', { class: 'big', text: '👋' }), el('div', { text: t('noMessages') })));
+    if (!list.length && !w.error) nodes.push(el('div', { class: 'empty hello' }, LC.chatLead(S.chan, 'xl'), el('h2', { text: LC.chanInfo(S.chan).title }), el('div', { class: 'muted', text: t('noMessages') })));
     let prev = null, day = '', divider = false; const readAt = S.readAt[S.chan] ?? Infinity;
     for (const m of list) {
       const d = new Date(m.ts).toDateString(); if (d !== day) { nodes.push(el('div', { class: 'daysep' }, el('span', { text: LC.dayLabel(m.ts) }))); day = d; prev = null; }
@@ -167,7 +250,7 @@
       nodes.push(node); prev = m;
     }
     if (w.newer) nodes.push(el('button', { class: 'more', text: t('loadNewer'), onclick: loadNewer }));
-    for (const ob of S.outbox.filter((x) => x.body.chan === S.chan)) nodes.push(el('div', { class: 'msg pending mine' }, el('div', { class: 'gut' }), el('div', { class: 'body' }, el('div', { class: 'txt', text: ob.body.text || '📎' }), el('div', { class: 'small muted' }, t('notSent') + ' ', el('button', { class: 'link', text: t('retry'), onclick: () => LC.outboxFlush() }), ' · ', el('button', { class: 'link', text: t('discard'), onclick: () => { S.outbox = S.outbox.filter((x) => x !== ob); LC.ls.set('lc_outbox', S.outbox); renderMessages('keep'); } })))));
+    for (const ob of S.outbox.filter((x) => x.body.chan === S.chan)) nodes.push(el('div', { class: 'msg pending mine' }, el('div', { class: 'gut' }), el('div', { class: 'body' }, el('div', { class: 'txt', text: ob.body.text || t('attachment') }), el('div', { class: 'small muted' }, t('notSent') + ' ', el('button', { class: 'link', text: t('retry'), onclick: () => LC.outboxFlush() }), ' · ', el('button', { class: 'link', text: t('discard'), onclick: () => { S.outbox = S.outbox.filter((x) => x !== ob); LC.ls.set('lc_outbox', S.outbox); renderMessages('keep'); } })))));
     for (const k of [...cache.keys()]) if (!list.some((m) => m.id === k)) cache.delete(k);
     box.replaceChildren(...nodes);
     if (mode === 'bottom' || (mode === 'near' && near)) { box.scrollTop = box.scrollHeight; stick = true; }
@@ -198,7 +281,7 @@
     if (m.thread) { const r = (await LC.api('/api/messages/byids', { ids: [m.thread] })).messages[0]; if (r) m = r; }
     if (S.chan !== m.chan) await LC.openChat(m.chan);
     S.thread = { chan: m.chan, id: m.id }; threadCache = new Map(); const panel = $('#threadPanel'); $('#app').classList.add('with-thread'); panel.classList.remove('hidden');
-    panel.replaceChildren(el('div', { class: 'thread-head' }, el('b', { text: t('thread') }), el('button', { class: 'icon', text: '✕', 'aria-label': t('close'), onclick: LC.closeThread })), el('div', { class: 'msgs thread-msgs', id: 'threadMsgs' }), el('div', { id: 'threadTyping', class: 'typing' }), el('div', { id: 'threadComposer' }));
+    panel.replaceChildren(el('div', { class: 'thread-head' }, el('b', {}, LC.icon('comment'), ' ' + t('thread')), LC.ibtn('dismiss', t('close'), LC.closeThread)), el('div', { class: 'msgs thread-msgs', id: 'threadMsgs' }), el('div', { id: 'threadTyping', class: 'typing' }), el('div', { id: 'threadComposer' }));
     $('#threadComposer').append(LC.composers.thread.el); LC.composers.thread.refresh();
     try { const d = await LC.api(`/api/thread?chan=${encodeURIComponent(m.chan)}&id=${m.id}`); threadMsgs = [d.root, ...d.messages]; } catch (e) { LC.toast(e.message); return LC.closeThread(); }
     renderThread(true); LC.composers.thread.focus();
@@ -217,7 +300,7 @@
   // ---------- incoming events ----------
   const chatVisible = (m) => S.chan === m.chan && S.tab === 'chat' && LC.visible() && (!m.thread || (S.thread && S.thread.id === m.thread));
   LC.on('message', (m) => {
-    const mine = m.from === S.me.id;
+    const mine = m.from === S.me.id; if (!m.thread) S.last[m.chan] = briefOf(m);
     if (m.thread) { if (S.thread && S.thread.id === m.thread && !threadMsgs.some((x) => x.id === m.id)) { threadMsgs.push(m); renderThread(false); } }
     else { const w = S.win[m.chan]; if (w && w.loaded && !w.newer && !w.msgs.some((x) => x.id === m.id)) w.msgs.push(m); }
     if (m.from && S.typing[m.chan]) delete S.typing[m.chan][m.from];
@@ -237,12 +320,13 @@
   };
   if (LC.native && LC.native.onOpenChat) LC.native.onOpenChat((chan) => LC.openChat(chan));
   LC.on('update', (m) => {
+    if (S.last[m.chan] && S.last[m.chan].id === m.id) { S.last[m.chan] = briefOf(m); LC.renderNav(); }
     const w = S.win[m.chan]; if (w) { const i = w.msgs.findIndex((x) => x.id === m.id); if (i >= 0) w.msgs[i] = m; }
     if (m.chan === S.chan && S.tab === 'chat') renderMessages('keep');
     if (S.thread) { const i = threadMsgs.findIndex((x) => x.id === m.id); if (i >= 0) { threadMsgs[i] = m; renderThread(false); } }
   });
   LC.on('purge', (e) => {
-    const gone = new Set(e.ids), w = S.win[e.chan]; if (w) w.msgs = w.msgs.filter((m) => !gone.has(m.id));
+    const gone = new Set(e.ids), w = S.win[e.chan]; if (S.last[e.chan] && gone.has(S.last[e.chan].id)) { const rest = w && w.msgs.filter((m) => !gone.has(m.id) && !m.thread); if (rest && rest.length) S.last[e.chan] = briefOf(rest[rest.length - 1]); else delete S.last[e.chan]; LC.renderNav(); } if (w) w.msgs = w.msgs.filter((m) => !gone.has(m.id));
     if (e.chan === S.chan && S.tab === 'chat') renderMessages('keep'); if (S.thread && (gone.has(S.thread.id))) LC.closeThread(); else if (S.thread) { threadMsgs = threadMsgs.filter((m) => !gone.has(m.id)); renderThread(false); }
   });
   LC.on('seen', (e) => { ((S.peers[e.chan] ||= {})[e.user] ||= { seen: 0, delivered: 0 }).seen = e.seq; if (e.chan === S.chan) renderMessages('keep'); });
@@ -251,12 +335,12 @@
   LC.on('channel', () => { LC.renderNav(); if (S.chan) renderHeader(); });
   LC.on('user', () => { LC.renderNav(); if (S.chan) { renderHeader(); if (S.tab === 'chat') renderMessages('keep'); } });
   LC.on('me', () => { LC.renderNav(); if (S.chan) renderHeader(); });
-  LC.on('meta', (m) => { $('#brand').textContent = '💬 ' + m.name; $('#brand').title = m.name; });
+  LC.on('meta', (m) => { $('#brandName').textContent = m.name; $('#brand').title = m.name; });
   LC.on('settings', () => LC.renderNav());
   const leave = (e) => { if (S.chan === e.id) { LC.toast(t('chatRemoved')); LC.openChat('general'); } LC.renderNav(); };
   LC.on('channel_removed', leave); LC.on('channel_deleted', leave);
   LC.on('dmttl', () => renderHeader());
-  LC.on('reminder', (r) => { LC.toast('⏰ ' + r.text, { ms: 10000 }); LC.playSound('ping'); if (LC.native && !LC.visible()) LC.native.notify(t('reminder'), r.text, r.chan); });
+  LC.on('reminder', (r) => { LC.toast(t('reminder') + ': ' + r.text, { ms: 10000 }); LC.playSound('ping'); if (LC.native && !LC.visible()) LC.native.notify(t('reminder'), r.text, r.chan); });
   LC.on('schedulefail', (e) => LC.toast(t('scheduleFailed', { why: e.error })));
   LC.on('joinrequest', (r) => {
     if (!LC.isAdmin()) return; LC.renderNav(); LC.playSound('ping');
@@ -265,11 +349,13 @@
   });
   LC.on('joindecided', () => LC.renderNav());
   LC.on('init', () => {
-    $('#app').classList.remove('hidden'); $('#brand').textContent = '💬 ' + S.chatName; $('#brand').title = S.chatName; LC.banner(null);
+    $('#app').classList.remove('hidden'); $('#brandName').textContent = S.chatName; $('#brand').title = S.chatName; LC.banner(null);
     const want = S.chan || LC.ls.get('lc_chan') || 'general'; S.chan = null; caches.clear(); S.readAt = {};
-    LC.openChat(want); LC.updateBadge(); startIdle();
+    const first = !booted, wasList = $('#app').classList.contains('list-mode'); booted = true; // phones start on the chat list; a reconnect keeps whatever was open
+    LC.openChat(want).then(() => { if (PHONE()) menuToggle(first || wasList); }); LC.updateBadge(); startIdle();
   });
   LC.on('lang', () => { renderTabs(); if (S.chan) renderHeader(); LC.renderNav(); });
+  LC.on('callstate', () => { renderRail(); if (S.pane === 'calls') LC.renderNav(); if (S.chan) renderHeader(); });
   window.addEventListener('focus', () => { if (S.chan && (S.unread[S.chan] || S.mentions[S.chan])) LC.markRead(S.chan); if (S.native) void 0; });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.chan && S.unread[S.chan]) LC.markRead(S.chan); });
 
@@ -285,7 +371,7 @@
   // ---------- search ----------
   LC.openSearch = (pre = {}) => {
     const q = el('input', { type: 'search', placeholder: t('searchPlaceholder'), value: pre.q || '', 'aria-label': t('search') }), from = el('select', { 'aria-label': t('searchFrom') }, el('option', { value: '', text: t('anyone') }), ...[...S.users.values()].map((u) => el('option', { value: u.id, text: LC.uname(u.id) })));
-    const where = el('select', { 'aria-label': t('searchIn') }, el('option', { value: '', text: t('everywhere') }), ...[...S.channels.values()].map((c) => el('option', { value: c.id, text: (c.members ? '🔒 ' : '# ') + c.name })), ...[...S.users.values()].filter((u) => u.id !== S.me.id && !u.removed).map((u) => el('option', { value: LC.dmId(S.me.id, u.id), text: '@ ' + LC.uname(u.id) })));
+    const where = el('select', { 'aria-label': t('searchIn') }, el('option', { value: '', text: t('everywhere') }), ...[...S.channels.values()].map((c) => el('option', { value: c.id, text: (c.members ? '' : '# ') + c.name })), ...[...S.users.values()].filter((u) => u.id !== S.me.id && !u.removed).map((u) => el('option', { value: LC.dmId(S.me.id, u.id), text: '@ ' + LC.uname(u.id) })));
     const has = el('select', { 'aria-label': t('searchHas') }, ...[['', 'anything'], ['file', 'hasFile'], ['image', 'hasImage'], ['link', 'hasLink'], ['pin', 'hasPin'], ['mention', 'hasMention'], ['poll', 'hasPoll']].map(([v, k]) => el('option', { value: v, text: t(k) })));
     const after = el('input', { type: 'date', 'aria-label': t('after') }), before = el('input', { type: 'date', 'aria-label': t('before') }), out = el('div', { class: 'results', 'aria-live': 'polite' }); where.value = pre.chan || ''; from.value = pre.from || ''; has.value = pre.has || '';
     const run = async () => {
@@ -296,27 +382,27 @@
       try { const { results } = await LC.api('/api/search?' + p); out.replaceChildren(...(results.length ? results.map((m) => el('button', { class: 'hit', onclick: () => { LC.closeModal(); LC.jumpToMessage(m.chan, m.id); } }, el('small', { text: `${LC.uname(m.from)} · ${LC.chanInfo(m.chan).title} · ${LC.fmtDateTime(m.ts)}` }), el('div', { text: LC.snippet(m) || '…' }))) : [el('p', { class: 'muted', text: t('noMatches') })])); } catch (e) { out.replaceChildren(el('p', { class: 'err', text: e.message })); }
     };
     const deb = LC.debounce(run, 300); for (const x of [q, from, where, has, after, before]) x.addEventListener(x === q ? 'input' : 'change', deb);
-    LC.modal([el('h2', { text: '🔎 ' + t('search') }), q, el('div', { class: 'filters' }, from, where, has, el('label', { class: 'small' }, t('after') + ' ', after), el('label', { class: 'small' }, t('before') + ' ', before)), out, el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('close'), onclick: LC.closeModal }))], { wide: true }); run();
+    LC.modal([el('h2', {}, LC.icon('search'), ' ' + t('search')), q, el('div', { class: 'filters' }, from, where, has, el('label', { class: 'small' }, t('after') + ' ', after), el('label', { class: 'small' }, t('before') + ' ', before)), out, el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('close'), onclick: LC.closeModal }))], { wide: true }); run();
   };
   document.addEventListener('DOMContentLoaded', () => { $('#search').addEventListener('keydown', (e) => { if (e.key === 'Enter') { LC.openSearch({ q: e.target.value }); e.target.value = ''; } }); });
 
   // ---------- pinned list, history, seen-by, forward ----------
   LC.pinnedList = async () => {
-    const out = el('div', { class: 'results' }, el('p', { class: 'muted', text: t('searching') })); LC.modal([el('h2', { text: '📌 ' + t('pinnedMsgs') }), out, el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('close'), onclick: LC.closeModal }))], { wide: true });
+    const out = el('div', { class: 'results' }, el('p', { class: 'muted', text: t('searching') })); LC.modal([el('h2', {}, LC.icon('pin'), ' ' + t('pinnedMsgs')), out, el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('close'), onclick: LC.closeModal }))], { wide: true });
     try { const { results } = await LC.api('/api/search?has=pin&chan=' + encodeURIComponent(S.chan)); out.replaceChildren(...(results.length ? results.map((m) => el('div', { class: 'hit row-between' }, el('button', { class: 'plain', onclick: () => { LC.closeModal(); LC.jumpToMessage(m.chan, m.id); } }, el('small', { text: `${LC.uname(m.from)} · ${LC.fmtDateTime(m.ts)}` }), el('div', { text: LC.snippet(m) })), LC.canPin(m) ? el('button', { class: 'secondary sm', text: t('unpin'), onclick: () => LC.api('/api/pin', { id: m.id }).then(() => LC.pinnedList()) }) : null)) : [el('p', { class: 'muted', text: t('noPins') })])); } catch (e) { out.replaceChildren(el('p', { class: 'err', text: e.message })); }
   };
-  LC.showHistory = async (m) => { try { const { versions } = await LC.api('/api/msg/history?id=' + m.id); LC.modal([el('h2', { text: '🕘 ' + t('editHistory') }), ...versions.map((v, i) => el('div', { class: 'ver' }, el('small', { class: 'muted', text: (i === 0 ? t('original') : v.current ? t('current') : t('edit') + ' ' + i) + ' · ' + LC.fmtDateTime(v.ts) }), el('div', { class: 'txt' }, LC.renderText(v.text || '')))), el('div', { class: 'acts' }, el('button', { class: 'primary', text: t('close'), onclick: LC.closeModal }))]); } catch (e) { LC.toast(e.message); } };
+  LC.showHistory = async (m) => { try { const { versions } = await LC.api('/api/msg/history?id=' + m.id); LC.modal([el('h2', {}, LC.icon('history'), ' ' + t('editHistory')), ...versions.map((v, i) => el('div', { class: 'ver' }, el('small', { class: 'muted', text: (i === 0 ? t('original') : v.current ? t('current') : t('edit') + ' ' + i) + ' · ' + LC.fmtDateTime(v.ts) }), el('div', { class: 'txt' }, LC.renderText(v.text || '')))), el('div', { class: 'acts' }, el('button', { class: 'primary', text: t('close'), onclick: LC.closeModal }))]); } catch (e) { LC.toast(e.message); } };
   LC.showSeenBy = async (m) => {
     try {
       const { users } = await LC.api(`/api/seenby?chan=${encodeURIComponent(m.chan)}&seq=${m.seq}`); const info = m.chan.startsWith('dm:') ? LC.tickState(m) : '';
-      LC.modal([el('h2', { text: '👁 ' + t('seenByMenu') }), info ? el('p', { text: t('tick_' + info) }) : null, users.length ? el('ul', { class: 'plainlist' }, users.map((id) => el('li', {}, LC.avatar(S.users.get(id), 'sm', false), ' ' + LC.uname(id)))) : el('p', { class: 'muted', text: t('seenNobody') }), el('p', { class: 'muted small', text: t('seenNote') }), el('div', { class: 'acts' }, el('button', { class: 'primary', text: t('close'), onclick: LC.closeModal }))]);
+      LC.modal([el('h2', {}, LC.icon('eye'), ' ' + t('seenByMenu')), info ? el('p', { text: t('tick_' + info) }) : null, users.length ? el('ul', { class: 'plainlist' }, users.map((id) => el('li', {}, LC.avatar(S.users.get(id), 'sm', false), ' ' + LC.uname(id)))) : el('p', { class: 'muted', text: t('seenNobody') }), el('p', { class: 'muted small', text: t('seenNote') }), el('div', { class: 'acts' }, el('button', { class: 'primary', text: t('close'), onclick: LC.closeModal }))]);
     } catch (e) { LC.toast(e.message); }
   };
   LC.forwardDialog = (m) => {
     const q = el('input', { placeholder: t('searchChats'), 'aria-label': t('searchChats') }), list = el('div', { class: 'results' });
     const items = () => { const e = chatEntries(); return [...e.chans.map((x) => ({ id: x.id, label: LC.chanInfo(x.id).title })), ...e.people.map((x) => ({ id: x.id, label: '@ ' + LC.uname(x.u.id) }))]; };
     const draw = () => list.replaceChildren(...items().filter((i) => i.label.toLowerCase().includes(q.value.toLowerCase())).map((i) => el('button', { class: 'hit', text: i.label, onclick: async () => { try { await LC.api('/api/forward', { id: m.id, chan: i.id }); LC.closeModal(); LC.toast(t('forwardedTo', { where: i.label })); } catch (e) { LC.toast(e.message); } } }))); q.addEventListener('input', draw); draw();
-    LC.modal([el('h2', { text: '↪ ' + t('forward') }), q, list, el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('cancel'), onclick: LC.closeModal }))]);
+    LC.modal([el('h2', {}, LC.icon('arrow_forward'), ' ' + t('forward')), q, list, el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('cancel'), onclick: LC.closeModal }))]);
   };
 
   // ---------- quick switcher + shortcuts ----------
@@ -326,12 +412,13 @@
     const draw = () => { const f = q.value.trim().toLowerCase(); shown = all.filter((i) => i.label.toLowerCase().includes(f)).sort((a, b) => (b.un > 0) - (a.un > 0)).slice(0, 12); sel = Math.min(sel, Math.max(0, shown.length - 1)); list.replaceChildren(...shown.map((i, n) => el('button', { class: 'hit' + (n === sel ? ' on' : ''), role: 'option', onclick: () => { LC.closeModal(); LC.openChat(i.id); } }, i.u ? LC.avatar(i.u, 'sm', true) : null, el('span', { text: i.label }), i.un ? el('span', { class: 'badge', text: i.un }) : null))); };
     q.addEventListener('input', () => { sel = 0; draw(); });
     q.addEventListener('keydown', (ev) => { if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') { sel = (sel + (ev.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length; draw(); ev.preventDefault(); } else if (ev.key === 'Enter' && shown[sel]) { LC.closeModal(); LC.openChat(shown[sel].id); } });
-    LC.modal([el('h2', { text: '⚡ ' + t('quickSwitcher') }), q, list]); draw();
+    LC.modal([el('h2', {}, LC.icon('filter'), ' ' + t('quickSwitcher')), q, list]); draw();
   };
-  LC.shortcutsHelp = () => LC.modal([el('h2', { text: '⌨ ' + t('shortcuts') }), el('table', { class: 'kb' }, ...[['Ctrl/⌘ + K', 'scQuick'], ['Alt + ↑ / ↓', 'scPrev'], ['Ctrl/⌘ + Shift + F', 'scSearch'], ['Ctrl/⌘ + /', 'scHelp'], ['↑ (empty box)', 'scEditLast'], ['Enter / Shift+Enter', 'scSend'], ['Esc', 'scClose'], ['@  :', 'scAuto']].map(([k, d]) => el('tr', {}, el('td', {}, el('kbd', { text: k })), el('td', { text: t(d) })))), el('div', { class: 'acts' }, el('button', { class: 'primary', text: t('close'), onclick: LC.closeModal }))]);
+  LC.shortcutsHelp = () => LC.modal([el('h2', {}, LC.icon('keyboard'), ' ' + t('shortcuts')), el('table', { class: 'kb' }, ...[['Ctrl/⌘ + K', 'scQuick'], ['Ctrl/⌘ + E', 'scFocusSearch'], ['Alt + ↑ / ↓', 'scPrev'], ['Ctrl/⌘ + Shift + F', 'scSearch'], ['Ctrl/⌘ + /', 'scHelp'], ['↑ (empty box)', 'scEditLast'], ['Enter / Shift+Enter', 'scSend'], ['Esc', 'scClose'], ['@  :', 'scAuto']].map(([k, d]) => el('tr', {}, el('td', {}, el('kbd', { text: k })), el('td', { text: t(d) })))), el('div', { class: 'acts' }, el('button', { class: 'primary', text: t('close'), onclick: LC.closeModal }))]);
   document.addEventListener('keydown', (e) => {
     if (!S.me || !$('#app') || $('#app').classList.contains('hidden')) return; const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); LC.quickSwitch(); }
+    else if (mod && e.key.toLowerCase() === 'e') { e.preventDefault(); if (PHONE()) LC.openSearch({}); else $('#search').focus(); }
     else if (mod && e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); LC.openSearch({ chan: S.chan }); }
     else if (mod && e.key === '/') { e.preventDefault(); LC.shortcutsHelp(); }
     else if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); const ids = [...$('#nav').querySelectorAll('.item')].map((n) => n.dataset.chan), i = ids.indexOf(S.chan); if (ids.length) LC.openChat(ids[(i + (e.key === 'ArrowDown' ? 1 : -1) + ids.length) % ids.length]); }
@@ -344,7 +431,9 @@
     main.addEventListener('dragleave', () => { if (--n <= 0) { n = 0; drop.classList.add('hidden'); } });
     main.addEventListener('dragover', (e) => e.preventDefault());
     main.addEventListener('drop', (e) => { e.preventDefault(); n = 0; drop.classList.add('hidden'); if (S.tab === 'chat') (S.thread && e.target.closest('#threadPanel') ? LC.composers.thread : LC.composers.main).addDropped(e.dataTransfer); });
-    $('#menuBtn').addEventListener('click', () => menuToggle(true)); $('#scrim').addEventListener('click', () => menuToggle(false));
+    $('#menuBtn').append(LC.icon('arrow_left')); $('#menuBtn').addEventListener('click', () => menuToggle(true));
+    $('#toBottom').append(LC.icon('arrow_down')); $('#searchIcon').append(LC.icon('search')); $('#searchBtn').append(LC.icon('search')); $('#searchBtn').addEventListener('click', () => LC.openSearch({}));
+    $('#inviteIcon').append(LC.icon('person_add')); $('#gearBtn').append(LC.icon('more_horizontal'));
     $('#composerHost').append((LC.composers.main = LC.makeComposer({ chan: () => S.chan, thread: () => null })).el);
     LC.composers.thread = LC.makeComposer({ chan: () => S.chan, thread: () => (S.thread ? S.thread.id : null), compact: true, noFocus: false });
     $('#inviteBtn').addEventListener('click', () => LC.inviteDialog());

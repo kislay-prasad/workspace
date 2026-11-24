@@ -28,10 +28,12 @@
     let adminKey = LC.ls.get('lc_admin', null); const m = /[#&]k=([A-Za-z0-9_-]{16,})/.exec(location.hash);
     if (m) { adminKey = m[1]; LC.ls.set('lc_admin', adminKey); history.replaceState(null, '', location.pathname + location.search); }
     LC.adminKey = adminKey;
+    const ho = /[#&]h=([a-f0-9]{32})/.exec(location.hash); // arrived from the http:// page via "Switch to the secure page"
+    if (ho) { history.replaceState(null, '', location.pathname + location.search); try { const r = await post('/api/handoff/redeem', { code: ho[1], deviceId: S.deviceId }), d = await r.json().catch(() => ({})); if (r.ok) return enter(d.token); LC.ls.set('lc_notice', 'handoff'); } catch {} }
     const cfg = await fetch('/api/config').then((r) => r.json()).catch(() => ({}));
     if (cfg.name) { S.chatName = cfg.name; document.title = cfg.name; $('#loginTitle').textContent = cfg.name; }
     $('#passIn').classList.toggle('hidden', !cfg.needPass); $('#hostNote').classList.toggle('hidden', !adminKey); $('#approvalNote').classList.toggle('hidden', !cfg.approval || !!adminKey);
-    const notice = LC.ls.get('lc_notice'); if (notice) { LC.ls.del('lc_notice'); $('#loginErr').textContent = notice === 'kicked' ? t('kickedNotice') : notice === 'deleted' ? t('accountDeleted') : t('sessionExpired'); }
+    const notice = LC.ls.get('lc_notice'); if (notice) { LC.ls.del('lc_notice'); $('#loginErr').textContent = notice === 'kicked' ? t('kickedNotice') : notice === 'deleted' ? t('accountDeleted') : notice === 'handoff' ? t('handoffExpired') : t('sessionExpired'); }
     if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});
     const pending = LC.ls.get('lc_pending');
     if (S.token) {

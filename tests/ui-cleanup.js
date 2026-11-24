@@ -11,7 +11,7 @@ const { chromium } = require('playwright'); const { createApp } = require('/home
   await step('cleanup tab: preview + delete + fresh', async () => {
     await H.click('#gearBtn'); await H.click('.popmenu button:has-text("Manage")'); await H.click('[role=tab]:has-text("Clean-up")');
     await H.selectOption('select[aria-label="Delete messages older than"]', '0'); await H.click('button:has-text("Preview")'); await H.waitForSelector('text=Would delete');
-    await H.click('button:has-text("🧹 Delete")'); await H.click('[role=alertdialog] button.primary'); await H.waitForSelector('text=messages deleted');
+    await H.click('.modal .primary.danger:has-text("Delete")'); await H.click('[role=alertdialog] button.primary'); await H.waitForSelector('text=messages deleted');
     if (app.ctx.db.messages.some((m) => m.text === 'msg a')) throw new Error('not deleted');
   });
   await step('people tab: show removed + delete permanently', async () => {

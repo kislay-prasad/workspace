@@ -1,6 +1,6 @@
 'use strict';
 // LANChat desktop shell. A "session" is one chat server. You can host several on this computer and join friends' sessions.
-const { app, BrowserWindow, Menu, Tray, Notification, dialog, clipboard, shell, ipcMain, nativeImage, session, desktopCapturer } = require('electron');
+const { app, BrowserWindow, Menu, Tray, Notification, dialog, clipboard, shell, ipcMain, nativeImage, session, desktopCapturer, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -49,7 +49,7 @@ function png(size, pixel) {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ih), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }
 const inRR = (x, y, x0, y0, x1, y1, r) => { if (x < x0 || x > x1 || y < y0 || y > y1) return false; const cx = Math.min(Math.max(x, x0 + r), x1 - r), cy = Math.min(Math.max(y, y0 + r), y1 - r); return (x - cx) ** 2 + (y - cy) ** 2 <= r * r; };
-const iconPx = (X, Y) => { let c = inRR(X, Y, 0, 0, 511, 511, 112) ? [70, 71, 117, 255] : null; if (inRR(X, Y, 104, 150, 408, 334, 24) || (X >= 176 && X <= 252 && Y >= 320 && Y <= 400 && (Y - 320) <= (X - 176) * 1.05 + 8 && (Y - 320) <= (252 - X) * 3 + 80)) c = [255, 255, 255, 255]; for (const cx of [196, 256, 316]) if ((X - cx) ** 2 + (Y - 242) ** 2 <= 400) c = [70, 71, 117, 255]; return c; };
+const iconPx = (X, Y) => { let c = inRR(X, Y, 0, 0, 511, 511, 112) ? [Math.round(123 - (X + Y) / 1024 * 44), Math.round(131 - (X + Y) / 1024 * 49), Math.round(235 - (X + Y) / 1024 * 57), 255] : null; if (inRR(X, Y, 104, 150, 408, 334, 24) || (X >= 176 && X <= 252 && Y >= 320 && Y <= 400 && (Y - 320) <= (X - 176) * 1.05 + 8 && (Y - 320) <= (252 - X) * 3 + 80)) c = [255, 255, 255, 255]; for (const cx of [196, 256, 316]) if ((X - cx) ** 2 + (Y - 242) ** 2 <= 400) c = [91, 95, 199, 255]; return c; };
 const appIcon = () => nativeImage.createFromBuffer(png(256, iconPx));
 const trayIcon = () => nativeImage.createFromBuffer(png(32, iconPx));
 const DIGITS = { 0: '111101101101111', 1: '010110010010111', 2: '111001111100111', 3: '111001111001111', 4: '101101111001001', 5: '111100111001111', 6: '111100111101111', 7: '111001001010010', 8: '111101111101111', 9: '111101111001111', '+': '000010111010000' };
@@ -146,7 +146,9 @@ async function openSession(id) {
 function offerRestart() {
   dialog.showMessageBox(win || undefined, { type: 'info', title: 'One-time restart', message: 'Restart LANChat to enable calls and recording for this session?', detail: 'Chatting works right away. Voice/video calls, voice messages and screen sharing need LANChat to restart once for this session.', buttons: ['Restart now', 'Later'], defaultId: 0, cancelId: 1 }).then((r) => { if (r.response === 0) { quitting = true; app.relaunch(); app.exit(0); } });
 }
-function normalizeUrl(raw) { try { const u = new URL(/^https?:\/\//i.test(raw) ? raw : 'http://' + raw); if (!/^https?:$/.test(u.protocol) || !u.hostname) return null; if (!u.port && u.protocol === 'http:') u.port = '3000'; return u.origin; } catch { return null; } }
+const privateHost = (h) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|127\.|169\.254\.)/.test(h) || h === 'localhost' || /\.local$/i.test(h);
+// LAN sessions answer http:// and https:// on the same port; the app uses http:// (it unlocks calls itself), so a pasted https:// LAN link is switched over
+function normalizeUrl(raw) { try { const u = new URL(/^https?:\/\//i.test(raw) ? raw : 'http://' + raw); if (!/^https?:$/.test(u.protocol) || !u.hostname) return null; if (u.protocol === 'https:' && u.port && privateHost(u.hostname)) u.protocol = 'http:'; if (!u.port && u.protocol === 'http:') u.port = '3000'; return u.origin; } catch { return null; } }
 function fetchName(url) { return new Promise((resolve) => { const lib = url.startsWith('https') ? https : http; const req = lib.get(url + '/api/config', { timeout: 2500 }, (res) => { let b = ''; res.on('data', (c) => { if (b.length < 2000) b += c; }); res.on('end', () => { try { resolve(String(JSON.parse(b).name || '').slice(0, 40)); } catch { resolve(''); } }); }); req.on('error', () => resolve('')); req.on('timeout', () => { req.destroy(); resolve(''); }); }); }
 
 // ---------- sessions window ----------
@@ -197,15 +199,28 @@ function setupSecurity() {
   const ses = session.defaultSession, OK = new Set(['media', 'display-capture', 'notifications', 'fullscreen', 'clipboard-sanitized-write', 'audioCapture', 'videoCapture']);
   ses.setPermissionRequestHandler((wc, perm, cb, details) => cb(OK.has(perm) && trusted((details && details.requestingUrl) || wc.getURL())));
   ses.setPermissionCheckHandler((wc, perm, origin) => OK.has(perm) && trusted(origin || (wc && wc.getURL()) || ''));
-  ses.setDisplayMediaRequestHandler(async (_req, cb) => {
+  // Screen sharing shares the whole screen LANChat is on, straight away (like Teams). The meeting window's ⌄ button
+  // lists screens and windows with thumbnails and tells us which one to use next (plus computer sound on Windows).
+  ses.setDisplayMediaRequestHandler(async (req, cb) => {
     try {
+      if (!trusted(req.securityOrigin || (req.frame && req.frame.url) || '')) return cb({});
+      const pick = sharePick && Date.now() - sharePick.at < 20000 ? sharePick : null; sharePick = null;
       const srcs = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 0, height: 0 } }); if (!srcs.length) return cb({});
-      let pick = srcs.find((s) => s.id.startsWith('screen:')) || srcs[0];
-      if (srcs.length > 1) { const list = srcs.slice(0, 8), r = await dialog.showMessageBox(win || undefined, { type: 'question', title: 'Share screen', message: 'What do you want to share?', buttons: [...list.map((s) => s.name.slice(0, 60)), 'Cancel'], cancelId: list.length, defaultId: 0 }); if (r.response >= list.length) return cb({}); pick = list[r.response]; }
-      cb({ video: pick });
+      let src = pick && pick.id !== 'auto' ? srcs.find((s) => s.id === pick.id) : null;
+      if (!src) { const d = win && !win.isDestroyed() ? screen.getDisplayMatching(win.getBounds()) : screen.getPrimaryDisplay(); src = srcs.find((s) => s.id.startsWith('screen:') && String(s.display_id) === String(d.id)) || srcs.find((s) => s.id.startsWith('screen:')) || srcs[0]; }
+      const out = { video: src }; if (pick && pick.audio && req.audioRequested && process.platform === 'win32') out.audio = 'loopback';
+      cb(out);
     } catch { cb({}); }
   });
 }
+let sharePick = null;
+ipcMain.handle('screens:list', async (e) => {
+  if (!win || e.sender !== win.webContents) return [];
+  const srcs = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: false });
+  const screens = srcs.filter((s) => s.id.startsWith('screen:')), multi = screens.length > 1;
+  return srcs.filter((s) => s.id.startsWith('screen:') || (s.name && s.name !== win.getTitle())).slice(0, 30).map((s) => ({ id: s.id, kind: s.id.startsWith('screen:') ? 'screen' : 'window', name: s.id.startsWith('screen:') ? (multi ? 'Screen ' + (screens.indexOf(s) + 1) : 'Entire screen') : s.name.slice(0, 80), thumb: s.thumbnail && !s.thumbnail.isEmpty() ? s.thumbnail.toDataURL() : '' }));
+});
+ipcMain.on('screens:pick', (e, p) => { if (!win || e.sender !== win.webContents || !p) return; sharePick = { id: String(p.id || 'auto').slice(0, 200), audio: !!p.audio, at: Date.now() }; });
 
 // ---------- native bridge ----------
 ipcMain.on('notify', (e, n) => {

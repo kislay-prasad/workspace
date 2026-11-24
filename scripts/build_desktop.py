@@ -22,8 +22,12 @@ START:  double-click LANChat.exe
   - "Windows protected your PC"? Right-click the .zip BEFORE unzipping > Properties > tick Unblock, or click More info > Run anyway.
   - Windows Firewall: tick "Private networks" > Allow access (so friends can reach you).
   - First launch opens the Sessions window: create a session (you are the host/admin) or join a friend's.
-  - Friends without the app: Chat menu > Invite friends shows a QR code / address for any browser.
-  - Everyone who asks to join waits for YOUR approval.
+  - Friends without the app: click Invite (top bar). Phones/browsers use the https:// link or QR code. The first time,
+    the browser says "Your connection is not private" - that is expected: tap Advanced > Proceed. (https:// is what lets
+    browsers use the microphone, camera and screen sharing.)
+  - Friends with the app: Sessions > Join a session > type the plain address shown under "LANChat desktop app".
+  - Everyone who asks to join waits for YOUR approval (Manage, in the left bar).
+  - Screen sharing: the Share button shares your whole screen; the small arrow next to it lets you pick a window.
 Your data lives in %APPDATA%\\LANChat. Closing the window keeps hosted sessions running in the tray; use Quit to stop.
 """,
  'linux': """LANChat - private chat sessions for you and your friends.

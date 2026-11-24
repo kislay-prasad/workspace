@@ -30,7 +30,7 @@
   // ---------- state ----------
   const S = (LC.S = {
     token: ls.get('lc_token'), deviceId: ls.get('lc_device'), me: null, users: new Map(), channels: new Map(), chan: null, chatName: 'LANChat', settings: {}, emojis: {}, dmTtl: {},
-    unread: {}, mentions: {}, read: {}, readAt: {}, peers: {}, win: {}, typing: {}, calls: {}, pendingReqs: [], tab: 'chat', thread: null, es: null, lastEv: 0, serverSkew: 0, outbox: [],
+    unread: {}, mentions: {}, read: {}, readAt: {}, peers: {}, win: {}, typing: {}, calls: {}, pendingReqs: [], tab: 'chat', thread: null, es: null, lastEv: 0, serverSkew: 0, outbox: [], last: {}, pane: 'chat',
   });
   if (!S.deviceId) { S.deviceId = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join(''); ls.set('lc_device', S.deviceId); }
   LC.prefs = () => (S.me && S.me.prefs) || {};
@@ -47,7 +47,7 @@
     if (!chan) return { kind: 'none', title: '' };
     if (chan.startsWith('dm:')) { const u = S.users.get(LC.peerOf(chan)); return { kind: 'dm', title: LC.uname(LC.peerOf(chan)), peer: u, icon: '' }; }
     const c = S.channels.get(chan); if (!c) return { kind: 'channel', title: chan };
-    return { kind: c.members ? 'group' : 'channel', title: (c.members ? '🔒 ' : '#') + c.name, c, topic: c.topic, icon: c.members ? '🔒' : '#' };
+    return { kind: c.members ? 'group' : 'channel', title: (c.members ? '' : '#') + c.name, c, topic: c.topic, icon: c.members ? 'people' : '#' };
   };
   LC.fileUrl = (f, inline) => `/files/${f.id}/${encodeURIComponent(f.name)}?token=${encodeURIComponent(S.token)}${inline ? '&inline=1' : ''}`;
   LC.extOf = (n) => (n.split('.').pop() || '').toLowerCase();
@@ -76,8 +76,13 @@
   LC.avatar = (u, cls = '', dot = false) => {
     u = u || { name: '?', color: '#888', presence: 'offline' };
     const inner = u.avatar ? el('img', { src: LC.fileUrl({ id: u.avatar, name: 'a.png' }, true), alt: '', loading: 'lazy' }) : (u.name.trim()[0] || '?').toUpperCase();
-    return el('div', { class: 'av ' + cls, style: `background:${u.color}`, title: u.name, 'aria-hidden': 'true' }, inner, dot ? el('span', { class: 'dot ' + (u.presence || 'offline'), title: t(u.presence || 'offline') }) : null);
+    return el('div', { class: 'av ' + cls, style: `background:${u.color}`, title: u.name, 'aria-hidden': 'true' }, inner, dot ? LC.presenceDot(u.presence) : null);
   };
+  const PRES_ICON = { online: 'presence_available', away: 'presence_away', dnd: 'presence_dnd', busy: 'presence_busy', offline: 'presence_offline', invisible: 'presence_offline' };
+  LC.presenceDot = (p) => el('span', { class: 'dot ' + (p || 'offline'), title: t(p || 'offline') }, LC.icon(PRES_ICON[p] || 'presence_offline'));
+  // icon-only button (always has an accessible name) and icon + text button
+  LC.ibtn = (icon, label, onclick, o = {}) => el('button', { class: o.cls || 'icon', title: label, 'aria-label': label, onclick, type: 'button', 'aria-haspopup': o.menu ? 'menu' : null, 'aria-pressed': o.pressed === undefined ? null : String(!!o.pressed), disabled: o.disabled }, LC.icon(icon, { filled: o.filled }));
+  LC.btn = (icon, text, onclick, cls = 'secondary') => el('button', { class: cls + ' withicon', onclick, type: 'button' }, LC.icon(icon), el('span', { text }));
   void PRES;
 
   // ---------- API ----------
@@ -93,7 +98,7 @@
   LC.setPrefs = (patch) => LC.api('/api/prefs', patch).catch((e) => LC.toast(e.message));
 
   // ---------- live connection ----------
-  const EVENTS = ['init', 'user', 'channel', 'channel_removed', 'channel_deleted', 'message', 'update', 'purge', 'typing', 'seen', 'delivered', 'readstate', 'settings', 'emoji', 'me', 'joinrequest', 'joindecided', 'kicked', 'meta', 'note', 'board', 'boardlive', 'todos', 'events', 'callstate', 'callring', 'callsig', 'reminder', 'dmttl', 'schedulefail', 'ping'];
+  const EVENTS = ['init', 'user', 'channel', 'channel_removed', 'channel_deleted', 'message', 'update', 'purge', 'typing', 'seen', 'delivered', 'readstate', 'settings', 'emoji', 'me', 'joinrequest', 'joindecided', 'kicked', 'meta', 'note', 'board', 'boardlive', 'todos', 'events', 'callstate', 'callring', 'callsig', 'callreact', 'reminder', 'dmttl', 'schedulefail', 'ping'];
   LC.on = (name, fn) => { (LC.handlers[name] ||= []).push(fn); };
   const dispatch = (name, d) => { for (const fn of LC.handlers[name] || []) { try { fn(d); } catch (e) { console.error('handler error for', name, e); } } };
   LC.connect = () => {
@@ -113,7 +118,7 @@
     S.chatName = d.chatName; S.me = d.me; S.users = new Map(d.users.map((u) => [u.id, u])); S.channels = new Map(d.channels.map((c) => [c.id, c]));
     S.unread = d.unread; S.mentions = d.mentions; S.read = d.read; S.peers = d.peers; S.settings = d.settings; S.emojis = d.emojis; S.dmTtl = d.dmTtl || {};
     S.serverSkew = d.serverTime - Date.now(); S.pendingReqs = d.pending || []; S.calls = {}; for (const c of d.calls || []) S.calls[c.chan] = c.call;
-    S.win = {}; S.typing = {}; LC.mentionRe = null;
+    S.win = {}; S.typing = {}; LC.mentionRe = null; S.last = d.last || {};
   });
   LC.on('user', (u) => { S.users.set(u.id, u); LC.mentionRe = null; if (S.me && u.id === S.me.id) Object.assign(S.me, u, { prefs: S.me.prefs }); });
   LC.on('me', (m) => { S.me = m; });
@@ -125,6 +130,7 @@
   LC.on('meta', (m) => { S.chatName = m.name; });
   LC.on('dmttl', (e) => { if (e.ttl) S.dmTtl[e.chan] = e.ttl; else delete S.dmTtl[e.chan]; });
   LC.on('kicked', () => { LC.signOut('kicked'); });
+  LC.on('callstate', (e) => { if (e.call) S.calls[e.chan] = e.call; else delete S.calls[e.chan]; });
   LC.on('joinrequest', (r) => { if (!S.pendingReqs.some((x) => x.id === r.id)) S.pendingReqs.push(r); });
   LC.on('joindecided', (r) => { S.pendingReqs = S.pendingReqs.filter((x) => x.id !== r.id); });
 
@@ -161,7 +167,8 @@
     const m = menuEl(); m.replaceChildren(); let first = null;
     for (const it of items) {
       if (!it) continue; if (it === 'sep') { m.append(el('hr')); continue; }
-      const b = el('button', { role: 'menuitem', class: it.danger ? 'danger' : '', disabled: !!it.disabled, onclick: () => { LC.closeMenu(); it.fn && it.fn(); } }, el('span', { class: 'mi', text: it.icon || (it.checked ? '✓' : '') }), el('span', { text: it.label }));
+      const ic = it.icon && LC.hasIcon(it.icon) ? LC.icon(it.icon, { cls: it.iconCls }) : it.icon ? it.icon : it.checked ? LC.icon('checkmark') : '';
+      const b = el('button', { role: it.checked !== undefined ? 'menuitemcheckbox' : 'menuitem', 'aria-checked': it.checked !== undefined ? String(!!it.checked) : null, class: it.danger ? 'danger' : '', disabled: !!it.disabled, onclick: () => { LC.closeMenu(); it.fn && it.fn(); } }, el('span', { class: 'mi' }, ic), el('span', { class: 'ml', text: it.label }), it.checked && it.icon ? LC.icon('checkmark', { cls: 'mcheck' }) : null);
       m.append(b); first ||= b;
     }
     m.classList.remove('hidden'); m.style.visibility = 'hidden';
