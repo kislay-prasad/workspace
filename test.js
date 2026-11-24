@@ -452,6 +452,51 @@ async function section(name, fn) { try { await fn(); results.push([name, true]);
     assert.equal(a.ctx.db.settings.name, 'Friday Gang'); a.stop();
   });
 
+  await section('clean-up tools: delete old messages, clear chats, delete people, delete my account, start fresh', async () => {
+    const dir = path.join(tmp, 'cleanup'), a = createApp({ dataDir: dir, requireApproval: false, trustProxy: true, publicDir: path.join(__dirname, 'public') }), pt = await a.start(3950 + Math.floor(Math.random() * 9)), U = `http://127.0.0.1:${pt}`;
+    const C = async (m, p, b, tok) => { const r = await fetch(U + p, { method: m, headers: { 'x-token': tok || '', 'x-forwarded-for': '10.2.2.2' }, body: b === undefined ? undefined : JSON.stringify(b) }); return { s: r.status, d: await r.json().catch(() => ({})) }; };
+    const join = async (name, extra) => { const r = await C('POST', '/api/join', { name, deviceId: 'dev-' + name, ...(extra || {}) }); assert.equal(r.s, 200, 'join ' + name + ': ' + JSON.stringify(r.d)); return { token: r.d.token, id: r.d.me.id, name }; };
+    const host = await join('Host', { adminKey: a.adminKey }), amy = await join('Amy'), ben = await join('Ben');
+    const send = async (u, chan, text) => (await C('POST', '/api/send', { chan, text }, u.token)).d.id;
+    const old1 = await send(amy, 'general', 'old amy 1'), old2 = await send(ben, 'general', 'old ben 1'), oldPin = await send(amy, 'general', 'old but pinned'), fresh = await send(amy, 'general', 'fresh amy');
+    const g = (await C('POST', '/api/channel', { name: 'Crew', members: [ben.id] }, amy.token)).d.id; const gOld = await send(amy, g, 'old group msg');
+    for (const id of [old1, old2, oldPin, gOld]) a.ctx.msgById.get(id).ts = Date.now() - 40 * 86400000;
+    await C('POST', '/api/pin', { id: oldPin }, host.token);
+    // permissions + dry run
+    assert.equal((await C('POST', '/api/admin/cleanup', { days: 30 }, amy.token)).s, 403, 'members cannot bulk-delete');
+    assert.equal((await C('POST', '/api/admin/cleanup', { days: -1 }, host.token)).s, 400); assert.equal((await C('POST', '/api/admin/cleanup', { days: 30, chan: 'dm:a:b' }, host.token)).s, 400);
+    const dry = await C('POST', '/api/admin/cleanup', { days: 30, dryRun: true }, host.token); assert.equal(dry.d.count >= 3, true, 'counts old messages (system messages included): ' + JSON.stringify(dry.d));
+    assert(a.ctx.msgById.has(old1) && a.ctx.msgById.has(gOld), 'a dry run deletes nothing');
+    // delete old messages in one chat only, then everywhere (pinned kept)
+    const one = await C('POST', '/api/admin/cleanup', { days: 30, chan: g }, host.token); assert(one.d.removed >= 1); assert(!a.ctx.msgById.has(gOld) && a.ctx.msgById.has(old1), 'only that chat was cleaned');
+    await C('POST', '/api/admin/cleanup', { days: 30 }, host.token); assert(!a.ctx.msgById.has(old1) && !a.ctx.msgById.has(old2), 'old messages gone'); assert(a.ctx.msgById.has(oldPin) && a.ctx.msgById.has(fresh), 'pinned and recent kept');
+    await C('POST', '/api/admin/cleanup', { days: 30, keepPinned: false }, host.token); assert(!a.ctx.msgById.has(oldPin), 'pinned deleted when asked');
+    // clear a chat
+    const m1 = await send(amy, 'general', 'amy again'), m2 = await send(ben, 'general', 'ben again');
+    assert.equal((await C('POST', '/api/chat/clear', { chan: 'general', scope: 'all' }, ben.token)).s, 403, 'members cannot clear a channel');
+    assert.equal((await C('POST', '/api/chat/clear', { chan: 'general', scope: 'mine' }, ben.token)).d.removed, 1); assert(!a.ctx.msgById.has(m2) && a.ctx.msgById.has(m1), '"delete my messages" only removes mine');
+    const dm = 'dm:' + [amy.id, ben.id].sort().join(':'); await send(amy, dm, 'private from amy'); await send(ben, dm, 'private from ben');
+    assert.equal((await C('POST', '/api/chat/clear', { chan: dm, scope: 'all' }, amy.token)).s, 400, 'a private chat cannot be wiped for both people'); assert.equal((await C('POST', '/api/chat/clear', { chan: dm, scope: 'mine' }, amy.token)).d.removed, 1);
+    assert.equal((await C('POST', '/api/chat/clear', { chan: dm, scope: 'mine' }, host.token)).s, 404, 'outsiders cannot touch private chats');
+    const cleared = await C('POST', '/api/chat/clear', { chan: 'general', scope: 'all' }, host.token); assert.equal(cleared.s, 200); assert(a.ctx.db.messages.filter((m) => m.chan === 'general').every((m) => m.system), 'only the "cleared" notice is left');
+    // delete a person permanently (admin), with their messages
+    const dave = await join('Dave'); await send(dave, 'general', 'dave was here'); const dm2 = 'dm:' + [dave.id, ben.id].sort().join(':'); await send(dave, dm2, 'dave dm');
+    assert.equal((await C('POST', '/api/admin/user/delete', { id: dave.id }, amy.token)).s, 403); assert.equal((await C('POST', '/api/admin/user/delete', { id: host.id }, host.token)).s, 403, 'the host cannot be deleted'); assert.equal((await C('POST', '/api/admin/user/delete', { id: ben.id, purge: true }, host.token)).s, 200);
+    assert.equal((await C('GET', '/api/messages?chan=general', undefined, ben.token)).s, 401, 'deleted person is signed out'); const tomb = a.ctx.db.users[ben.id]; assert(tomb.deleted && tomb.name === 'Deleted user' && !tomb.tokens.length);
+    assert(!a.ctx.db.messages.some((m) => m.from === ben.id || m.chan === dm), 'their messages and private chats are erased'); assert(!(await C('GET', '/api/admin/users', undefined, host.token)).d.users.some((u) => u.id === ben.id), 'not listed any more');
+    const ben2 = await join('Ben'); assert.notEqual(ben2.id, ben.id, 'the name is free again and starts a brand-new account');
+    // delete my own account
+    assert.equal((await C('POST', '/api/account/delete', {}, host.token)).s, 403, 'the host cannot delete themselves'); assert.equal((await C('POST', '/api/account/delete', { purge: false }, amy.token)).s, 200);
+    assert.equal((await C('GET', '/api/messages?chan=general', undefined, amy.token)).s, 401, 'signed out'); assert.equal((await C('POST', '/api/join', { name: 'Deleted user', deviceId: 'x' })).s, 400, 'reserved name');
+    // start fresh
+    await send(ben2, 'general', 'one more'); const up = await fetch(U + '/api/upload?name=a.txt', { method: 'POST', headers: { 'x-token': host.token }, body: Buffer.from('file') }).then((r) => r.json()); await C('POST', '/api/send', { chan: 'general', text: 'with file', files: [up] }, host.token);
+    assert.equal((await C('POST', '/api/admin/reset', { confirm: 'nope' }, host.token)).s, 400); assert.equal((await C('POST', '/api/admin/reset', { confirm: 'RESET' }, ben2.token)).s, 403);
+    assert.equal((await C('POST', '/api/admin/reset', { confirm: 'RESET' }, host.token)).s, 200);
+    assert.equal(a.ctx.db.messages.length, 0); assert.deepEqual(Object.keys(a.ctx.db.users), [host.id]); assert.deepEqual(Object.keys(a.ctx.db.channels), ['general']); assert.equal(fs.readdirSync(a.ctx.P.uploads).length, 0, 'files erased from disk');
+    assert.equal((await C('GET', '/api/messages?chan=general', undefined, ben2.token)).s, 401); assert.equal((await C('GET', '/api/messages?chan=general', undefined, host.token)).s, 200, 'the host stays signed in');
+    a.stop();
+  });
+
   ownerSse.close(); bobSse.close();
   const failed = results.filter((r) => !r[1]);
   console.log(`\n${results.length - failed.length}/${results.length} sections passed`);
