@@ -1,0 +1,8 @@
+{
+  "name": "lanchat-desktop",
+  "productName": "LANChat",
+  "version": "4.0.0",
+  "description": "LANChat desktop app: host or join private chat sessions on your Wi-Fi.",
+  "main": "main.js",
+  "license": "MIT"
+}

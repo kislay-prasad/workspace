@@ -1,0 +1,11 @@
+<!doctype html><meta charset="utf-8"><title>Connection help</title>
+<style>body{font:15px system-ui,"Segoe UI",sans-serif;margin:0;padding:20px;background:#fff;color:#242424}h2{margin:0 0 6px}.ok{color:#13a10e}.bad{color:#c4314b}.muted{color:#6b6b7b}li{margin:6px 0}pre{background:#f5f5fa;border:1px solid #ddd;border-radius:8px;padding:10px;white-space:pre-wrap;font-size:13px}button{padding:8px 14px;border-radius:8px;border:1px solid #d1d1db;background:#f5f5fa;font-size:15px;cursor:pointer;margin-right:6px}button.p{background:#5b5fc7;color:#fff;border:0}
+@media (prefers-color-scheme:dark){body{background:#1b1a2b;color:#eceaf5}pre,button{background:#252439;color:#eceaf5;border-color:#3a3957}}</style>
+<h2>🩺 Why can't my friend connect?</h2><p class="muted">Checking this computer…</p><ul id="r"></ul><h3>What to try</h3><ul id="tips"></ul><button class="p" id="re">Run again</button><button id="cp">Copy report</button><pre id="raw"></pre>
+<script>
+const { ipcRenderer, clipboard } = require('electron'); const R = document.getElementById('r');
+async function run() { R.replaceChildren(); document.getElementById('tips').replaceChildren(); document.getElementById('raw').textContent = '…'; const d = await ipcRenderer.invoke('diag:run');
+  for (const c of d.checks) { const li = document.createElement('li'); li.innerHTML = (c.ok ? '<span class="ok">✔</span> ' : '<span class="bad">✘</span> ') + c.text.replace(/[<>&]/g, (m) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[m])); R.append(li); }
+  for (const t of d.tips) { const li = document.createElement('li'); li.textContent = t; document.getElementById('tips').append(li); } document.getElementById('raw').textContent = d.raw; window.__raw = d.raw; }
+document.getElementById('re').onclick = run; document.getElementById('cp').onclick = () => clipboard.writeText(window.__raw || ''); run();
+</script>

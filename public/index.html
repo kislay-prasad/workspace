@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LANChat</title>
+<meta name="theme-color" content="#464775">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="LANChat">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#msgs" data-i18n="skip">Skip to messages</a>
+
+<div id="login" class="login hidden" role="main">
+  <form id="loginForm" class="card" autocomplete="off">
+    <div class="logo" aria-hidden="true">💬</div>
+    <h1 id="loginTitle">LANChat</h1>
+    <p id="loginSub" data-i18n="loginSub">Chat with everyone on this Wi-Fi. Nothing leaves your network.</p>
+    <p id="hostNote" class="hostnote hidden" data-i18n="hostNote">You are the host of this session — you approve who joins.</p>
+    <label class="sr-only" for="nameIn" data-i18n="yourName">Your name</label>
+    <input id="nameIn" data-i18n-ph="yourName" placeholder="Your name" maxlength="24" autocomplete="nickname" required>
+    <label class="sr-only" for="passIn" data-i18n="passcode">Room passcode</label>
+    <input id="passIn" type="password" data-i18n-ph="passcode" placeholder="Room passcode" class="hidden" autocomplete="off">
+    <button class="primary" type="submit" id="joinBtn" data-i18n="join">Join</button>
+    <p class="small muted" id="approvalNote" data-i18n="approvalNote">The host will need to approve you.</p>
+    <div id="loginErr" class="err" role="alert"></div>
+  </form>
+</div>
+
+<div id="waiting" class="login hidden" role="main">
+  <div class="card">
+    <div class="logo spin" aria-hidden="true">⏳</div>
+    <h1 data-i18n="waitingTitle">Waiting for approval</h1>
+    <p id="waitingMsg" data-i18n="waitingMsg">The host has been asked to let you in. Keep this page open.</p>
+    <button class="secondary" id="cancelWait" data-i18n="cancel">Cancel</button>
+  </div>
+</div>
+
+<div id="app" class="app hidden">
+  <div id="banner" class="banner hidden" role="status"></div>
+  <aside id="sidebar" class="sidebar" aria-label="Chats">
+    <div class="side-head">
+      <div class="brand" id="brand">💬 LANChat</div>
+      <div class="side-actions">
+        <button id="inviteBtn" class="invite" data-i18n="invite" title="Invite friends">＋ Invite</button>
+        <button id="gearBtn" class="icon" aria-label="Menu" title="Menu" aria-haspopup="menu">⚙</button>
+      </div>
+    </div>
+    <input id="search" class="search" type="search" data-i18n-ph="search" placeholder="Search (Enter)" autocomplete="off" aria-label="Search">
+    <nav id="nav" class="nav"></nav>
+    <div id="meBox" class="me"></div>
+  </aside>
+  <div id="scrim" class="scrim"></div>
+
+  <main class="main" id="main">
+    <header class="chat-head">
+      <button id="menuBtn" class="icon menu" aria-label="Chats">☰</button>
+      <div class="head-title"><h1 id="title" class="title"></h1><div id="topic" class="topic"></div></div>
+      <div class="head-actions" id="headActions"></div>
+    </header>
+    <div id="tabs" class="tabs" role="tablist"></div>
+    <div id="callBar" class="callbar hidden"></div>
+    <div id="chatView" class="chatview">
+      <div id="msgs" class="msgs" tabindex="0" role="log" aria-label="Messages"></div>
+      <button id="toBottom" class="tobottom hidden" aria-label="Latest messages">↓</button>
+      <div id="typing" class="typing" aria-hidden="true"></div>
+      <div id="composerHost"></div>
+    </div>
+    <div id="tabView" class="tabview hidden"></div>
+    <div id="drop" class="dropzone hidden" data-i18n="dropHere">Drop files or a folder to share</div>
+  </main>
+  <aside id="threadPanel" class="threadpanel hidden" aria-label="Thread"></aside>
+</div>
+
+<div id="callUI" class="callui hidden"></div>
+<div id="picker" class="picker hidden"></div>
+<div id="menu" class="popmenu hidden" role="menu"></div>
+<div id="modal" class="modal hidden" role="dialog" aria-modal="true"></div>
+<div id="lightbox" class="lightbox hidden" role="dialog" aria-modal="true"></div>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+<div id="sr" class="sr-only" aria-live="polite"></div>
+
+<script src="qrcode.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/core.js"></script>
+<script src="js/render.js"></script>
+<script src="js/composer.js"></script>
+<script src="js/chat.js"></script>
+<script src="js/panels.js"></script>
+<script src="js/collab.js"></script>
+<script src="js/calls.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

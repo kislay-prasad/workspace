@@ -1,0 +1,7 @@
+LANChat bundles or downloads these third-party components:
+
+* Electron (desktop app only) - MIT License - https://www.electronjs.org  (includes Chromium and Node.js, see LICENSES.chromium.html in the app folder)
+* qrcode-generator 1.4.4 by Kazuhiko Arase - MIT License - public/qrcode.js
+* cloudflared (optional, downloaded only if the host chooses "Share over the internet") - Apache License 2.0 - https://github.com/cloudflare/cloudflared
+
+Everything else in LANChat is original code with no npm dependencies.

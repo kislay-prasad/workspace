@@ -1,0 +1,13 @@
+services:
+  lanchat:
+    build: .
+    restart: unless-stopped
+    ports: ["3000:3000"]
+    volumes: ["lanchat-data:/data"]
+    environment:
+      SESSION_NAME: "My LANChat"
+      # ADMIN_KEY: "put-a-long-random-string-here"   # otherwise one is generated and printed in the logs
+      # PASSCODE: "friends-only"
+      # PUBLIC_URL: "https://chat.example.com"
+volumes:
+  lanchat-data:

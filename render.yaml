@@ -1,0 +1,19 @@
+# Render.com blueprint. NOTE: Render's free plan has no persistent disk (history is lost on restart/redeploy) and sleeps when idle.
+# Use a paid plan with the disk below if you want to keep history.
+services:
+  - type: web
+    name: lanchat
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/config
+    disk:
+      name: lanchat-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: TRUST_PROXY
+        value: "1"
+      - key: ADMIN_KEY
+        generateValue: true
