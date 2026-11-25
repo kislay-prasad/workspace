@@ -102,6 +102,8 @@ H.suite('Teams area: teams, channels, admin and security, bots', async (t) => {
     t.eq((await call('POST', '/api/teams/create', { name: 'Guest team' }, g.token)).s, 403);
     t.eq((await call('POST', '/api/channel', { name: 'guestchan' }, g.token)).s, 403);
     t.eq((await call('POST', '/api/channel', { name: 'G group', members: [bob.id] }, g.token)).s, 403);
+    t.eq((await call('POST', '/api/chatux/chat/new', { members: [bob.id, carol.id] }, g.token)).s, 403, 'no group chats via New chat either');
+    ok(await call('POST', '/api/chatux/chat/new', { members: [bob.id] }, g.token));
     t.eq((await call('POST', '/api/teams/join', { code: team.code }, g.token)).s, 403);
     ok(await call('POST', '/api/teams/members', { id: team.id, add: [g.id] }, owner.token));
     t.ok(s.db.teams[team.id].guests.includes(g.id), 'added as a team guest'); t.ok(!s.db.teams[team.id].members.includes(g.id));
@@ -225,6 +227,7 @@ H.suite('Teams area: teams, channels, admin and security, bots', async (t) => {
     const dm = s.dm(bob, carol);
     t.eq((await call('POST', '/api/send', { chan: dm, text: 'hi' }, bob.token)).s, 403); t.eq((await call('POST', '/api/send', { chan: dm, text: 'hi' }, carol.token)).s, 403);
     t.eq((await call('POST', '/api/channel', { name: 'Mixed', members: [carol.id] }, bob.token)).s, 403);
+    t.eq((await call('POST', '/api/chatux/chat/new', { members: [carol.id, dan.id] }, bob.token)).s, 403);
     t.eq((await call('POST', '/api/call/start', { chan: dm, mode: 'voice' }, bob.token)).s, 403);
     ok(await call('POST', '/api/send', { chan: s.dm(bob, dan), text: 'still fine' }, bob.token));
     const ev = s.sse(bob.token); const init = await ev.waitFor('init'); ev.close();

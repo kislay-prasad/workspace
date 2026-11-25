@@ -142,7 +142,7 @@ The Manage dialog now has a side list of tabs, Teams-admin-centre style; on phon
   - `LC.tm` (team store, dialogs), `LC.teams.open(id)` (used by the Activity pane), `LC.tmUi` (small form/chart helpers), `LC.tmBrand`
   - activity types `report` (registered) and `added`/`system` items carrying `team` and `chan`
 - **Wrapped from my modules (behaviour kept):**
-  - routes: `POST /api/channel`, `/api/channel/update`, `/api/channel/delete`, `/api/channel/members`, `/api/edit`, `/api/delete`, `/api/forward`; and, so archived teams are read-only, `/api/note`, `/api/board/*`, `/api/todo`, `/api/event`, `/api/react`, `/api/pin`, `/api/poll/vote`
+  - routes: `POST /api/channel`, `/api/chatux/chat/new` (group chats: guest and barrier rules), `/api/channel/update`, `/api/channel/delete`, `/api/channel/members`, `/api/edit`, `/api/delete`, `/api/forward`; and, so archived teams are read-only, `/api/note`, `/api/board/*`, `/api/todo`, `/api/event`, `/api/react`, `/api/pin`, `/api/poll/vote`
   - client: `LC.chanInfo` (team channel title/topic), `LC.chatLead` (team tile), `LC.chatInfo` (team channels open Manage channel), `LC.openChat` (people without #general never land on it), `LC.adminPanel` (side tabs), the Manage pane badge (adds open reports), and `window.fetch` for `POST /api/join` only (adds the invite code / PIN / code fields; main.js is unchanged)
 
 ## Edits outside my area
