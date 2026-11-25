@@ -94,6 +94,7 @@ def main():
         for f in os.listdir(os.path.join(ROOT, 'desktop')):
             if f.endswith(('.js', '.html', '.json')): shutil.copy(os.path.join(ROOT, 'desktop', f), appdir)
         for d in ('lib', 'public'): shutil.copytree(os.path.join(ROOT, d), os.path.join(appdir, d), ignore=shutil.ignore_patterns('*.test.js'))
+        if os.path.exists(os.path.join(ROOT, 'docs', 'API.md')): os.makedirs(os.path.join(appdir, 'docs'), exist_ok=True); shutil.copy(os.path.join(ROOT, 'docs', 'API.md'), os.path.join(appdir, 'docs'))  # the developer guide shown in Manage > Developer
         shutil.copy(os.path.join(ROOT, 'LICENSE-NOTICES.txt'), pkg) if os.path.exists(os.path.join(ROOT, 'LICENSE-NOTICES.txt')) else None
         open(os.path.join(pkg, rname), 'w', encoding='utf-8').write(readme)
         out = os.path.join(a.out, outname + '.zip'); zip_dir(pkg, out, 'LANChat'); print('built', out, round(os.path.getsize(out) / 1048576), 'MB')
