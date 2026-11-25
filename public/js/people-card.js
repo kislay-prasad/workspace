@@ -130,7 +130,7 @@
   const canHover = () => matchMedia('(hover: hover) and (pointer: fine)').matches;
   const msgAuthor = (node) => { const id = node.closest('.msg') && node.closest('.msg').dataset.id, w = S.win[S.chan], m = id && w && w.msgs.find((x) => x.id === id); if (m) return m.from; const n = node.textContent; const u = [...S.users.values()].find((x) => LC.uname(x.id) === n); return u ? u.id : null; };
   function hoverTarget(n) {
-    if (!n || !n.closest || n.closest('.pp-pop, #meBox, .ringbox, #menu, .pp-nohover')) return null;
+    if (!n || !n.closest || n.closest('.pp-pop, #meBox, .ringbox, #menu, .pp-nohover, .tile, .stage')) return null; // not the big pictures on a meeting's stage
     const av = n.closest('.av[data-uid]'); if (av) return { node: av.closest('button') && av.closest('.msg') ? av.closest('button') : av, uid: av.dataset.uid };
     const who = n.closest('.msg .who'); if (who) { const uid = msgAuthor(who); return uid ? { node: who, uid } : null; }
     return null;
