@@ -75,7 +75,13 @@ module.exports = (ctx) => {
 
 Routes are exact `METHOD /path` keys; pass ids in the query string or body. Extra modules load after the core ones
 (`routes-auth`, `routes-admin`, `routes-chat`, `routes-collab`, `routes-calls`), so a module may *replace* a core
-route by assigning the same key again — only do that for behaviour your area owns, and keep the old behaviour working. Public routes (no sign-in, e.g. an
+route by assigning the same key again — only do that for behaviour your area owns, and keep the old behaviour working.
+To add a rule in front of a route you don't own, wrap it (the parsed body is cached, so both can call `body()`):
+
+```js
+const orig = api['POST /api/edit'];
+api['POST /api/edit'] = async (req, res, me, url) => { const b = await body(req, 20000); /* check, fail(...) */ return orig(req, res, me, url); };
+``` Public routes (no sign-in, e.g. an
 incoming webhook) must be added with `ctx.publicRoutes.add('POST /api/hook')` and must check their own secret.
 
 ### ctx — the most used helpers
@@ -173,7 +179,9 @@ exists only in the desktop app (feature-detect it). The bridge only passes chann
 
 **Presence states** (`pub(u).presence`): `online` (Available), `busy`, `dnd`, `brb`, `away`, `offline`, plus automatic
 `call` ("In a call"), `meeting` ("In a meeting"), `presenting` ("Presenting") and `oof` (Out of office). The people
-area owns how these look and how people set them; calls and meetings only call `ctx.setAutoPresence()`.
+area owns how these look, how people set them, and the automatic ones: it derives them from `ctx.calls` (a call with
+`call.meeting` set means "In a meeting"; `call.sharing === uid` means "Presenting") and from `db.meetings` happening
+now. Other areas don't set presence; the meetings area sets `call.meeting = meetingId` on calls in a meeting's chat.
 
 **Activity items** (`ctx.activity(uid, item)`): `{ type, from, chan?, msg?, text?, ... }` with `type` one of
 `mention`, `reply`, `reaction`, `missedCall`, `voicemail`, `added` (to a chat or team), `task` (assigned to you),
@@ -213,6 +221,33 @@ belong to the apps area.
 
 **Teams** (teams area, `db.teams`): `{ id, name, picture, description, owners: [uid], members: [uid], guests: [uid],
 code, archived, created }`; a channel belongs to a team via `c.team`.
+
+**Calls** (calls area): `call.roles = { uid: 'organizer' | 'presenter' | 'attendee' }` (organizer = who started it, or the
+meeting organizer set by the meetings area), `call.locked`, `call.meeting`. Call history and quality:
+`db.callLog = [{ id, chan, mode, by, start, end, parts: [uid], missed: [uid], ratings: { uid: { stars, issues, at } },
+quality: { uid: { rtt, loss, jitter } } }]` (the teams area's call-quality dashboard reads it). Recordings are posted
+in the call's chat as messages with `m.recording = true` and the video in `m.files`. Client: `LC.callApi.setVolume(uid,
+0..1)` (interpreter audio), `beforeCall` options `{ companion: true }` (join as a second screen: no mic, no speaker, no
+camera unless turned on), `LC.callEffects` (background/filters picker the pre-join screen can show, if present).
+Per-person preferences other areas set and the meeting window honours: `LC.prefs().signers = [uid]` (sign-language
+view: keep these people's video visible and large).
+
+**Session rules** (teams area, in `S`, edited in Manage): `S.meetingRules = { record: 'everyone' | 'organizers' |
+'nobody', present: 'everyone' | 'organizers', maxPeople, watermark, lobby: 'everyone' | 'members' | 'invited' |
+'organizer' }` (defaults when missing: everyone may record and present, no watermark, lobby only for guests);
+`S.messagingRules = { edit, delete, editMinutes, stickers, memes, gifs }`. Calls and meetings read `S.meetingRules`
+(clients get session settings in `S.settings`). Roles: `u.role` is `owner` | `admin` | `member` | `guest` (guest is
+added by the teams area; treat unknown roles like `member` with fewer rights).
+
+**Chat list** (chatux): shows people, group chats, meeting chats and channels that are not in a team (`c.team === ''`);
+team channels live in the Teams pane (teams area) unless pinned or favourited.
+
+**Deep links**: `#m=<chan>/<msgId>` opens a message (chatux), `#c=<chan>` a channel and `#team=<id>` a team (teams),
+`#meet=<meetingId>` a meeting (meetings). The desktop app also accepts `lanchat://` links (shell) and turns them into
+these. Read `location.hash` after the `init` event and clear it once handled.
+
+**Legal hold** (teams): `hooks.keepMessage(m) => true` keeps a message from being removed by clean-up, timers or
+channel deletion; edits and deletes of held messages should keep the original (teams wraps those routes).
 
 ## Tests
 - `node test.js` — core server suite (must stay green).
