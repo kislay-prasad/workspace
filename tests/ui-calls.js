@@ -19,6 +19,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const connected = (a, b) => until(async () => { const x = await a.evaluate(() => LC.callDebug()), y = await b.evaluate(() => LC.callDebug()); return x && y && x.length && y.length && x.every((s) => s.startsWith('connected')) && y.every((s) => s.startsWith('connected')); }, 20000, 'connected');
   const tick = (ms) => { for (const tk of c.ticks) { try { tk.fn(Date.now() + ms); } catch {} } };
   const shot = (p, name) => p.screenshot({ path: `${SHOTS}/${name}.png` });
+  // accessibility: axe-core over the calls screens (AXE_JS=path/to/axe.min.js, or axe-core installed); any violation fails the step
+  let axeSrc = null; try { axeSrc = fs.readFileSync(process.env.AXE_JS || require.resolve('axe-core/axe.min.js'), 'utf8'); } catch {}
+  const audit = async (p, label) => { if (!axeSrc) return; if (!(await p.evaluate(() => !!window.axe))) await p.evaluate(axeSrc); const v = await p.evaluate(async () => (await axe.run(document, { resultTypes: ['violations'] })).violations.map((x) => x.id + ' x' + x.nodes.length + ' ' + x.nodes.slice(0, 2).map((n) => n.target.join(' ')).join(' | '))); if (v.length) throw new Error('axe (' + label + '): ' + v.join(' ;; ')); audits++; };
+  let audits = 0;
   const H = await open(ht, 'host'), P = await open(bt, 'bob'), C = await open(ct, 'cy');
   const more = async (p, label) => { await p.click('#callUI .cbtn[data-k="more"]'); await p.click(`.popmenu button:has-text("${label}")`); };
   const leaveAll = async () => { for (const p of [H, P, C]) await p.evaluate(() => LC.leaveCall()); await until(() => !c.calls.size, 8000, 'calls ended'); for (const p of [H, P, C]) await p.evaluate(() => document.querySelectorAll('.cl-rate').forEach((x) => x.remove())); };
@@ -30,7 +34,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await H.click('#callUI .cbtn[data-k="chat"]'); await H.waitForSelector('#callUI .cl-chatside textarea'); await H.fill('#callUI .cl-chatside textarea', 'hello from the meeting'); await H.press('#callUI .cl-chatside textarea', 'Enter');
     await P.click('#callUI .cbtn[data-k="chat"]'); await P.waitForSelector('#callUI .cl-chatlist .msg:has-text("hello from the meeting")');
     await H.click('#callUI .cbtn[data-k="more"]'); await H.click('.popmenu button:has-text("Meeting info")'); await H.waitForSelector('#callUI .cl-info:has-text("Started by")');
-    await H.click('#callUI .cl-info button:has-text("Open the chat")').catch(() => {}); await H.evaluate(() => LC.showCall());
+    await audit(H, 'meeting info panel'); await audit(P, 'meeting chat panel');
   });
   await step('views: speaker, together mode, large gallery, gallery; pin; hide self view; mirror', async () => {
     const view = async (label, sel) => { await H.click('#callUI .cbtn[data-k="view"]'); await H.click(`.popmenu button:has-text("${label}")`); await H.waitForSelector('#callUI ' + sel); };
@@ -62,7 +66,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await H.click(`#callUI .prow button[aria-label="More options for Bob"]`); await H.click('.popmenu button:has-text("Make presenter")');
     await H.click('#callUI .cl-pacts button:has-text("Meeting options")'); await H.click('.popmenu button:has-text("Lock the meeting")'); await H.waitForSelector('#callUI .cl-pill:has-text("Locked")');
     await H.click('#callUI .cl-pacts button:has-text("Meeting options")'); await H.click('.popmenu button:has-text("Unlock the meeting")');
-    await shot(H, 'meeting-people-panel');
+    await shot(H, 'meeting-people-panel'); await audit(H, 'participants with organizer controls');
   });
   await step('hold and resume; push to talk (Ctrl+Space); "You\'re muted" warning; poor network banner', async () => {
     await more(H, 'Hold'); await H.waitForSelector('#callUI .cl-held'); await P.waitForSelector('#callUI .cl-banner:has-text("put the call on hold")'); await P.waitForSelector('#callUI .tile .cl-badge:has-text("On hold")');
@@ -77,7 +81,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await step('screen sharing: one click, the friend sees it; presenter toolbar + red frame; pause; zoom; annotations; stop', async () => {
     await H.click('#callUI .sharegroup .cbtn[data-k="share"]'); await H.waitForSelector('#callUI .selfshare'); await H.waitForSelector('#callUI .cl-ptool'); await H.waitForSelector('#callUI.cl-sharing');
     await P.waitForFunction(() => { const v = document.querySelector('#callUI .present video'); return v && v.videoWidth > 0; }, null, { timeout: 15000 }); await P.waitForSelector('#callUI .plabel:has-text("Host is presenting")');
-    await shot(H, 'sharing-presenter'); await shot(P, 'sharing-viewer');
+    await shot(H, 'sharing-presenter'); await shot(P, 'sharing-viewer'); await audit(H, 'presenting (toolbar, preview)'); await audit(P, 'viewing a share (zoom, request control)');
     await H.click('#callUI .cl-ptool button[data-k="pt:pause"]'); await P.waitForSelector('#callUI .cl-pausedpill:has-text("paused")'); await H.click('#callUI .cl-ptool button[data-k="pt:pause"]'); await P.waitForSelector('#callUI .cl-pausedpill', { state: 'detached' });
     await P.click('#callUI .cl-zoombar button[aria-label="Zoom in"]'); await P.waitForFunction(() => /scale\(1\.25\)/.test(document.querySelector('#callUI .cl-zoomwrap').style.transform)); await P.click('#callUI .cl-zoombar button[aria-label="Reset zoom"]');
     await H.evaluate(() => LC.api('/api/call/ink', { chan: LC.callApi.chan, k: 'pen', pts: [1000, 1000, 9000, 9000, 9000, 1000], c: '#ff3b30', w: 6 }));
@@ -87,7 +91,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await H.click('#callUI .selfshare button'); await P.waitForSelector('#callUI .present', { state: 'detached' });
   });
   await step('whiteboard on the stage for everyone (and drawing on it reaches the chat\'s whiteboard)', async () => {
-    await H.click('#callUI .cbtn[data-k="sharex"]'); await H.click('.modal .cl-sharecard:has-text("Whiteboard")'); await P.waitForSelector('#callUI .cl-boardhost canvas');
+    await H.click('#callUI .cbtn[data-k="sharex"]'); await H.waitForSelector('.modal .cl-sharecard'); await audit(H, 'share tray'); await H.click('.modal .cl-sharecard:has-text("Whiteboard")'); await P.waitForSelector('#callUI .cl-boardhost canvas');
     const box = await P.locator('#callUI .cl-boardhost canvas').boundingBox(); await P.mouse.move(box.x + 40, box.y + 40); await P.mouse.down(); await P.mouse.move(box.x + 160, box.y + 90, { steps: 6 }); await P.mouse.up();
     await until(() => ((c.db.extras[dmHB] || {}).board || []).length > 0, 6000, 'stroke stored'); await H.waitForFunction(() => { const cv = document.querySelector('#callUI .cl-boardhost canvas'); const d = cv.getContext('2d').getImageData(0, 0, 1000, 700).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n > 30; });
     await shot(P, 'whiteboard-stage');
@@ -99,14 +103,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await P.waitForSelector('#callUI iframe.cl-pdf[src*="#page=1"]'); await H.click('#callUI .cl-pdfnav button[aria-label="Next page"]'); await P.waitForSelector('#callUI iframe.cl-pdf[src*="#page=2"]');
     await P.click('#callUI .cl-pdfnav button[aria-label="Next page"]'); await P.waitForSelector('#callUI iframe.cl-pdf[src*="#page=3"]'); await P.waitForSelector('#callUI .cl-pdfnote');
     await H.click('#callUI .cl-pdfnav button[aria-label="Next page"]'); await until(() => c.calls.get(dmHB).share.page === 3, 5000, 'page 3'); await H.click('#callUI .cl-pdfnav button[aria-label="Next page"]');
-    await P.waitForSelector('#callUI .cl-pdfnav button:has-text("Sync to presenter")'); await P.click('#callUI .cl-pdfnav button:has-text("Sync to presenter")'); await P.waitForSelector('#callUI iframe.cl-pdf[src*="#page=4"]');
+    await P.waitForSelector('#callUI .cl-pdfnav button:has-text("Sync to presenter")'); await audit(P, 'PDF slides on the stage'); await P.click('#callUI .cl-pdfnav button:has-text("Sync to presenter")'); await P.waitForSelector('#callUI iframe.cl-pdf[src*="#page=4"]');
     await H.click('#callUI .cl-ptool button[data-k="pt:stop"]'); await P.waitForSelector('#callUI .present', { state: 'detached' });
   });
   await step('video effects: blur / a picture / a filter are applied to the camera that is sent', async () => {
     await H.click('#callUI .cbtn[data-k="camx"]'); await H.click('.popmenu button:has-text("Video effects")'); await H.waitForSelector('#callUI .cl-fx');
     await H.click('#callUI .cl-fxopt[aria-label="Blur"]'); await H.waitForFunction(() => { const x = LC._cx.call; const p = [...x.peers.values()][0]; return x.camOut && p.tx.cam.sender.track === x.camOut; });
     await H.click('#callUI .cl-fxopt[aria-label="Sunset"]'); await H.click('#callUI .cl-fxopt[aria-label="Warm"]'); await H.waitForFunction(() => LC.callEffects.get().bg === 'img:sunset' && LC.callEffects.get().filter === 'warm');
-    await P.waitForFunction(() => [...document.querySelectorAll('#callUI .tile:not(.local) video')].some((v) => v.videoWidth > 0)); await sleep(800); await shot(H, 'effects-panel');
+    await P.waitForFunction(() => [...document.querySelectorAll('#callUI .tile:not(.local) video')].some((v) => v.videoWidth > 0)); await sleep(800); await shot(H, 'effects-panel'); await audit(H, 'video effects panel');
     await H.click('#callUI .cl-fxopt[aria-label="None"]'); await H.click('#callUI .cl-fxopt[aria-label="No filter"]'); await H.waitForFunction(() => !LC._cx.call.camOut);
   });
   await step('recording: everyone is told; the video is posted to the chat as a recording', async () => {
@@ -125,7 +129,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await H.evaluate(() => LC.setUi({ theme: 'dark' })); await shot(H, 'meeting-gallery-3-dark'); await H.evaluate(() => LC.setUi({ theme: 'auto' }));
   });
   await step('after a call: rate the quality (stored in the call log)', async () => {
-    await P.evaluate(() => LC.leaveCall()); await P.waitForSelector('.cl-rate'); await shot(P, 'rate-card');
+    await P.evaluate(() => LC.leaveCall()); await P.waitForSelector('.cl-rate'); await shot(P, 'rate-card'); await audit(P, 'rate the call');
     await P.click('.cl-rate button[aria-label="4 stars"]'); await P.click('.cl-rate button:has-text("Submit")');
     await until(() => c.db.callLog.some((e) => e.ratings && e.ratings[bob.id] && e.ratings[bob.id].stars === 4), 5000, 'rating stored');
     await leaveAll();
@@ -136,11 +140,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await H.waitForSelector('#callUI .cl-banner:has-text("didn’t answer")'); await C.waitForSelector('.ringbox', { state: 'detached' }); await H.click('#callUI .cl-banner button:has-text("Leave a voicemail")');
     await H.waitForSelector('.modal:has-text("Voicemail for Cy")'); await sleep(2200); await H.click('.modal button:has-text("Stop and send")'); await until(() => ((c.db.voicemail || {})[cy.id] || []).length === 1, 10000, 'voicemail stored');
     await H.waitForSelector('#callUI.hidden', { state: 'attached' });
-    await C.waitForSelector('.rbtn[data-pane="calls"] .rbadge:not(.live)'); await C.click('.rbtn[data-pane="calls"]'); await C.waitForSelector('.cl-hrow.missed:has-text("Host")'); await shot(C, 'calls-pane-history');
+    await C.waitForSelector('.rbtn[data-pane="calls"] .rbadge:not(.live)'); await C.click('.rbtn[data-pane="calls"]'); await C.waitForSelector('.cl-hrow.missed:has-text("Host")'); await shot(C, 'calls-pane-history'); await audit(C, 'Calls pane: history');
     await C.click('.cl-chip:has-text("Outgoing")'); await C.waitForSelector('.cl-callsmain .muted, .cl-callsmain .empty'); await C.click('.cl-chip:has-text("All")');
-    await C.click('.cl-tabs .tab:has-text("Voicemail")'); await C.waitForSelector('.cl-vmrow.unheard:has-text("Host") audio'); await shot(C, 'calls-pane-voicemail');
+    await C.click('.cl-tabs .tab:has-text("Voicemail")'); await C.waitForSelector('.cl-vmrow.unheard:has-text("Host") audio'); await shot(C, 'calls-pane-voicemail'); await audit(C, 'Calls pane: voicemail');
     await C.click('.cl-vmrow button[aria-label="Mark as heard"]'); await C.waitForSelector('.cl-vmrow:not(.unheard)');
-    await C.evaluate(() => LC.setUi({ theme: 'dark' })); await shot(C, 'calls-pane-voicemail-dark'); await C.evaluate(() => LC.setUi({ theme: 'auto' }));
+    await C.evaluate(() => LC.setUi({ theme: 'dark' })); await shot(C, 'calls-pane-voicemail-dark'); await audit(C, 'Calls pane (dark)'); await C.evaluate(() => LC.setUi({ theme: 'auto' }));
   });
   await step('park a call and pick it up with the code from the Calls pane', async () => {
     await leaveAll();
@@ -160,7 +164,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     for (const p of [H, P]) { await p.click('.rbtn[data-pane="walkie"]'); await p.click('.cl-wrow:has-text("general")'); await p.click('.cl-walkie button:has-text("Connect")'); }
     await until(async () => (await H.evaluate(() => LC.walkie.state().peers)).every((s) => s === 'connected') && (await H.evaluate(() => LC.walkie.state().peers.length)) === 1, 15000, 'walkie connected');
     const b = await H.locator('.cl-ptt').boundingBox(); await H.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await H.mouse.down();
-    await P.waitForSelector('.cl-wstatus:has-text("Host is talking")'); await H.waitForSelector('.cl-ptt.on'); await shot(H, 'walkie-talking');
+    await P.waitForSelector('.cl-wstatus:has-text("Host is talking")'); await H.waitForSelector('.cl-ptt.on'); await shot(H, 'walkie-talking'); await audit(P, 'walkie-talkie');
     const r = await P.evaluate(() => LC.api('/api/walkie/talk', { chan: 'general', ep: LC.walkie.state().ep, on: true }).then(() => 'granted', (e) => e.message)); if (!/talking/.test(r)) throw new Error('floor not exclusive: ' + r);
     await H.mouse.up(); await P.waitForSelector('.cl-wstatus:has-text("free")'); for (const p of [H, P]) await p.evaluate(() => LC.walkie.disconnect());
   });
@@ -169,10 +173,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await H.selectOption('.modal select[aria-label="If I don’t answer (after 30 seconds) or decline"]', 'person'); await H.selectOption('.modal select[aria-label="Forward to · If I don’t answer (after 30 seconds) or decline"]', bob.id);
     await until(() => ((c.db.callPrefs || {})[host.id] || {}).forward && c.db.callPrefs[host.id].forward.unanswered === bob.id, 5000, 'forward saved');
     await H.fill('.modal textarea[aria-label="Voicemail greeting"]', 'Leave it at the beep'); await H.click('.modal .cl-settings button:has-text("Save")'); await until(() => c.db.callPrefs[host.id].greeting === 'Leave it at the beep', 5000, 'greeting');
-    await H.selectOption('.modal select[aria-label="Calls for me"]', 'marimba'); await until(() => c.db.callPrefs[host.id].ringtone === 'marimba', 5000, 'ringtone'); await shot(H, 'settings-calls');
+    await H.selectOption('.modal select[aria-label="Calls for me"]', 'marimba'); await until(() => c.db.callPrefs[host.id].ringtone === 'marimba', 5000, 'ringtone'); await shot(H, 'settings-calls'); await audit(H, 'Settings › Calls');
     await H.click('.tabbtn:has-text("Devices")'); await H.waitForFunction(() => { const v = document.querySelector('.modal .cl-campreview'); return v && v.videoWidth > 0; }, null, { timeout: 10000 });
     await H.waitForFunction(() => Number(document.querySelector('.modal .cl-meter').getAttribute('aria-valuenow')) > 0, null, { timeout: 10000 });
-    await H.click('.modal button:has-text("Make a test call")'); await H.waitForFunction(() => Number(document.querySelector('.modal .cl-devices').dataset.testcall || 0) > 0, null, { timeout: 12000 }); await shot(H, 'settings-devices');
+    await H.click('.modal button:has-text("Make a test call")'); await H.waitForFunction(() => Number(document.querySelector('.modal .cl-devices').dataset.testcall || 0) > 0, null, { timeout: 12000 }); await shot(H, 'settings-devices'); await audit(H, 'Settings › Devices');
     await H.evaluate(() => LC.setUi({ theme: 'dark' })); await shot(H, 'settings-devices-dark'); await H.evaluate(() => LC.setUi({ theme: 'auto' })); await H.keyboard.press('Escape');
   });
   await step('phone layout: the meeting window and the Calls pane work at 390 px', async () => {
@@ -183,6 +187,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const over = await M.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1 || [...document.querySelectorAll('#callUI .ccontrols > *')].some((n) => n.getBoundingClientRect().right > innerWidth + 1)); if (over) throw new Error('toolbar overflows the phone screen');
     await M.waitForSelector('#callUI .cbtn[data-k="people"]'); await sleep(800); await shot(M, 'phone-meeting'); await M.evaluate(() => LC.leaveCall()); await M.ctx.close(); await leaveAll();
   });
-  console.log('ERRORS:', errs.length ? errs : 'none'); console.log(`ui-calls: ${ok}/${ok + bad} passed`);
+  console.log('ERRORS:', errs.length ? errs : 'none'); console.log(axeSrc ? `axe: ${audits} calls screens audited, 0 violations` : 'axe: skipped (set AXE_JS)'); console.log(`ui-calls: ${ok}/${ok + bad} passed`);
   await br.close(); app.stop(); process.exit(bad ? 1 : 0);
 })().catch((e) => { console.error('HARNESS FAIL', e); process.exit(1); });

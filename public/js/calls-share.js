@@ -188,7 +188,7 @@
   X.selfShare.push((panel, s) => {
     const c = call(); if (!c || !c.screen) return; reset(s);
     const v = el('video', { autoplay: true, playsinline: true, muted: true }); v.muted = true; v.srcObject = new MediaStream([c.scrOut || c.screen.getVideoTracks()[0]]); v.play().catch(() => {});
-    const wrap = el('div', { class: 'cl-selfprev', role: 'img', 'aria-label': t('cl_previewOwn') }, v); const o = overlay(wrap, v); wrap.append(o.cv);
+    const wrap = el('div', { class: 'cl-selfprev', role: 'group', 'aria-label': t('cl_previewOwn') }, v); const o = overlay(wrap, v); wrap.append(o.cv);
     panel.append(el('small', { class: 'muted', text: t('cl_previewOwn') }), wrap);
     const bar = inkBar(wrap); if (bar) wrap.append(bar);
   });

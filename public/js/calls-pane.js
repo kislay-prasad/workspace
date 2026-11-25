@@ -101,7 +101,7 @@
   }
   const pane = {
     icon: 'call', label: () => t('railCalls'), order: 60, render: renderNav,
-    main: (host) => { mainHost = host; host.classList.add('cl-callshost'); hist = null; drawMain(); if (tab === 'history' && missed) LC.api('/api/activity/read', { all: true, types: ['missedCall'] }).catch(() => {}); },
+    main: (host) => { mainHost = host; hist = null; drawMain(); if (tab === 'history' && missed) LC.api('/api/activity/read', { all: true, types: ['missedCall'] }).catch(() => {}); },
     badge: () => missed + unheard || Object.keys(S.calls).length,
     get live() { return !(missed + unheard) && Object.keys(S.calls).length > 0; },
     actions: () => [LC.ibtn('star', t('cl_editSpeed'), editSpeed)],
