@@ -1,7 +1,8 @@
-const { chromium } = require('playwright'); const { createApp } = require('/home/user/lanchat/lib/app.js'); const fs = require('fs');
+const ROOT = require('path').resolve(__dirname, '..'), TMP = require('os').tmpdir();
+const { chromium } = require('playwright'); const { createApp } = require(ROOT + '/lib/app.js'); const fs = require('fs');
 (async () => {
-  fs.rmSync('/tmp/lc-ui4', { recursive: true, force: true });
-  const app = createApp({ dataDir: '/tmp/lc-ui4', name: 'Test', publicDir: '/home/user/lanchat/public' }); const port = await app.start(3841); const B = `http://127.0.0.1:${port}`; const c = app.ctx;
+  fs.rmSync(TMP + '/lc-ui4', { recursive: true, force: true });
+  const app = createApp({ dataDir: TMP + '/lc-ui4', name: 'Test', publicDir: ROOT + '/public' }); const port = await app.start(3841); const B = `http://127.0.0.1:${port}`; const c = app.ctx;
   const host = c.makeUser('Host'); c.makeOwner(host); const bob = c.makeUser('Bob'); const ht = c.newToken(host), bt = c.newToken(bob); c.sysMsg('general', 'Welcome');
   const br = await chromium.launch(); const errs = [];
   const open = async (tok) => { const ctx = await br.newContext({ viewport: { width: 1200, height: 800 } }); await ctx.addInitScript((t) => { try { localStorage.setItem('lc_token', JSON.stringify(t)); } catch {} }, tok); const p = await ctx.newPage(); p.on('response', (r) => r.status() === 400 && errs.push('400 ' + r.url() + ' ' + (r.request().postData() || ''))); p.on('pageerror', (e) => errs.push(e.message)); p.on('console', (m) => m.type() === 'error' && errs.push(m.text())); await p.goto(B); await p.waitForSelector('#app:not(.hidden) .item.active'); return p; };
