@@ -74,7 +74,8 @@
 .pp-autoreply{display:flex;align-items:center;gap:4px;color:var(--muted);margin-top:4px}.pp-autoreply .ic{width:14px;height:14px}
 
 /* ---------- Activity pane ---------- */
-.pp-chipsbar{display:flex;gap:6px;overflow-x:auto;padding:0 4px 8px;scrollbar-width:none}
+.pp-chipsbar{display:flex;gap:6px;flex-wrap:wrap;padding:0 4px 8px}
+.pp-chip.more .ic{width:14px;height:14px}.pp-chip.more span:empty{display:none}
 .pp-chip{flex:none;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line2);background:var(--bg);color:var(--text);border-radius:14px;padding:2px 10px;min-height:28px;font-size:12px;font-weight:600}
 .pp-chip:hover{background:var(--hover)}.pp-chip.on{background:var(--brand);border-color:transparent;color:var(--on-brand)}
 .pp-chipn{background:var(--danger);color:#fff;border-radius:8px;padding:0 5px;font-size:11px;line-height:16px}.pp-chip.on .pp-chipn{background:var(--on-brand);color:var(--brand)}

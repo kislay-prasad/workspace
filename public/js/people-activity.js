@@ -6,10 +6,10 @@
 (() => {
   const LC = window.LC, { el, S, $ } = LC, t = (k, v) => LC.t(k, v), PP = LC.people;
   LC.addStrings('en', {
-    pp_feed: 'Feed', pp_filterAct: 'Filter activity', pp_f_all: 'All', pp_f_unread: 'Unread', pp_f_mention: '@Mentions', pp_f_reply: 'Replies', pp_f_reaction: 'Reactions', pp_f_calls: 'Calls', pp_f_meeting: 'Meetings', pp_f_task: 'Tasks', pp_f_apps: 'Apps', pp_f_more: 'More filters',
+    pp_feed: 'Feed', pp_filterAct: 'Filter activity', pp_f_all: 'All', pp_f_unread: 'Unread', pp_f_mention: '@Mentions', pp_f_reply: 'Replies', pp_f_reaction: 'Reactions', pp_f_calls: 'Calls', pp_f_meeting: 'Meetings', pp_f_task: 'Tasks', pp_f_apps: 'Apps', pp_f_more: 'More filters', pp_f_moreShort: 'More',
     pp_markRead: 'Mark as read', pp_markUnread: 'Mark as unread', pp_markAllRead: 'Mark all as read', pp_itemMenu: 'Options for this notification', pp_caughtUp: "You're all caught up", pp_caughtUpHelp: 'Mentions, replies, reactions, missed calls and other updates show up here.', pp_noneForFilter: 'Nothing here for this filter.',
     pp_a_mention: 'mentioned you', pp_a_mentionAll: 'mentioned everyone', pp_a_reply: 'replied to a conversation', pp_a_replyMine: 'replied to your message', pp_a_follow: 'replied in a thread you follow', pp_a_reaction: 'reacted to your message',
-    pp_a_missedCall: 'Missed call', pp_a_voicemail: 'left you a voicemail', pp_a_added: 'added you', pp_a_task: 'assigned you a task', pp_a_meeting: 'Meeting update', pp_a_urgent: 'sent an urgent message', pp_a_approval: 'needs your approval', pp_a_form: 'sent you a form', pp_a_report: 'shared a report', pp_a_system: 'Notice',
+    pp_a_missedCall: 'tried to call you', pp_a_missedCallNoName: 'Missed call', pp_a_voicemail: 'left you a voicemail', pp_a_added: 'added you', pp_a_task: 'assigned you a task', pp_a_meeting: 'Meeting update', pp_a_urgent: 'sent an urgent message', pp_a_approval: 'needs your approval', pp_a_form: 'sent you a form', pp_a_report: 'shared a report', pp_a_system: 'Notice',
     pp_urgent: 'URGENT', pp_important: 'IMPORTANT', pp_msgDeleted: 'This message was deleted.', pp_unreadDot: 'Unread',
     pp_actSettings: 'Activity notifications', pp_actHelp: 'Choose how each kind of activity reaches you. "Banner" also pops up a notification.', pp_n_banner: 'Banner and feed', pp_n_feed: 'Only show in feed', pp_n_off: 'Off',
     pp_t_mention: '@Mentions of me', pp_t_reply: 'Replies to my conversations', pp_t_reaction: 'Reactions to my messages', pp_t_missedCall: 'Missed calls', pp_t_voicemail: 'Voicemail', pp_t_added: 'Added to a chat or team', pp_t_task: 'Tasks assigned to me', pp_t_meeting: 'Meetings', pp_t_follow: 'Followed threads', pp_t_approval: 'Approvals', pp_t_form: 'Forms', pp_t_report: 'Reports', pp_t_system: 'Other notices',
@@ -118,7 +118,7 @@
     follow: { icon: 'comment', filter: 'reply', text: () => t('pp_a_follow'), open: openMsg },
     reaction: { icon: 'emoji', filter: 'reaction', text: () => t('pp_a_reaction'), open: openMsg },
     urgent: { icon: 'alert_urgent', filter: 'mention', text: () => t('pp_a_urgent'), open: openMsg },
-    missedCall: { icon: 'call_missed', filter: 'calls', text: () => t('pp_a_missedCall'), open: (a) => (LC.ext.panes.calls ? LC.setPane('calls') : openGeneric(a)) },
+    missedCall: { icon: 'call_missed', filter: 'calls', text: (a) => t(a.from ? 'pp_a_missedCall' : 'pp_a_missedCallNoName'), open: (a) => (LC.ext.panes.calls ? LC.setPane('calls') : openGeneric(a)) },
     voicemail: { icon: 'voicemail', filter: 'calls', text: () => t('pp_a_voicemail'), open: (a) => (a.msg ? openMsg(a) : LC.ext.panes.calls ? LC.setPane('calls') : openGeneric(a)) },
     added: { icon: 'person_add', filter: 'other', text: () => t('pp_a_added'), open: openGeneric },
     task: { icon: 'task_list_ltr', filter: 'task', text: () => t('pp_a_task'), open: openGeneric },
@@ -171,7 +171,11 @@
   }
   function renderActivity(nav) {
     if (!A.loaded && !A.loading) load();
-    const chips = el('div', { class: 'pp-chipsbar', role: 'toolbar', 'aria-label': t('pp_filterAct') }, FILTERS.map(([k, key]) => el('button', { type: 'button', class: 'pp-chip' + (A.filter === k ? ' on' : ''), 'aria-pressed': String(A.filter === k), 'data-f': k, onclick: () => { A.filter = A.filter === k && k !== 'all' ? 'all' : k; LC.renderNav(); } }, el('span', { text: t(key) }), k === 'unread' && A.unread ? el('span', { class: 'pp-chipn', text: A.unread > 99 ? '99+' : String(A.unread) }) : null)));
+    const pick = (k) => { A.filter = A.filter === k && k !== 'all' ? 'all' : k; LC.renderNav(); requestAnimationFrame(() => { const b = document.querySelector(`.pp-chip[data-f="${k}"]`) || document.querySelector('.pp-chip.more'); if (b) b.focus(); }); };
+    const chip = ([k, key]) => el('button', { type: 'button', class: 'pp-chip' + (A.filter === k ? ' on' : ''), 'aria-pressed': String(A.filter === k), 'data-f': k, onclick: () => pick(k) }, el('span', { text: t(key) }), k === 'unread' && A.unread ? el('span', { class: 'pp-chipn', text: A.unread > 99 ? '99+' : String(A.unread) }) : null);
+    const main = FILTERS.slice(0, 4), extra = FILTERS.slice(4), cur = extra.find(([k]) => k === A.filter);
+    const chips = el('div', { class: 'pp-chipsbar', role: 'toolbar', 'aria-label': t('pp_filterAct') }, main.map(chip), cur ? chip(cur) : null,
+      el('button', { type: 'button', class: 'pp-chip more', 'aria-haspopup': 'menu', 'aria-label': t('pp_f_more'), title: t('pp_f_more'), onclick: (e) => LC.menu(e.currentTarget, extra.map(([k, key]) => ({ label: t(key), checked: A.filter === k, fn: () => pick(k) }))) }, LC.icon('filter'), el('span', { text: cur ? '' : t('pp_f_moreShort') })));
     const list = A.items.filter(inFilter), body = [];
     if (A.err && !A.loaded) body.push(el('p', { class: 'err pad', text: A.err }));
     else if (!A.loaded) body.push(el('p', { class: 'muted small pad', text: t('loading') }));
