@@ -503,7 +503,7 @@
       el('span', { class: 'csep', 'aria-hidden': 'true' }),
       el('div', { class: 'sharegroup cl-split' }, ctl('cam', me.cam ? 'video' : 'video_off', me.cam ? t('turnCameraOff') : t('turnCameraOn'), toggleCam, { pressed: me.cam, off: !me.cam, text: t('camera') }), caret('camx', t('cl_camMenu'), (e) => camMenu(e.currentTarget))),
       call.companion ? null : el('div', { class: 'sharegroup cl-split' }, ctl('mic', me.mic ? 'mic' : 'mic_off', me.mic ? t('mute') : t('unmuteMic'), toggleMic, { pressed: me.mic, off: !me.mic, text: t('mic') }), caret('micx', t('cl_micMenu'), (e) => micMenu(e.currentTarget))),
-      canShare() || X.shareMenu ? el('div', { class: 'sharegroup' + (sharingMe ? ' live' : '') }, ctl('share', sharingMe ? 'share_screen_stop' : 'share_screen_start', sharingMe ? t('stopShare') : t('shareScreen'), () => (sharingMe ? stopAnyShare() : startScreen()), { on: sharingMe, text: sharingMe ? t('stopShareShort') : t('share') }),
+      canShare() || X.shareMenu ? el('div', { class: 'sharegroup' + (sharingMe ? ' live' : '') }, ctl('share', sharingMe ? 'share_screen_stop' : 'share_screen_start', sharingMe ? t('stopShare') : t('shareScreen'), (e) => (sharingMe ? stopAnyShare() : canShare() ? startScreen() : X.shareMenu && X.shareMenu(e.currentTarget)), { on: sharingMe, text: sharingMe ? t('stopShareShort') : t('share') }),
         el('button', { class: 'cbtn caret', title: t('shareOptions'), 'aria-label': t('shareOptions'), 'aria-haspopup': 'dialog', 'data-k': 'sharex', type: 'button', onclick: (e) => (X.shareMenu ? X.shareMenu(e.currentTarget) : LC.native && LC.native.screens ? sharePicker() : startScreen()) }, LC.icon('chevron_down'))) : null,
       el('div', { class: 'cl-leavegroup' }, el('button', { class: 'leave', onclick: () => LC.leaveCall(), title: t('leaveCall'), 'aria-label': t('leaveCall'), 'data-k': 'leave', type: 'button' }, LC.icon('call_end', { filled: true }), el('span', { text: t('leave') })),
         isOrg() && st.participants.length > 1 ? el('button', { class: 'leave cl-leavecaret', title: t('cl_leaveMenu'), 'aria-label': t('cl_leaveMenu'), 'aria-haspopup': 'menu', 'data-k': 'leavex', type: 'button', onclick: (e) => LC.menu(e.currentTarget, [{ icon: 'call_end', label: t('leave'), fn: () => LC.leaveCall() }, { icon: 'people_team', label: t('cl_endMeeting'), danger: true, fn: endForAll }]) }, LC.icon('chevron_down')) : null));
@@ -729,7 +729,7 @@
       LC.callEffects ? { icon: 'video_background_effect', label: t('cl_effects'), fn: () => LC.callApi.setPanel('effects') } : null,
       isMod() ? { icon: 'people_settings', label: t('cl_meetingOptions'), fn: () => meetingOptionsMenu(anchor) } : null, 'sep',
       ...X.moreItems.flatMap((f) => { try { return f(st) || []; } catch (e) { console.error(e); return []; } }),
-      { icon: 'hand_right', label: call.me.hand ? t('lowerHand') : t('raiseHand'), fn: toggleHand, cls: 'cl-phonly' }, { icon: 'emoji', label: t('react'), fn: () => reactMenu(anchor) },
+      { icon: 'hand_right', label: call.me.hand ? t('lowerHand') : t('raiseHand'), fn: toggleHand }, { icon: 'emoji', label: t('react'), fn: () => reactMenu(anchor) },
       { icon: 'call_pause', label: call.held ? t('cl_resume') : t('cl_hold'), fn: () => setHold(!call.held) },
       { icon: 'person_add', label: t('cl_addPeople'), fn: () => addPeopleDialog() },
       dm && two ? { icon: 'call_transfer', label: t('cl_transfer') + '…', fn: () => transferDialog() } : null,
