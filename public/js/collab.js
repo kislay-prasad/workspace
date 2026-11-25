@@ -1,22 +1,23 @@
 'use strict';
-// Per-chat tabs: Files, shared Notes, Whiteboard, To-dos, Calendar.
+// Per-chat tabs: Files, shared Notes, Calendar. The apps area's files replace the Whiteboard (apps-board.js) and the To-dos
+// (apps-tasks.js, a task board) and add more tabs; LC.renderTab draws whichever tab is open ("type:id" = one of several tabs of a kind).
 (() => {
   const LC = window.LC, { el, S, $ } = LC, t = (k, v) => LC.t(k, v);
-  const C = (LC.collab = { chan: null, data: null }); let boardApi = null;
+  const C = (LC.collab = { chan: null, data: null });
   const fail = (e) => LC.toast(e.message);
   const pad = (n) => String(n).padStart(2, '0');
   const localInput = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
   LC.renderTab = async (tab) => {
-    const host = $('#tabView'); boardApi = null; if (tab === 'chat') return;
-    const ext = LC.ext.tabs.find((x) => x.key === tab && (!x.when || x.when(S.chan)));
-    if (ext) { host.replaceChildren(); try { return await ext.render(host, S.chan); } catch (e) { return host.replaceChildren(el('p', { class: 'err pad', text: e.message })); } }
+    const host = $('#tabView'); if (host._apLeave) { const f = host._apLeave; host._apLeave = null; try { f(); } catch {} } if (tab === 'chat') return;
+    const [type, id] = tab.split(':'), ext = LC.ext.tabs.find((x) => x.key === type && (id ? x.multi : !x.when || x.when(S.chan)));
+    if (ext) { host.replaceChildren(); try { return await ext.render(host, S.chan, id && LC.apps ? LC.apps.inst(S.chan, tab) : null); } catch (e) { return host.replaceChildren(el('p', { class: 'err pad', text: e.message })); } }
     host.replaceChildren(el('p', { class: 'muted pad', text: t('loading') })); const chan = S.chan;
     try {
       if (tab === 'files') return renderFiles(host, chan);
       if (C.chan !== chan || !C.data || tab === 'notes') { C.data = await LC.api('/api/collab?chan=' + encodeURIComponent(chan)); C.chan = chan; }
       if (S.chan !== chan || S.tab !== tab) return;
-      ({ notes: renderNotes, board: renderBoard, todos: renderTodos, calendar: renderCalendar })[tab](host);
+      const draw = { notes: renderNotes, calendar: renderCalendar }[tab]; if (draw) draw(host); else host.replaceChildren(el('p', { class: 'muted pad', text: t('loading') }));
     } catch (e) { host.replaceChildren(el('p', { class: 'err pad', text: e.message })); }
   };
   const writable = () => { const c = S.channels.get(S.chan); return !(S.me.mutedUntil > Date.now()) && !(c && c.readonly && !LC.isAdmin()); };
@@ -51,39 +52,6 @@
     C.onNote = (n) => { if (n.chan !== S.chan || S.tab !== 'notes') return; if (!dirty) { note = n.note; C.data.note = note; ta.value = note.text; setStatus(); } else if (n.note.by !== S.me.id) { banner.replaceChildren(el('span', { text: t('notesConflict', { name: LC.uname(n.note.by) }) }), el('button', { class: 'secondary sm', text: t('loadTheirs'), onclick: () => { note = n.note; ta.value = note.text; dirty = false; banner.classList.add('hidden'); setStatus(); } })); banner.classList.remove('hidden'); } };
   }
 
-  // ---------- whiteboard ----------
-  function renderBoard(host) {
-    const COLORS = ['#111111', '#d13438', '#ca5010', '#e3b200', '#498205', '#0078d4', '#7a5af5', '#e3008c'];
-    let color = COLORS[0], size = 4, erase = false, drawing = null, strokes = [...C.data.board]; const cv = el('canvas', { class: 'boardcv', width: 1000, height: 700, 'aria-label': t('tabBoard') }), g = cv.getContext('2d'), live = new Map();
-    const paint = (s) => { g.save(); g.lineCap = 'round'; g.lineJoin = 'round'; g.lineWidth = s.w * 1.4; g.globalCompositeOperation = s.c === 'erase' ? 'destination-out' : 'source-over'; g.strokeStyle = s.c === 'erase' ? '#000' : s.c; g.beginPath(); const p = s.pts; g.moveTo(p[0], p[1]); if (p.length === 2) g.lineTo(p[0] + 0.1, p[1]); for (let i = 2; i < p.length; i += 2) g.lineTo(p[i], p[i + 1]); g.stroke(); g.restore(); };
-    const redraw = () => { g.clearRect(0, 0, 1000, 700); strokes.forEach(paint); };
-    const pos = (e) => { const r = cv.getBoundingClientRect(); return [Math.round(((e.clientX - r.left) / r.width) * 1000), Math.round(((e.clientY - r.top) / r.height) * 700)]; };
-    const can = writable(); let lastSent = 0, sentIdx = 0, sid = '';
-    const flushLive = (force) => { if (!drawing || drawing.pts.length - sentIdx < 4 && !force) return; const seg = { c: drawing.c, w: drawing.w, pts: drawing.pts.slice(Math.max(0, sentIdx - 2)) }; sentIdx = drawing.pts.length; if (seg.pts.length >= 2) LC.api('/api/board/live', { chan: S.chan, sid, seg }).catch(() => {}); };
-    cv.addEventListener('pointerdown', (e) => { if (!can || e.button > 0) return; cv.setPointerCapture(e.pointerId); sid = Math.random().toString(36).slice(2, 10); sentIdx = 0; drawing = { c: erase ? 'erase' : color, w: erase ? size * 3 : size, pts: pos(e) }; paint({ ...drawing, pts: [...drawing.pts] }); e.preventDefault(); });
-    cv.addEventListener('pointermove', (e) => { if (!drawing) return; const p = pos(e), n = drawing.pts.length, a = drawing.pts[n - 2], b = drawing.pts[n - 1]; if (Math.abs(p[0] - a) + Math.abs(p[1] - b) < 2) return; paint({ c: drawing.c, w: drawing.w, pts: [a, b, p[0], p[1]] }); drawing.pts.push(p[0], p[1]); if (drawing.pts.length > 3900) finish(); else if (Date.now() - lastSent > 120) { lastSent = Date.now(); flushLive(); } });
-    const finish = () => { if (!drawing) return; const s = drawing; drawing = null; flushLive(true); LC.api('/api/board/stroke', { chan: S.chan, stroke: { c: s.c, w: s.w, pts: s.pts } }).catch(fail); };
-    cv.addEventListener('pointerup', finish); cv.addEventListener('pointercancel', finish);
-    const tool = (icon, label, fn, on) => el('button', { class: 'secondary sm withicon' + (on ? ' on' : ''), 'aria-pressed': on === undefined ? null : String(!!on), onclick: fn }, LC.icon(icon), el('span', { text: label }));
-    const bar = el('div', { class: 'boardbar' }); const drawBar = () => bar.replaceChildren(...COLORS.map((c) => el('button', { class: 'swatch' + (!erase && color === c ? ' on' : ''), style: { background: c }, 'aria-label': c, onclick: () => { color = c; erase = false; drawBar(); } })), el('select', { 'aria-label': t('brushSize'), onchange: (e) => { size = Number(e.target.value); } }, [2, 4, 8, 14, 24].map((n) => el('option', { value: n, text: n + ' px', selected: n === size }))), tool('eraser', t('eraser'), () => { erase = !erase; drawBar(); }, erase), tool('arrow_undo', t('undo'), () => LC.api('/api/board/undo', { chan: S.chan }).catch(fail)), tool('delete', t('clear'), async () => { if (await LC.confirm(t('confirmClearBoard'), { danger: true })) LC.api('/api/board/clear', { chan: S.chan }).catch(fail); }), tool('arrow_download', 'PNG', () => { const o = document.createElement('canvas'); o.width = 1000; o.height = 700; const x = o.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 1000, 700); x.drawImage(cv, 0, 0); const a = el('a', { href: o.toDataURL('image/png'), download: 'whiteboard.png' }); a.click(); }));
-    drawBar(); host.replaceChildren(el('div', { class: 'tabhead' }, el('h2', {}, LC.icon('whiteboard'), ' ' + t('tabBoard'))), can ? bar : el('p', { class: 'notice', text: t('boardReadOnly') }), el('div', { class: 'boardwrap' }, cv)); redraw();
-    boardApi = {
-      event(e) { if (e.chan !== S.chan) return; if (e.op === 'add') { if (!strokes.some((s) => s.id === e.stroke.id)) strokes.push(e.stroke); redraw(); } else if (e.op === 'del') { strokes = strokes.filter((s) => s.id !== e.id); redraw(); } else if (e.op === 'clear') { strokes = []; redraw(); } C.data.board = strokes; },
-      live(e) { if (e.chan !== S.chan || e.by === S.me.id) return; paint(e.seg); },
-    };
-  }
-
-  // ---------- to-dos ----------
-  function renderTodos(host) {
-    const todos = C.data.todos, can = writable(), text = el('input', { placeholder: t('newTask'), maxlength: 200, 'aria-label': t('newTask') }), due = el('input', { type: 'datetime-local', 'aria-label': t('dueDate') });
-    const c = S.channels.get(S.chan), people = [...S.users.values()].filter((u) => !u.removed && (S.chan.startsWith('dm:') ? S.chan.includes(u.id) : !c || !c.members || c.members.includes(u.id))), who = el('select', { 'aria-label': t('assignTo') }, el('option', { value: '', text: t('unassigned') }), people.map((u) => el('option', { value: u.id, text: LC.uname(u.id) })));
-    const op = (body) => LC.api('/api/todo', { chan: S.chan, ...body }).catch(fail);
-    const add = (e) => { e.preventDefault(); if (!text.value.trim()) return; op({ op: 'add', text: text.value, assignee: who.value, due: due.value ? new Date(due.value).getTime() : 0 }); text.value = ''; due.value = ''; };
-    const open = todos.filter((x) => !x.done), done = todos.filter((x) => x.done);
-    const item = (x) => el('div', { class: 'todo' + (x.done ? ' done' : '') }, el('input', { type: 'checkbox', checked: x.done, disabled: !can, 'aria-label': x.text, onchange: () => op({ op: 'toggle', id: x.id }) }), el('span', { class: 'grow' }, x.text, x.assignee ? el('span', { class: 'pill', text: '@' + LC.uname(x.assignee) }) : null, x.due ? el('span', { class: 'pill' + (!x.done && x.due < Date.now() ? ' late' : '') }, LC.icon('clock'), ' ' + LC.fmtDateTime(x.due)) : null), (x.by === S.me.id || LC.isAdmin()) && can ? LC.ibtn('delete', t('delete'), () => op({ op: 'del', id: x.id })) : null);
-    host.replaceChildren(el('div', { class: 'tabhead' }, el('h2', {}, LC.icon('task_list_ltr'), ' ' + t('tabTodos')), el('span', { class: 'muted small', text: t('tasksLeft', { n: open.length }) })), can ? el('form', { class: 'addform', onsubmit: add }, text, who, due, el('button', { class: 'primary', type: 'submit', text: t('add') })) : el('p', { class: 'notice', text: t('boardReadOnly') }), ...open.map(item), done.length ? el('h3', { text: t('completed') }) : null, ...done.map(item), !todos.length ? el('p', { class: 'empty', text: t('noTasks') }) : null);
-  }
-
   // ---------- calendar ----------
   let calMonth = new Date(); calMonth.setDate(1);
   function renderCalendar(host) {
@@ -104,11 +72,10 @@
   }
 
   // ---------- live updates ----------
-  const again = (tab) => { if (S.tab === tab) { const host = $('#tabView'); ({ todos: renderTodos, calendar: renderCalendar })[tab](host); } };
+  const again = (tab) => { if (S.tab === tab && !LC.ext.tabs.some((x) => x.key === tab)) renderCalendar($('#tabView')); };
   LC.on('note', (n) => { if (n.chan === C.chan && C.data) C.data.note = n.note; if (C.onNote) C.onNote(n); });
-  LC.on('board', (e) => { if (e.chan === C.chan && C.data && !boardApi) { if (e.op === 'add') C.data.board.push(e.stroke); else if (e.op === 'clear') C.data.board = []; else if (e.op === 'del') C.data.board = C.data.board.filter((s) => s.id !== e.id); } if (boardApi && S.tab === 'board') boardApi.event(e); });
-  LC.on('boardlive', (e) => { if (boardApi && S.tab === 'board') boardApi.live(e); });
-  LC.on('todos', (e) => { if (e.chan === C.chan && C.data) { C.data.todos = e.todos; again('todos'); } });
+  LC.on('board', () => { if (C.data) C.chan = null; }); // the whiteboard keeps its own copy (apps-board.js); reload next time
+  LC.on('todos', (e) => { if (e.chan === C.chan && C.data) C.data.todos = e.todos; });
   LC.on('events', (e) => { if (e.chan === C.chan && C.data) { C.data.events = e.events; again('calendar'); } });
   LC.on('init', () => { C.chan = null; C.data = null; });
 })();

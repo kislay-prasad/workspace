@@ -117,7 +117,7 @@ incoming webhook) must be added with `ctx.publicRoutes.add('POST /api/hook')` an
 | `callFields` | `(call) => {...}` | extra fields on the call state everyone receives |
 | `canSeeMsg` | `(u, m) => false/undefined` | hide one message from one member (chatux: group members added without the history, 1:1 chats deleted "for me"). Core applies it to file downloads and to `message`/`update` events; routes that return messages or files should check `ctx.canSeeMsg(u, m)` |
 | `keepFile` | `(fileId) => true` | keep an uploaded file that no message references (chatux: My GIFs) from being removed by clean-up |
-| `fileRead` | `(u, rec) => true` | let someone read a file no message shares with them (files area: Files-tab uploads of chats they are in, old versions of files they can read). Core consults it in `fileCanRead` |
+| `fileRead` | `(u, fileId) => true` | let someone download an uploaded file that no message they can see references (apps: pictures on notebook pages and whiteboards, task and approval attachments — only for people who can see that page, board, task or request; files: Files-tab uploads of chats they are in, old versions of files they can read). Register with `(ctx.hooks.fileRead ||= []).push(fn)` |
 
 Calls are exposed as `ctx.calls` (Map chan → call `{ id, mode, by, started, parts: Set, media, sharing, max? }`),
 `ctx.callState(chan)`, `ctx.pushCallState(chan)` and `ctx.leaveCall(chan, uid)`. A call's size limit is
