@@ -63,6 +63,9 @@
   A.select = (opts, value, onChange, label) => { const s = el('select', { 'aria-label': label || '', onchange: (e) => onChange && onChange(e.target.value) }, ...opts.map(([v, l]) => el('option', { value: v, text: l }))); s.value = value === undefined || value === null ? '' : String(value); return s; };
   A.modal = (title, icon, body, acts, o = {}) => LC.modal([el('div', { class: 'row-between' }, el('h2', { style: { margin: 0 } }, icon ? LC.icon(icon) : null, icon ? ' ' : '', title), LC.ibtn('dismiss', t('ap_close'), LC.closeModal)), ...(Array.isArray(body) ? body : [body]), acts ? el('div', { class: 'acts' }, ...acts) : null], { wide: o.wide !== false, label: title, onClose: o.onClose });
   A.uid = () => Math.random().toString(16).slice(2, 14).padEnd(12, '0');
+  // live events for a view: the listener goes away once its root node is no longer on the page
+  const listeners = new Map();
+  A.on = (name, fn, root) => { let set = listeners.get(name); if (!set) { set = new Set(); listeners.set(name, set); LC.on(name, (d) => { for (const l of [...set]) { if (l.root && !l.root.isConnected) { set.delete(l); continue; } try { l.fn(d); } catch (e) { console.error('apps listener', name, e); } } }); } set.add({ fn, root }); };
 
   // a small popover next to a button (people pickers, filters)
   let popEl = null;
