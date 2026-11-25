@@ -515,9 +515,10 @@
     const box = nav.querySelector('.mt-recent'); if (!box || S.pane !== 'meet') return;
     box.replaceChildren(...(recent.length ? recent.slice(0, 15).map((r) => el('div', { class: 'mt-row' }, el('button', { type: 'button', class: 'mt-rowmain', onclick: () => MT.recap && MT.recap(r.id, r.occ) }, el('div', { class: 'mt-rtime' }, el('b', { text: new Date(r.start).getDate() }), el('small', { text: new Date(r.start).toLocaleDateString(lang(), { month: 'short' }) })), el('span', { class: 'itext' }, el('span', { class: 'name', text: r.title }), el('span', { class: 'prev', text: LC.fmtTime(r.start) + (r.end ? ' · ' + MT.dur(r.end - r.start) : ' · ' + t('mt_live')) + ' · ' + t('peopleCount', { n: r.people }) })), LC.icon('clipboard_task', { cls: 'mt-repicon', label: t('mt_recap') })))) : [el('p', { class: 'muted small pad', text: t('mt_noRecent') })]));
   }
-  LC.ext.panes.meet = { icon: 'video_person', label: () => t('mt_rail'), order: 45, render: renderMeetPane, badge: () => MT.upcoming.filter((x) => x.live).length,
+  LC.ext.panes.meet = { icon: 'video_person', label: () => t('mt_rail'), order: 45, render: renderMeetPane, badge: () => new Set(MT.upcoming.filter((x) => x.live).map((x) => x.id)).size,
     actions: () => [LC.ibtn('number_symbol', t('mt_joinWithId'), () => LC.meetings.joinWithId()), LC.ibtn('calendar_add', t('mt_schedule'), () => LC.meetings.schedule())] };
-  LC.on('callstate', (e) => { if (MT.upcoming.some((x) => x.chan === e.chan)) { for (const x of MT.upcoming) if (x.chan === e.chan) x.live = !!(e.call && e.call.meeting === x.id); if (S.pane === 'meet') LC.renderNav(); } });
+  const nowish = (x) => { const n = Date.now(); return n >= x.start - 30 * MIN && n < x.end + 60 * MIN; };
+  LC.on('callstate', (e) => { if (MT.upcoming.some((x) => x.chan === e.chan)) { for (const x of MT.upcoming) if (x.chan === e.chan) x.live = !!(e.call && e.call.meeting === x.id) && nowish(x); if (S.pane === 'meet') LC.renderNav(); } });
 
   // ---------- Meet now / join with an ID ----------
   LC.meetings.meetNow = async (chan) => {

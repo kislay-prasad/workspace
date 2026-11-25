@@ -104,6 +104,7 @@ H.suite('Meetings', async (t) => {
     const b = await call('POST', '/api/meetings/join', { id: lm.id }, bob.token); t.eq(b.s, 200, b.d); t.eq(b.d.chan, lm.chan);
     const st = await call('POST', '/api/call/start', { chan: lm.chan, mode: 'video', ep: 'bobep1' }, bob.token); t.eq(st.s, 200, st.d);
     const c = s.ctx.calls.get(lm.chan); t.eq(c.meeting, lm.id); t.eq(c.roles[owner.id], 'organizer'); t.eq(c.roles[bob.id], 'presenter');
+    const lv = (await call('GET', `/api/meetings?from=${now - DAY}&to=${now + DAY}`, undefined, bob.token)).d.meetings.find((x) => x.id === lm.id); t.eq(lv.live, true, 'the occurrence on now is live');
     t.eq(st.d.call.meeting, lm.id); t.eq(st.d.call.mt.title, 'Lobby test');
     s.ctx.channels = null; s.db.channels[lm.chan].members.push(dee.id); // someone who can see the chat but isn't invited still waits
     const d1 = await call('POST', '/api/call/join', { chan: lm.chan, ep: 'deeep1' }, dee.token); t.eq(d1.s, 403, d1.d); t.eq(d1.d.lobby, true);
