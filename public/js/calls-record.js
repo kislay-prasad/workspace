@@ -13,14 +13,14 @@
   LC.addStrings('es', { cl_startRec: 'Iniciar grabación', cl_stopRec: 'Detener grabación' });
   const PART_MS = 30 * 60000, W = 1280, H = 720;
   const budget = () => Math.max(5, Number(S.settings.maxUploadMB || 100) * 0.9) * 1048576; // stay under the session's upload limit
-  let rec = null, pending = 0, autoTried = '';
+  let rec = null, pending = 0, autoTried = '', starting = false;
   const mayRecord = (st) => { const p = st.recPolicy || 'everyone'; return p === 'everyone' || (p === 'organizers' && X.isOrg()); };
 
   async function start() {
     const c = X.call; if (!c || rec) return;
     if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return LC.toast(t('cl_recUnsupported'));
-    try { await LC.api('/api/call/record', { chan: c.chan, ep: c.ep, on: true }); } catch (e) { return LC.toast(e.message); }
-    begin(c);
+    starting = true; try { await LC.api('/api/call/record', { chan: c.chan, ep: c.ep, on: true }); } catch (e) { starting = false; return LC.toast(e.message); }
+    starting = false; if (X.call === c) begin(c);
   }
   function begin(c) {
     const cv = el('canvas', { width: W, height: H }), ac = new (window.AudioContext || window.webkitAudioContext)(), dest = ac.createMediaStreamDestination(), hold = el('div', { class: 'hidden', 'aria-hidden': 'true' });
@@ -108,7 +108,7 @@
   X.onEnd.push(() => stop(true));
   X.onState.push((st) => {
     const c = X.call; if (!c) return;
-    if (st.rec && st.rec.by === S.me.id && !rec && Date.now() - c.joinedAt > 3000) LC.api('/api/call/record', { chan: c.chan, ep: c.ep, on: false }).catch(() => {}); // the app reloaded while recording
+    if (st.rec && st.rec.by === S.me.id && !rec && !starting && Date.now() - c.joinedAt > 3000) LC.api('/api/call/record', { chan: c.chan, ep: c.ep, on: false }).catch(() => {}); // the app reloaded while recording
     if (!st.rec && rec && Date.now() - rec.startedAt > 4000) stop(true);
     // record automatically: the meeting option, or "Record my meetings automatically" for calls you organize
     const auto = st.autoRec || (LC.callPrefs && LC.callPrefs().autoRecord && X.isOrg() && st.participants.length > 1);

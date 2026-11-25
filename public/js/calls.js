@@ -269,7 +269,7 @@
     if (call && e.chan === call.chan) {
       if (!e.call) return endLocal();
       lastInfo = e.call; const eps = new Set((e.call.endpoints || []).map((x) => x.ep));
-      if (!eps.has(call.ep)) return rejoin();
+      if (!eps.has(call.ep)) return; // left on purpose (park, transfer) or dropped: the heartbeat below rejoins if needed
       for (const ep of [...call.peers.keys()]) if (!eps.has(ep)) dropPeer(ep);
       if (call.screen && e.call.sharing && e.call.sharing !== S.me.id) { stopScreen(true); LC.toast(t('tookOver', { name: LC.uname(e.call.sharing) })); }
       const allow = (e.call.allow || {})[S.me.id] || {};
@@ -334,8 +334,8 @@
       const mic = call.local.getAudioTracks()[0];
       if (mic && !call.me.mic && !call.held) {
         if (!call.probe || call.probe.src !== mic) { if (call.probe) call.probe.track.stop(); const c = mic.clone(); c.enabled = true; call.probe = { src: mic, track: c, st: new MediaStream([c]), o: {}, n: 0 }; }
-        const l = level(call.probe.st, call.probe.o); call.probe.n = l > 0.06 ? call.probe.n + 1 : Math.max(0, call.probe.n - 1);
-        if (call.probe.n >= 3 && !call.banners.muted && now - (call.mutedHushed || 0) > 20000) { call.banners.muted = now; drawSoon(); }
+        const l = level(call.probe.st, call.probe.o); if (l > 0.04) call.probe.hits = [...(call.probe.hits || []).filter((x) => now - x < 3000), now];
+        if ((call.probe.hits || []).filter((x) => now - x < 3000).length >= 2 && !call.banners.muted && now - (call.mutedHushed || 0) > 20000) { call.banners.muted = now; call.probe.hits = []; drawSoon(); }
       }
       if (call.banners.muted && (call.me.mic || now - call.banners.muted > 6000)) { call.banners.muted = 0; drawSoon(); }
     }, 150);
@@ -365,7 +365,7 @@
   }
   function startTimers() {
     call.statsTimer = setInterval(sampleStats, 3000);
-    call.aliveTimer = setInterval(() => { if (call) LC.api('/api/call/alive', { chan: call.chan, ep: call.ep }).catch((e) => { if (e.status === 400) rejoin(); }); }, 10000);
+    call.aliveTimer = setInterval(() => { if (call && !call.leaving) LC.api('/api/call/alive', { chan: call.chan, ep: call.ep }).catch((e) => { if (e.status === 400 && call && !call.leaving) rejoin(); }); }, 10000);
   }
   // large meetings: ask only for the cameras this device shows (saves everyone's bandwidth)
   function computeWant() {
@@ -501,8 +501,8 @@
       ...LC.extItems(LC.ext.callToolbar || [], LC.callApi),
       ctl('more', 'more_horizontal', t('moreOptions'), (e) => moreMenu(e.currentTarget), { text: t('more'), menu: true }),
       el('span', { class: 'csep', 'aria-hidden': 'true' }),
-      el('div', { class: 'sharegroup cl-split' }, ctl('cam', me.cam ? 'video' : 'video_off', me.cam ? t('turnCameraOff') : t('turnCameraOn'), toggleCam, { pressed: me.cam, off: !me.cam, text: t('camera') }), caret('camx', t('cl_camMenu'), (e) => camMenu(e.currentTarget))),
-      call.companion ? null : el('div', { class: 'sharegroup cl-split' }, ctl('mic', me.mic ? 'mic' : 'mic_off', me.mic ? t('mute') : t('unmuteMic'), toggleMic, { pressed: me.mic, off: !me.mic, text: t('mic') }), caret('micx', t('cl_micMenu'), (e) => micMenu(e.currentTarget))),
+      el('div', { class: 'cl-split' }, ctl('cam', me.cam ? 'video' : 'video_off', me.cam ? t('turnCameraOff') : t('turnCameraOn'), toggleCam, { pressed: me.cam, off: !me.cam, text: t('camera') }), caret('camx', t('cl_camMenu'), (e) => camMenu(e.currentTarget))),
+      call.companion ? null : el('div', { class: 'cl-split' }, ctl('mic', me.mic ? 'mic' : 'mic_off', me.mic ? t('mute') : t('unmuteMic'), toggleMic, { pressed: me.mic, off: !me.mic, text: t('mic') }), caret('micx', t('cl_micMenu'), (e) => micMenu(e.currentTarget))),
       canShare() || X.shareMenu ? el('div', { class: 'sharegroup' + (sharingMe ? ' live' : '') }, ctl('share', sharingMe ? 'share_screen_stop' : 'share_screen_start', sharingMe ? t('stopShare') : t('shareScreen'), (e) => (sharingMe ? stopAnyShare() : canShare() ? startScreen() : X.shareMenu && X.shareMenu(e.currentTarget)), { on: sharingMe, text: sharingMe ? t('stopShareShort') : t('share') }),
         el('button', { class: 'cbtn caret', title: t('shareOptions'), 'aria-label': t('shareOptions'), 'aria-haspopup': 'dialog', 'data-k': 'sharex', type: 'button', onclick: (e) => (X.shareMenu ? X.shareMenu(e.currentTarget) : LC.native && LC.native.screens ? sharePicker() : startScreen()) }, LC.icon('chevron_down'))) : null,
       el('div', { class: 'cl-leavegroup' }, el('button', { class: 'leave', onclick: () => LC.leaveCall(), title: t('leaveCall'), 'aria-label': t('leaveCall'), 'data-k': 'leave', type: 'button' }, LC.icon('call_end', { filled: true }), el('span', { text: t('leave') })),
@@ -745,14 +745,14 @@
   }
   function transferDialog() {
     const st = state(), other = st.participants.find((x) => x !== S.me.id), q = el('input', { type: 'search', placeholder: t('search'), 'aria-label': t('cl_transferTo') }), list = el('div', { class: 'results', role: 'listbox', 'aria-label': t('cl_transferTo') }); let pick = null;
-    const go = async (consult) => { if (!pick) return; LC.closeModal(); try { if (consult) await LC.api('/api/call/consult', { chan: call.chan, ep: call.ep, to: pick }); else { await LC.api('/api/call/transfer', { chan: call.chan, ep: call.ep, to: pick }); endLocal(); } } catch (e) { LC.toast(e.message); } };
+    const go = async (consult) => { if (!pick) return; LC.closeModal(); try { if (consult) await LC.api('/api/call/consult', { chan: call.chan, ep: call.ep, to: pick }); else { call.leaving = true; await LC.api('/api/call/transfer', { chan: call.chan, ep: call.ep, to: pick }); endLocal(); } } catch (e) { if (call) call.leaving = false; LC.toast(e.message); } };
     const draw = () => list.replaceChildren(...[...S.users.values()].filter((u) => u.id !== S.me.id && u.id !== other && !u.removed && !u.deleted && LC.uname(u.id).toLowerCase().includes(q.value.toLowerCase())).slice(0, 30).map((u) => el('button', { class: 'hit' + (pick === u.id ? ' on' : ''), role: 'option', 'aria-selected': String(pick === u.id), onclick: () => { pick = u.id; draw(); } }, LC.avatar(u, 'sm', true), el('span', { text: ' ' + LC.uname(u.id) }))));
     q.addEventListener('input', draw); draw();
     LC.modal([el('h2', {}, LC.icon('call_transfer'), ' ' + t('cl_transfer') + ' · ' + LC.uname(other)), q, list, el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('cancel'), onclick: LC.closeModal }), el('button', { class: 'secondary', text: t('cl_consultFirst'), onclick: () => go(true) }), el('button', { class: 'primary', text: t('cl_transferNow'), onclick: () => go(false) }))]);
   }
   async function parkCall() {
-    try { const r = await LC.api('/api/call/park', { chan: call.chan, ep: call.ep }); endLocal(true); LC.modal([el('h2', {}, LC.icon('call_park'), ' ' + t('cl_parked')), el('p', { text: t('cl_parkedHelp') }), el('div', { class: 'cl-code', text: r.code }), el('div', { class: 'acts' }, el('button', { class: 'primary', text: t('done'), onclick: LC.closeModal }))]); }
-    catch (e) { LC.toast(e.message); }
+    call.leaving = true; try { const r = await LC.api('/api/call/park', { chan: call.chan, ep: call.ep }); endLocal(true); LC.modal([el('h2', {}, LC.icon('call_park'), ' ' + t('cl_parked')), el('p', { text: t('cl_parkedHelp') }), el('div', { class: 'cl-code', text: r.code }), el('div', { class: 'acts' }, el('button', { class: 'primary', text: t('done'), onclick: LC.closeModal }))]); }
+    catch (e) { if (call) call.leaving = false; LC.toast(e.message); }
   }
   async function switchDevice(key, id) {
     LC.setUi({ [key]: id }); if (!call) return;

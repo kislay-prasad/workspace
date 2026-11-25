@@ -22,7 +22,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const H = await open(ht, 'host'), P = await open(bt, 'bob'), C = await open(ct, 'cy');
   const more = async (p, label) => { await p.click('#callUI .cbtn[data-k="more"]'); await p.click(`.popmenu button:has-text("${label}")`); };
   const leaveAll = async () => { for (const p of [H, P, C]) await p.evaluate(() => LC.leaveCall()); await until(() => !c.calls.size, 8000, 'calls ended'); for (const p of [H, P, C]) await p.evaluate(() => document.querySelectorAll('.cl-rate').forEach((x) => x.remove())); };
-  const startDm = async (p, who, mode = 'video') => { await p.click(`.rbtn[data-pane="chat"]`); await p.click(`.item[data-chan^="dm:"]:has-text("${who}") .itemmain`); await p.click(`#headActions .callgroup button[aria-label="${mode === 'video' ? 'Video call' : 'Audio call'}"]`); };
+  const startDm = async (p, who, mode = 'video') => { await p.click(`.rbtn[data-pane="chat"]`); await p.click(`.item[data-chan^="dm:"]:has-text("${who}") .itemmain`); await p.click(`#headActions .callgroup button[aria-label="${mode === 'video' ? 'Video call' : 'Voice call'}"]`); };
 
   await step('1:1 video call: rings with a ringtone, connects, video both ways; chat panel sends; info panel', async () => {
     await startDm(H, 'Bob'); await P.waitForSelector('.ringbox'); await P.click('.ringbox button[aria-label="Accept with video"]'); await connected(H, P);
@@ -87,7 +87,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await H.click('#callUI .selfshare button'); await P.waitForSelector('#callUI .present', { state: 'detached' });
   });
   await step('whiteboard on the stage for everyone (and drawing on it reaches the chat\'s whiteboard)', async () => {
-    await H.click('#callUI .sharegroup .caret'); await H.click('.modal .cl-sharecard:has-text("Whiteboard")'); await P.waitForSelector('#callUI .cl-boardhost canvas');
+    await H.click('#callUI .cbtn[data-k="sharex"]'); await H.click('.modal .cl-sharecard:has-text("Whiteboard")'); await P.waitForSelector('#callUI .cl-boardhost canvas');
     const box = await P.locator('#callUI .cl-boardhost canvas').boundingBox(); await P.mouse.move(box.x + 40, box.y + 40); await P.mouse.down(); await P.mouse.move(box.x + 160, box.y + 90, { steps: 6 }); await P.mouse.up();
     await until(() => ((c.db.extras[dmHB] || {}).board || []).length > 0, 6000, 'stroke stored'); await H.waitForFunction(() => { const cv = document.querySelector('#callUI .cl-boardhost canvas'); const d = cv.getContext('2d').getImageData(0, 0, 1000, 700).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n > 30; });
     await shot(P, 'whiteboard-stage');
@@ -95,7 +95,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await step('PDF slides with page sync; viewers look ahead privately and sync back', async () => {
     const r = await fetch(`${B}/api/upload?name=slides.pdf`, { method: 'POST', headers: { 'x-token': ht }, body: Buffer.from('%PDF-1.1\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF') }); const f = await r.json();
     await fetch(`${B}/api/send`, { method: 'POST', headers: { 'x-token': ht }, body: JSON.stringify({ chan: dmHB, text: 'deck', files: [{ id: f.id }] }) });
-    await H.click('#callUI .sharegroup .caret'); await H.click('.modal .cl-sharecard:has-text("PDF slides")'); await H.click('.modal .hit:has-text("slides.pdf")');
+    await H.click('#callUI .cbtn[data-k="sharex"]'); await H.click('.modal .cl-sharecard:has-text("PDF slides")'); await H.click('.modal .hit:has-text("slides.pdf")');
     await P.waitForSelector('#callUI iframe.cl-pdf[src*="#page=1"]'); await H.click('#callUI .cl-pdfnav button[aria-label="Next page"]'); await P.waitForSelector('#callUI iframe.cl-pdf[src*="#page=2"]');
     await P.click('#callUI .cl-pdfnav button[aria-label="Next page"]'); await P.waitForSelector('#callUI iframe.cl-pdf[src*="#page=3"]'); await P.waitForSelector('#callUI .cl-pdfnote');
     await H.click('#callUI .cl-pdfnav button[aria-label="Next page"]'); await until(() => c.calls.get(dmHB).share.page === 3, 5000, 'page 3'); await H.click('#callUI .cl-pdfnav button[aria-label="Next page"]');
@@ -131,6 +131,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await leaveAll();
   });
   await step('missed call: no answer -> leave a voicemail; the badge, history and voicemail in the Calls pane', async () => {
+    await leaveAll();
     await startDm(H, 'Cy', 'voice'); await C.waitForSelector('.ringbox'); tick(31000);
     await H.waitForSelector('#callUI .cl-banner:has-text("didn’t answer")'); await C.waitForSelector('.ringbox', { state: 'detached' }); await H.click('#callUI .cl-banner button:has-text("Leave a voicemail")');
     await H.waitForSelector('.modal:has-text("Voicemail for Cy")'); await sleep(2200); await H.click('.modal button:has-text("Stop and send")'); await until(() => ((c.db.voicemail || {})[cy.id] || []).length === 1, 10000, 'voicemail stored');
@@ -142,6 +143,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await C.evaluate(() => LC.setUi({ theme: 'dark' })); await shot(C, 'calls-pane-voicemail-dark'); await C.evaluate(() => LC.setUi({ theme: 'auto' }));
   });
   await step('park a call and pick it up with the code from the Calls pane', async () => {
+    await leaveAll();
     await startDm(H, 'Bob'); await P.waitForSelector('.ringbox'); await P.click('.ringbox button[aria-label="Accept with audio"]'); await connected(H, P);
     await more(H, 'Park call'); await H.waitForSelector('.modal .cl-code'); const code = (await H.textContent('.modal .cl-code')).trim(); await H.click('.modal button:has-text("Done")');
     await P.waitForSelector(`#callUI .cl-banner:has-text("code ${code}")`);
@@ -154,6 +156,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await leaveAll();
   });
   await step('Walkie Talkie: connect, hold to talk, the other side sees who is talking', async () => {
+    await leaveAll();
     for (const p of [H, P]) { await p.click('.rbtn[data-pane="walkie"]'); await p.click('.cl-wrow:has-text("general")'); await p.click('.cl-walkie button:has-text("Connect")'); }
     await until(async () => (await H.evaluate(() => LC.walkie.state().peers)).every((s) => s === 'connected') && (await H.evaluate(() => LC.walkie.state().peers.length)) === 1, 15000, 'walkie connected');
     const b = await H.locator('.cl-ptt').boundingBox(); await H.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await H.mouse.down();
@@ -174,11 +177,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   });
   await step('phone layout: the meeting window and the Calls pane work at 390 px', async () => {
     const M = await open(bt, 'phone', { viewport: { width: 390, height: 800 }, ctx: { hasTouch: true, isMobile: true } });
-    await M.tap('.rbtn[data-pane="calls"]'); await M.waitForSelector('.cl-dial'); await shot(M, 'phone-calls-pane');
+    await M.tap('.rbtn[data-pane="calls"]'); await M.waitForSelector('.cl-callsmain'); await M.tap('#menuBtn'); await M.waitForSelector('.cl-dial'); await shot(M, 'phone-calls-pane');
     await H.click('.rbtn[data-pane="chat"]'); await H.click('.item[data-chan^="dm:"]:has-text("Bob") .itemmain'); await H.click('#headActions .callgroup button[aria-label="Video call"]');
     await M.waitForSelector('.ringbox'); await M.tap('.ringbox button[aria-label="Accept with video"]'); await M.waitForSelector('#callUI:not(.hidden) .ccontrols');
     const over = await M.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1 || [...document.querySelectorAll('#callUI .ccontrols > *')].some((n) => n.getBoundingClientRect().right > innerWidth + 1)); if (over) throw new Error('toolbar overflows the phone screen');
-    await M.waitForSelector('#callUI .cbtn[data-k="people"]'); await sleep(800); await shot(M, 'phone-meeting'); await M.ctx.close(); await leaveAll();
+    await M.waitForSelector('#callUI .cbtn[data-k="people"]'); await sleep(800); await shot(M, 'phone-meeting'); await M.evaluate(() => LC.leaveCall()); await M.ctx.close(); await leaveAll();
   });
   console.log('ERRORS:', errs.length ? errs : 'none'); console.log(`ui-calls: ${ok}/${ok + bad} passed`);
   await br.close(); app.stop(); process.exit(bad ? 1 : 0);
