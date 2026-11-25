@@ -115,6 +115,25 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const id = (await post(bob.tok, '/api/send', { chan: dmHB, text: 'quick question' })).id; await H.evaluate((x) => LC.people.quickReply(x.chan, x.id), { chan: dmHB, id });
     await H.waitForSelector('.modal:has-text("Reply to Bob") .pp-qrmsg:has-text("quick question")'); await H.fill('.modal textarea', 'quick answer'); await H.press('.modal textarea', 'Enter'); await P.waitForSelector('.msg:has-text("quick answer")');
   });
+  if (process.env.AXE_JS) await step('accessibility (axe): status panel, card, People pane, profile, Activity, settings — light, dark, high contrast', async () => {
+    const axe = fs.readFileSync(process.env.AXE_JS, 'utf8'), bad = [];
+    // only this area's screens: the side list, the big area when it shows People, popovers and dialogs (other areas run their own audits)
+    const audit = async (label) => { await H.evaluate(axe); const r = await H.evaluate(async () => (await axe.run({ include: [...['#sidebar', '.pp-pop', '.modal:not(.hidden)', '.pp-host', '.pp-cbanner'].filter((x) => document.querySelector(x)).map((x) => [x])] }, { resultTypes: ['violations'] })).violations.map((v) => `${v.id} x${v.nodes.length}: ${v.nodes.slice(0, 2).map((n) => n.target.join(' ')).join(' | ')}`)); for (const v of r) bad.push(label + ' — ' + v); };
+    await post(bob.tok, '/api/send', { chan: 'general', text: 'axe @Host', priority: 'important' });
+    for (const theme of ['light', 'dark', 'hc']) {
+      await H.evaluate((th) => LC.setUi({ theme: th }), theme); await H.click('.rbtn[data-pane="activity"]'); await H.waitForSelector('.pp-act'); await audit(theme + ' activity');
+      await H.click('#meBox .meb'); await H.click('.pp-me .pp-cur'); await audit(theme + ' status panel'); await H.keyboard.press('Escape');
+      await H.click('.pp-act:has-text("axe") .pp-amain'); await H.waitForSelector('.msg:has-text("axe @Host")'); await H.click('.msg:has-text("axe @Host") .avbtn'); await H.waitForSelector('.pp-card'); await audit(theme + ' contact card'); await H.keyboard.press('Escape');
+      await H.click('.rbtn[data-pane="people"]'); await H.waitForSelector('.pp-tile, .pp-page'); await audit(theme + ' people pane');
+      await H.click('#nav .pp-prow:has-text("Bob") .pp-pmain'); await H.waitForSelector('.pp-page'); await audit(theme + ' profile page'); await H.click('.rbtn[data-pane="chat"]');
+    }
+    await H.evaluate(() => LC.setUi({ theme: 'auto' }));
+    for (const tab of ['profile', 'notifications', 'privacy']) { await H.evaluate((tb) => LC.settingsPanel(tb), tab); await H.waitForSelector('.modal .pp-settings'); await audit('settings ' + tab); await H.keyboard.press('Escape'); }
+    await H.evaluate(() => LC.people.statusDialog()); await audit('status message dialog'); await H.keyboard.press('Escape');
+    await H.evaluate(() => LC.people.oofDialog()); await audit('out of office dialog'); await H.keyboard.press('Escape');
+    await H.evaluate(() => LC.people.durationDialog()); await audit('duration dialog'); await H.keyboard.press('Escape');
+    if (bad.length) throw new Error(bad.join('\n'));
+  });
   await step('phone: People and Activity panes work at 390 px', async () => {
     const M = await open(host.tok, 'phone', { viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true }); await M.waitForSelector('#app.list-mode .rail');
     await M.tap('.rbtn[data-pane="activity"]'); await M.waitForSelector('#nav .pp-act'); await M.tap('.rbtn[data-pane="people"]'); await M.waitForSelector('.pp-tile:has-text("Bob")'); await M.tap('.pp-tile:has-text("Bob")'); await M.waitForSelector('.pp-page h2:has-text("Bob")');

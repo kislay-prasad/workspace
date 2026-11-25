@@ -1,8 +1,8 @@
 /* People, presence and status, profiles, activity and notifications (sections 5, 6, 8). Owned by the "people" feature area (docs/EXTENDING.md). */
-:root{--pp-oof:#b4009e;--pp-urgent:var(--danger);--pp-important:#c4314b}
-@media (prefers-color-scheme:dark){:root:not([data-theme]){--pp-oof:#e07fd7}}
-:root[data-theme=dark]{--pp-oof:#e07fd7}
-:root[data-theme=hc]{--pp-oof:#ff9df5;--pp-important:#ff6b81}
+:root{--pp-oof:#b4009e;--pp-urgent:#a4262c;--pp-important:#a4262c}
+@media (prefers-color-scheme:dark){:root:not([data-theme]){--pp-oof:#e07fd7;--pp-urgent:#ff8f99;--pp-important:#ff8f99}}
+:root[data-theme=dark]{--pp-oof:#e07fd7;--pp-urgent:#ff8f99;--pp-important:#ff8f99}
+:root[data-theme=hc]{--pp-oof:#ff9df5;--pp-urgent:#ff8f99;--pp-important:#ff8f99}
 
 /* ---------- presence look (states: docs/EXTENDING.md "Presence states") ---------- */
 .dot.busy,.dot.call,.dot.meeting,.dot.presenting{color:var(--p-dnd)}.dot.brb{color:var(--p-away)}.dot.oof{color:var(--pp-oof)}.dot.invisible{color:var(--p-off)}
@@ -30,7 +30,7 @@
 .pp-card{width:360px;padding:16px}
 .pp-chead{display:flex;gap:14px;align-items:flex-start}
 .pp-cid{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
-.pp-cname{display:flex;align-items:center;gap:4px;min-width:0}.pp-cname h2,.pp-cname h3{margin:0;font-size:18px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pp-cname h3{font-size:16px}
+.pp-cname{display:flex;align-items:center;gap:4px;min-width:0}.pp-cname h2{margin:0;font-size:16px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pp-cname.big h2{font-size:20px}
 .pp-play{width:28px;height:28px}
 .pp-cstat{display:flex;align-items:center;gap:6px;color:var(--text2)}.pp-cstat .ic{width:14px;height:14px}
 .pp-cmsg{background:var(--bg2);border-radius:6px;padding:4px 8px;margin-top:4px;overflow-wrap:anywhere}
@@ -39,7 +39,7 @@
 .pp-cacts{display:flex;gap:6px;align-items:center;margin:14px 0 4px;flex-wrap:wrap}.pp-cacts .primary{flex:1;min-width:110px}
 .pp-cbtn{border:1px solid var(--line2);width:36px;height:32px}
 .pp-csec{border-top:1px solid var(--line);margin-top:12px;padding-top:10px;display:flex;flex-direction:column;gap:6px}
-.pp-csec h4{margin:0 0 2px;font-size:13px;font-weight:600}
+.pp-csec h3{margin:0 0 2px;font-size:13px;font-weight:600}
 .pp-dl{display:flex;gap:10px;align-items:flex-start}.pp-dl>.ic{color:var(--text2);margin-top:2px;width:18px;height:18px}.pp-dl a{overflow-wrap:anywhere}
 .pp-person{display:flex;align-items:center;gap:10px;border:0;background:none;width:100%;text-align:left;padding:5px 6px;border-radius:6px;color:inherit}.pp-person:hover{background:var(--hover)}
 .pp-person .name{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

@@ -81,7 +81,7 @@
   function identity(u, big) {
     const name = LC.uname(u.id);
     return el('div', { class: 'pp-chead' }, LC.avatar(u, big ? 'xl' : 'lg', true), el('div', { class: 'pp-cid' },
-      el('div', { class: 'pp-cname' }, el(big ? 'h2' : 'h3', { text: name }), u.voice ? LC.ibtn('speaker_2', t('pp_playName'), () => PP.playName(u), { cls: 'icon pp-play' }) : null),
+      el('div', { class: 'pp-cname' + (big ? ' big' : '') }, el('h2', { text: name }), u.voice ? LC.ibtn('speaker_2', t('pp_playName'), () => PP.playName(u), { cls: 'icon pp-play' }) : null),
       name !== u.name ? el('div', { class: 'muted small', text: u.name }) : null, u.pronouns ? el('div', { class: 'muted small pp-pron', text: u.pronouns }) : null,
       roleLine(u) ? el('div', { class: 'small', text: roleLine(u) }) : null,
       el('div', { class: 'pp-cstat small' }, LC.icon(LC.PRES_ICON[u.presence] || 'presence_offline', { cls: 'p-' + u.presence }), el('span', { text: LC.presenceLabel(u.presence) + (u.presence === 'offline' && u.lastSeen ? ' · ' + t('pp_lastSeen', { when: LC.ago(u.lastSeen) }) : '') })),
@@ -96,11 +96,11 @@
     if (u.office) line('building', t('pp_office'), el('span', { text: u.office }));
     if (wl) line(wl.kind === 'office' ? 'building' : 'home', t('pp_workLoc'), el('span', { text: wl.kind === 'custom' ? wl.text : t(wl.kind === 'office' ? 'pp_wlOffice' : 'pp_wlRemote') }));
     if (lt) line('globe_clock', lt.tz, el('span', { text: lt.time + (u.id !== S.me.id && lt.diff ? ' · ' + lt.diff : '') }));
-    return rows.length ? el('section', { class: 'pp-csec' }, el('h4', { text: t('pp_contact') }), ...rows) : null;
+    return rows.length ? el('section', { class: 'pp-csec' }, el('h3', { text: t('pp_contact') }), ...rows) : null;
   }
   function orgBlock(u, onPick) {
     const mgr = PP.managerOf(u), reps = PP.reportsOf(u.id); if (!mgr && !reps.length) return null;
-    return el('section', { class: 'pp-csec' }, el('h4', { text: t('pp_org') }),
+    return el('section', { class: 'pp-csec' }, el('h3', { text: t('pp_org') }),
       mgr ? el('div', { class: 'muted small', text: t('pp_reportsToShort') }) : null, mgr ? personBtn(mgr, roleLine(mgr), () => onPick(mgr.id)) : null,
       reps.length ? el('div', { class: 'muted small', text: t('pp_directReports', { n: reps.length }) }) : null, ...reps.slice(0, 6).map((r) => personBtn(r, roleLine(r), () => onPick(r.id))),
       el('button', { type: 'button', class: 'link pp-linkbtn', text: t('pp_openOrg'), onclick: () => { PP.closePop(); PP.showPerson(u.id); } }));
@@ -111,7 +111,7 @@
     LC.api('/api/files?chan=' + encodeURIComponent(chan)).then(({ files }) => {
       box.replaceChildren(...(files.length ? files.slice(0, 5).map((f) => el('a', { class: 'pp-file', href: LC.fileUrl(f), download: f.name }, LC.icon(LC.isImage(f.name) ? 'image' : /\.pdf$/i.test(f.name) ? 'document_pdf' : 'document'), el('span', { class: 'itext' }, el('span', { class: 'name', text: f.name }), el('span', { class: 'prev', text: `${LC.uname(f.from)} · ${LC.shortTime ? LC.shortTime(f.ts) : LC.fmtDateTime(f.ts)}` })))) : [el('p', { class: 'muted small', text: t('pp_noFiles') })]));
     }).catch(() => box.replaceChildren(el('p', { class: 'muted small', text: t('pp_noFiles') })));
-    return el('section', { class: 'pp-csec' }, el('h4', { text: t('pp_filesShared') }), box);
+    return el('section', { class: 'pp-csec' }, el('h3', { text: t('pp_filesShared') }), box);
   }
 
   // ---------- the contact card ----------
@@ -231,8 +231,8 @@
     const groups = PP.groups().filter((g) => g.members.includes(u.id));
     return el('div', { class: 'pp-page' }, el('button', { type: 'button', class: 'secondary sm withicon pp-backbtn', onclick: () => PP.showPerson(null) }, LC.icon('arrow_left'), el('span', { text: t('pp_back') })),
       el('div', { class: 'pp-phero' }, identity(u, true), actions(u)), oofNote(u),
-      el('div', { class: 'pp-pcols' }, el('div', {}, details(u) || el('section', { class: 'pp-csec' }, el('h4', { text: t('pp_contact') }), el('p', { class: 'muted small', text: '—' })),
-        groups.length ? el('section', { class: 'pp-csec' }, el('h4', { text: t('pp_inGroups') }), el('div', { class: 'pp-chips' }, groups.map((g) => el('span', { class: 'pill', text: g.name })))) : null, filesBlock(u)), orgChart(u)));
+      el('div', { class: 'pp-pcols' }, el('div', {}, details(u) || el('section', { class: 'pp-csec' }, el('h3', { text: t('pp_contact') }), el('p', { class: 'muted small', text: '—' })),
+        groups.length ? el('section', { class: 'pp-csec' }, el('h3', { text: t('pp_inGroups') }), el('div', { class: 'pp-chips' }, groups.map((g) => el('span', { class: 'pill', text: g.name })))) : null, filesBlock(u)), orgChart(u)));
   }
   function drawMain(force) {
     if (!host || S.app !== 'people' || !document.contains(host)) return; const u = st.selected && S.users.get(st.selected);
