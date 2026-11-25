@@ -179,6 +179,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await H.click('.modal button:has-text("Make a test call")'); await H.waitForFunction(() => Number(document.querySelector('.modal .cl-devices').dataset.testcall || 0) > 0, null, { timeout: 12000 }); await shot(H, 'settings-devices'); await audit(H, 'Settings › Devices');
     await H.evaluate(() => LC.setUi({ theme: 'dark' })); await shot(H, 'settings-devices-dark'); await H.evaluate(() => LC.setUi({ theme: 'auto' })); await H.keyboard.press('Escape');
   });
+  await step('companion: joining from a second device as a companion (no mic, no sound, camera off, labelled)', async () => {
+    await startDm(H, 'Bob'); await P.waitForSelector('.ringbox'); await P.click('.ringbox button[aria-label="Accept with video"]'); await connected(H, P);
+    const D = await open(bt, 'bob-2nd'); await D.evaluate(() => { LC.ext.beforeCall.push(async () => ({ companion: true })); });
+    await D.click('.item[data-chan^="dm:"]:has-text("Host") .itemmain'); await D.click('#callBar button.primary');
+    await D.waitForSelector('#callUI:not(.hidden) .ccontrols'); await until(() => [...c.calls.get(dmHB).eps.values()].some((e) => e.companion), 8000, 'companion endpoint');
+    const info = await D.evaluate(() => ({ mic: LC.callApi.local.getAudioTracks().length, cam: LC.callApi.me.cam, micBtn: !!document.querySelector('#callUI .cbtn[data-k="mic"]'), muted: [...document.querySelectorAll('#callAudio audio')].every((a) => a.muted), companion: LC.callApi.companion() }));
+    if (info.mic || info.cam || info.micBtn || !info.muted || !info.companion) throw new Error(JSON.stringify(info));
+    if ((await c.callState(dmHB)).participants.length !== 2) throw new Error('a companion is the same person, not a new participant');
+    await D.click('#callUI .cbtn[data-k="cam"]'); await H.waitForSelector('#callUI .tlabel:has-text("Companion")'); await D.evaluate(() => LC.leaveCall()); await D.ctx.close();
+    if (!(await P.evaluate(() => LC.inCall()))) throw new Error('main device dropped'); await leaveAll();
+  });
   await step('phone layout: the meeting window and the Calls pane work at 390 px', async () => {
     const M = await open(bt, 'phone', { viewport: { width: 390, height: 800 }, ctx: { hasTouch: true, isMobile: true } });
     await M.tap('.rbtn[data-pane="calls"]'); await M.waitForSelector('.cl-callsmain'); await M.tap('#menuBtn'); await M.waitForSelector('.cl-dial'); await shot(M, 'phone-calls-pane');
