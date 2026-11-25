@@ -1,0 +1,31 @@
+# people area (presence, profiles, contact card, activity)
+presence_oof
+presence_blocked
+location
+building
+home
+briefcase
+mail
+phone
+globe_clock
+airplane_take_off
+organization
+contact_card
+person_prohibited
+person_star
+alert_urgent filled
+important filled
+mention
+call_missed
+voicemail
+mail_unread
+form
+data_bar_vertical
+people_community
+arrow_reset
+clipboard_task
+status
+time_picker
+people_search
+alert_snooze
+person_clock
