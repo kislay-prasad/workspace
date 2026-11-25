@@ -96,7 +96,7 @@
     function itemDialog(r) {
       const l = V.l, vals = { ...(r ? r.v : {}) };
       const fields = l.cols.map((c) => A.field(c.name, editor(l, c, vals[c.id], (v) => { vals[c.id] = v === null ? '' : v; })));
-      A.modal(r ? t('ap_editItem') : t('ap_newItem'), 'apps_list_detail', fields, [r ? el('button', { class: 'secondary danger', text: t('ap_delItem'), onclick: async () => { if (await LC.confirm(t('ap_confirmDelItem'), { danger: true, ok: t('ap_delete') })) { await call('/api/ap/list/row', { op: 'del', row: r.id }); LC.closeModal(); } } }) : null,
+      A.modal(r ? t('ap_editItem') : t('ap_newItem'), 'apps_list_detail', fields, [r ? el('button', { class: 'secondary ap-danger', text: t('ap_delItem'), onclick: async () => { if (await LC.confirm(t('ap_confirmDelItem'), { danger: true, ok: t('ap_delete') })) { await call('/api/ap/list/row', { op: 'del', row: r.id }); LC.closeModal(); } } }) : null,
         el('button', { class: 'secondary', text: t('ap_cancel'), onclick: LC.closeModal }), el('button', { class: 'primary', text: t('ap_save'), onclick: async () => {
           for (const el2 of document.querySelectorAll('#modal input, #modal textarea')) el2.dispatchEvent(new Event('change'));
           const x = await call('/api/ap/list/row', r ? { op: 'edit', row: r.id, v: vals } : { op: 'add', v: vals }); if (x) { LC.closeModal(); const i = V.l.rows.findIndex((y) => y.id === x.row.id); if (i >= 0) V.l.rows[i] = x.row; else V.l.rows.push(x.row); draw(); }

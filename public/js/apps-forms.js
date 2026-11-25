@@ -168,7 +168,7 @@
       async main(host) {
         const mine = el('div', { class: 'ap-flist' }), shared = el('div', { class: 'ap-flist' });
         const load = async () => { try { const d = await LC.api('/api/ap/forms'); const a = d.forms.filter((f) => f.mine), b = d.forms.filter((f) => !f.mine); A.put(mine, ...(a.length ? a.map(formRow) : [el('p', { class: 'muted', text: t('ap_noFormsHelp') })])); A.put(shared, ...(b.length ? b.map(formRow) : [el('p', { class: 'muted', text: '—' })])); } catch (e) { A.put(mine, el('p', { class: 'err', text: e.message })); } };
-        A.put(host, el('div', { class: 'ap-page' }, el('div', { class: 'ap-row' }, el('button', { class: 'primary sm withicon', onclick: () => A.editForm(null, null) }, LC.icon('add'), el('span', { text: t('ap_newForm') }))), el('h3', { text: t('ap_myForms') }), mine, el('h3', { text: t('ap_sharedForms') }), shared));
+        A.put(host, el('div', { class: 'ap-page' }, el('div', { class: 'ap-row' }, el('button', { class: 'primary sm withicon', onclick: () => A.editForm(null, null) }, LC.icon('add'), el('span', { text: t('ap_newForm') }))), el('h2', { class: 'ap-sub', text: t('ap_myForms') }), mine, el('h2', { class: 'ap-sub', text: t('ap_sharedForms') }), shared));
         A.on('ap:forms', load, mine); load();
       },
     } });

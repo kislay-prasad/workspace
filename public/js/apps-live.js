@@ -60,12 +60,12 @@
         can && d.rows.length < 60 ? el('button', { type: 'button', class: 'link ap-lvaddrow', onclick: () => op({ op: 'addrow' }) }, LC.icon('add'), t('ap_lvAddRow')) : null);
     } else {
       const people = A.members(m.chan);
-      body = el('div', { class: 'ap-lvitems', role: 'list' }, ...d.items.map((x, i) => el('div', { class: 'ap-lvitem' + (x.done ? ' done' : ''), role: 'listitem' },
+      body = el('div', {}, el('div', { class: 'ap-lvitems', role: 'list' }, ...d.items.map((x, i) => el('div', { class: 'ap-lvitem' + (x.done ? ' done' : ''), role: 'listitem' },
         el('input', { type: 'checkbox', checked: x.done, disabled: !can, 'aria-label': (x.text || t('ap_lvItemN', { n: i + 1 })), onchange: () => op({ op: 'toggle', item: x.id }) }),
         field('i:' + x.id, x.text, t('ap_lvItemN', { n: i + 1 }), (v, base) => op({ op: 'edit', item: x.id, text: v, base })),
         L.kind === 'tasks' ? el('span', { class: 'ap-lvwho' }, can ? A.peoplePick({ people, value: x.who ? [x.who] : [], multi: false, label: t('ap_assign'), placeholder: t('ap_assign'), onChange: (v) => op({ op: 'assign', item: x.id, who: v[0] || '' }) }) : x.who ? A.avatars([x.who]) : null) : null,
         L.kind === 'tasks' ? (() => { const dd = el('input', { type: 'date', value: x.due ? A.dayKey(x.due) : '', disabled: !can, 'aria-label': t('ap_due') + ': ' + x.text, class: 'ap-lvdue' + (x.due && !x.done && x.due < A.dayStart(Date.now()) ? ' late' : '') }); dd.addEventListener('change', () => op({ op: 'due', item: x.id, due: dd.value ? A.fromDay(dd.value) + 17 * 3600000 : 0 })); return dd; })() : null,
-        can ? LC.ibtn('dismiss', t('ap_delete') + ': ' + x.text, () => op({ op: 'del', item: x.id }), { cls: 'icon ap-lvx' }) : null)),
+        can ? LC.ibtn('dismiss', t('ap_delete') + ': ' + x.text, () => op({ op: 'del', item: x.id }), { cls: 'icon ap-lvx' }) : null))),
         can && d.items.length < 100 ? (() => { const add = el('input', { class: 'ap-lvin ap-lvnew', placeholder: '+ ' + t('ap_lvAdd'), maxlength: 500, 'aria-label': t('ap_lvAdd'), 'data-k': 'new' }); add.addEventListener('keydown', (e) => { if (e.key === 'Enter' && add.value.trim()) { e.preventDefault(); const v = add.value.trim(); add.value = ''; comp.keepNew = true; op({ op: 'add', text: v }); } }); keepFocus(add, comp, null); return el('div', { class: 'ap-lvitem new' }, LC.icon('add'), add); })() : null);
     }
     return el('div', { class: 'ap-live k-' + L.kind, role: 'group', 'aria-label': t('ap_liveC') + ': ' + (d.title || t(KIND[L.kind][1])) }, head, body, meta);

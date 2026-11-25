@@ -225,7 +225,7 @@
     chan = chan || P.chan;
     if (chan !== P.chan || !P.plan) { try { await load(chan); } catch (e) { return A.fail(e); } }
     if (!P.tasks.some((x) => x.id === id)) return LC.toast(t('ap_noTasks'));
-    D = { id, chan, node: el('div', { class: 'ap-details' }) };
+    D = { id, chan, node: el('div', { class: 'ap-details ap-dlg' }) };
     LC.modal(D.node, { wide: true, label: t('ap_tasks'), onClose: () => { D = null; if (P.onClose) P.onClose(); } }); renderDetails();
     const f = D.node.querySelector('.ap-dtitle'); if (f) f.focus();
   }
@@ -264,7 +264,7 @@
       el('h3', {}, t('ap_checklist'), x.checklist.length ? el('span', { class: 'ap-count', text: t('ap_checkN', { a: x.checklist.filter((c) => c.done).length, b: x.checklist.length }) }) : null), ck, can ? newItem : null,
       el('h3', { text: t('ap_attachments') }), atts, can ? el('div', { class: 'ap-row' }, el('button', { type: 'button', class: 'secondary sm withicon', onclick: () => linkDialog(x) }, LC.icon('link'), el('span', { text: t('ap_addLink') })), el('button', { type: 'button', class: 'secondary sm withicon', onclick: () => fileIn.click() }, LC.icon('attach'), el('span', { text: t('ap_attachFile') })), fileIn) : null,
       el('h3', { text: t('ap_comments') }), can ? el('div', { class: 'ap-cmnew' }, comment, el('button', { type: 'button', class: 'primary sm', text: t('ap_post'), onclick: async () => { const v = comment.value.trim(); if (!v) return; comment.value = ''; await call('comment', { id: x.id, text: v }); } })) : null, comments,
-      el('div', { class: 'acts' }, can && (x.by === S.me.id || LC.isAdmin()) ? el('button', { class: 'secondary danger', text: t('ap_delTask'), onclick: async () => { if (await LC.confirm(t('ap_confirmDelTask', { name: x.text }), { danger: true, ok: t('ap_delete') })) { await call('del', { id: x.id }); LC.closeModal(); } } }) : null, el('button', { class: 'primary', text: t('ap_close'), onclick: LC.closeModal })));
+      el('div', { class: 'acts' }, can && (x.by === S.me.id || LC.isAdmin()) ? el('button', { class: 'secondary ap-danger', text: t('ap_delTask'), onclick: async () => { if (await LC.confirm(t('ap_confirmDelTask', { name: x.text }), { danger: true, ok: t('ap_delete') })) { await call('del', { id: x.id }); LC.closeModal(); } } }) : null, el('button', { class: 'primary', text: t('ap_close'), onclick: LC.closeModal })));
   }
   async function linkDialog(x) {
     const url = await LC.prompt(t('ap_linkUrl'), { value: 'https://', max: 1000 }); if (!url || !/^https?:\/\/\S+/i.test(url.trim())) return;
@@ -296,7 +296,7 @@
     A.put(host, el('div', { class: 'ap-page' },
       el('div', { class: 'ap-tbar' }, A.seg([['active', t('ap_active')], ['done', t('ap_p_completed')], ['all', t('ap_all')]], M.show, (v) => { M.show = v; drawMine(); }, t('ap_myTasks')), el('span', { class: 'grow' }),
         el('label', { class: 'ap-inline' }, el('span', { class: 'small muted', text: t('ap_groupBy') }), A.select([['due', t('ap_due')], ['plan', t('ap_plan')], ['priority', t('ap_priority')]], M.group, (v) => { M.group = v; drawMine(); }, t('ap_groupBy')))),
-      list.length ? el('div', { class: 'ap-mlist' }, ...groupsOf.filter((g) => g.items.length).map((g) => el('section', { class: 'ap-mgroup', 'aria-label': g.label }, el('h3', {}, g.label, el('span', { class: 'ap-count', text: String(g.items.length) })), el('div', { role: 'list' }, ...g.items.sort((a, b) => (a.due || 9e15) - (b.due || 9e15)).map(row)))))
+      list.length ? el('div', { class: 'ap-mlist' }, ...groupsOf.filter((g) => g.items.length).map((g) => el('section', { class: 'ap-mgroup', 'aria-label': g.label }, el('h2', {}, g.label, el('span', { class: 'ap-count', text: String(g.items.length) })), el('div', { role: 'list' }, ...g.items.sort((a, b) => (a.due || 9e15) - (b.due || 9e15)).map(row)))))
         : A.empty('task_list_ltr', t('ap_noMyTasks'), t('ap_noMyTasksHelp'))));
   }
   const refreshMine = LC.debounce(async () => { if (!M.host || !M.host.isConnected) return; try { await loadMine(); drawMine(); if (S.pane === 'ap_tasks') LC.renderNav(); } catch {} }, 300);
