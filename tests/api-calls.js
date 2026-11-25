@@ -128,7 +128,9 @@ H.suite('Calls (calling, meetings, sharing, recording)', async (t) => {
     const up = await s.upload(ana.token, 'voicemail.weba', Buffer.alloc(3000, 7), 'audio/webm'); t.eq(up.s, 200, up.d);
     r = await P('/api/voicemail/leave', { to: bob.id, chan: dmAC, file: up.d.id, dur: 4 }, ana); t.eq(r.s, 400, 'only in the 1:1 chat with them');
     r = await P('/api/voicemail/leave', { to: bob.id, chan: dmAB, file: up.d.id, dur: 4 }, ana); t.eq(r.s, 200, r.d);
-    t.eq(s.db.files[up.d.id], undefined, 'moved out of the shared uploads');
+    t.ok(s.db.files[up.d.id], 'the audio stays in uploads, so backups include it');
+    for (const who of [bob, cy]) t.eq((await fetch(`${s.B}/files/${up.d.id}/voicemail.weba?token=${who.token}`)).status, 404, 'not readable through the shared file links');
+    s.ctx.gcFiles([up.d.id]); t.ok(s.db.files[up.d.id], 'file clean-up keeps a voicemail');
     await live[bob.id].waitFor('activity', (d) => d.type === 'voicemail' && d.from === ana.id);
     r = await G('/api/voicemail', bob); t.eq(r.d.unheard, 1); const v = r.d.voicemail[0]; t.eq(v.from, ana.id); t.eq(v.dur, 4);
     t.eq((await G('/api/voicemail', cy)).d.voicemail.length, 0, 'private');
@@ -136,6 +138,7 @@ H.suite('Calls (calling, meetings, sharing, recording)', async (t) => {
     t.eq((await fetch(`${s.B}/api/voicemail/audio?id=${v.id}&token=${cy.token}`)).status, 404, 'others cannot play it');
     await P('/api/voicemail/heard', { id: v.id }, bob); t.eq((await G('/api/voicemail', bob)).d.unheard, 0);
     r = await P('/api/voicemail/delete', { id: v.id }, bob); t.eq(r.s, 200, r.d); t.eq((await G('/api/voicemail', bob)).d.voicemail.length, 0);
+    t.eq(s.db.files[up.d.id], undefined, 'deleting the voicemail deletes its audio');
     const up2 = await s.upload(ana.token, 'evil.html', Buffer.from('<script>'), 'text/html'); r = await P('/api/voicemail/leave', { to: bob.id, chan: dmAB, file: up2.d.id }, ana); t.eq(r.s, 400, 'audio only');
   });
 
