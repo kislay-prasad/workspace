@@ -28,6 +28,9 @@
   }
   fetch('/api/config').then((r) => r.json()).then((c) => applyBrand(c.brand)).catch(() => {});
   LC.on('tm_config', (c) => { if (c && 'brand' in c) LC.tmBrand = c.brand; });
+  // the meetings area's lobby ("waiting to be let in", .mt-wait): the same logo and welcome text (only while branding is set)
+  const decorateLobby = (root) => { const b = LC.tmBrand; if (!b || !root.querySelectorAll) return; const list = root.matches && root.matches('.mt-wait') ? [root] : root.querySelectorAll('.mt-wait'); for (const w of list) { if (w.dataset.tmBrand) continue; w.dataset.tmBrand = '1'; if (b.color) w.style.setProperty('--brand', b.color); if (b.logo) w.prepend(el('img', { class: 'tm-lobbylogo', src: b.logo, alt: '' })); if (b.welcome) w.append(el('p', { class: 'tm-welcome small muted', text: b.welcome })); } };
+  new MutationObserver((recs) => { if (!LC.tmBrand) return; for (const r of recs) for (const n of r.addedNodes) if (n.nodeType === 1) decorateLobby(n); }).observe(document.body, { childList: true, subtree: true });
 
   // ---------- invite links and the PIN step: extra fields for POST /api/join ----------
   const A = { invite: null, pin: false, totp: false };

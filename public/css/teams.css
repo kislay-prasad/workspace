@@ -101,6 +101,7 @@
 /* ---------- sign-in: branding, invite, PIN ---------- */
 .tm-welcome{white-space:pre-line}.tm-logoimg{object-fit:contain;border-radius:8px}
 .tm-invitenote{margin:0}
+.tm-lobbylogo{width:56px;height:56px;object-fit:contain;border-radius:8px;display:block;margin:0 auto 6px}
 #tmPin,#tmTotp{width:100%;font-size:15px;min-height:40px}
 @media (max-width:760px){
   .card.wide.tm-admin{display:flex;flex-direction:column;height:calc(100dvh - 24px)}

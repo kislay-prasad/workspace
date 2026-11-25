@@ -176,6 +176,14 @@ H.suite('Teams area: teams, channels, admin and security, bots', async (t) => {
     ok(await call('POST', '/api/channel/delete', { id: design }, bob.token)); t.ok(!s.db.channels[design]);
   });
 
+  await t.section('a call in a team channel reaches the team (call state) without ringing everyone', async () => {
+    const eb = s.sse(bob.token), ec = s.sse(carol.token); await eb.waitFor('init'); await ec.waitFor('init');
+    ok(await call('POST', '/api/call/start', { chan: gen, mode: 'voice' }, owner.token));
+    await eb.waitFor('callstate', (d) => d.chan === gen && d.call); await t.wait(200);
+    t.ok(!eb.has('callring', (d) => d.chan === gen), 'team members are not rung'); t.ok(!ec.has('callstate', (d) => d.chan === gen), 'outsiders see nothing');
+    ok(await call('POST', '/api/call/leave', { chan: gen }, owner.token)); eb.close(); ec.close();
+  });
+
   // ---------------- admin and security ----------------
   await t.section('activity log: admin actions are recorded; only admins read it; CSV export', async () => {
     ok(await call('POST', '/api/admin/user/mute', { id: dan.id, minutes: 5 }, ada.token)); ok(await call('POST', '/api/admin/user/mute', { id: dan.id, minutes: 0 }, ada.token));
