@@ -115,6 +115,8 @@ incoming webhook) must be added with `ctx.publicRoutes.add('POST /api/hook')` an
 | `callJoin` | `(me, chan, call, body, starting)` | `fail()` to refuse joining a call (lobby, locked meeting, roles) |
 | `callEvent` | `(type, chan, call, uid)` | `'start'`, `'join'`, `'leave'`, `'end'` (call history, attendance, auto presence) |
 | `callFields` | `(call) => {...}` | extra fields on the call state everyone receives |
+| `canSeeMsg` | `(u, m) => false/undefined` | hide one message from one member (chatux: group members added without the history, 1:1 chats deleted "for me"). Core applies it to file downloads and to `message`/`update` events; routes that return messages or files should check `ctx.canSeeMsg(u, m)` |
+| `keepFile` | `(fileId) => true` | keep an uploaded file that no message references (chatux: My GIFs) from being removed by clean-up |
 
 Calls are exposed as `ctx.calls` (Map chan → call `{ id, mode, by, started, parts: Set, media, sharing, max? }`),
 `ctx.callState(chan)`, `ctx.pushCallState(chan)` and `ctx.leaveCall(chan, uid)`. A call's size limit is

@@ -1,0 +1,23 @@
+# meetings area (scheduling, lobby, Q&A, polls, notes, breakout rooms, recap, webinars)
+video_person filled
+calendar_add
+calendar_edit
+calendar_cancel
+calendar_checkmark
+number_symbol
+people_queue
+phone_laptop
+phone
+arrow_repeat_all
+clipboard_task
+translate
+video_background_effect
+save
+chat_bubbles_question
+thumb_like filled
+note_edit
+text_bullet_list_ltr
+people_audience
+door
+form
+person_board
