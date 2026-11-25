@@ -814,7 +814,7 @@
   function stopRing() { clearInterval(ringTimer); ringTimer = null; RT.stop(); if (ringBox) { ringBox.remove(); ringBox = null; } }
   LC.on('callringstop', (e) => { if (ringBox && ringBox.dataset.chan === e.chan) stopRing(); });
   LC.on('callring', (r) => {
-    if ((call && call.chan === r.chan) || (LC.ringAllowed ? !LC.ringAllowed(r) : S.me.presence === 'dnd') || (LC.isMuted(r.chan) && !r.parked)) return; // LC.ringAllowed: people area (Do not disturb priority access, blocking) stopRing();
+    if ((call && call.chan === r.chan) || (LC.ringAllowed ? !LC.ringAllowed(r) : S.me.presence === 'dnd') || (LC.isMuted(r.chan) && !r.parked)) return; stopRing(); // LC.ringAllowed: people area (Do not disturb priority access, blocking)
     const u = S.users.get(r.from), video = r.call.mode === 'video', i = LC.chanInfo(r.chan), fwd = r.fwd || r.xfer;
     const accept = (mode) => async () => { stopRing(); if (call) await LC.leaveCall(); await LC.openChat(r.chan); LC.joinCall(r.chan, mode); };
     const decline = () => { stopRing(); LC.api('/api/call/decline', { chan: r.chan }).catch(() => {}); };
