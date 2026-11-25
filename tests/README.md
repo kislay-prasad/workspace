@@ -1,8 +1,9 @@
 # Tests
 
-* `node ../test.js` — server test suite (no dependencies). Run it with `npm test`.
+* `node ../test.js` — core server test suite (no dependencies). `npm test` runs it and every `tests/api-*.js` file.
+* `node tests/run-api.js [filter]` — the feature-area API suites (`tests/api-<area>.js`, built on `tests/harness.js`; see `docs/EXTENDING.md`).
 * `ui-smoke.js`, `ui-features.js`, `a11y.js` — browser tests. Need Playwright (`npm i -g playwright && npx playwright install chromium`)
-  and `NODE_PATH=$(npm root -g)`; `a11y.js` also needs `axe-core`.
+  and `NODE_PATH=$(npm root -g)`; `a11y.js` also needs `axe-core` (or `AXE_JS=/path/to/axe.min.js`).
 * `electron-e2e.js` — drives two real desktop-app instances under `xvfb-run`. Needs `ELECTRON_BIN` (a Linux Electron binary) and
   `APP_DIR` (a folder with `main.js`, `lib/`, `public/` — e.g. the `resources/app` folder from `scripts/build_desktop.py`).
 * `ui-https.js` — a browser on the plain `http://` LAN address is offered the secure page, switches without losing its sign-in,

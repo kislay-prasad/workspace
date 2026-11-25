@@ -20,6 +20,34 @@
   };
   const el = LC.el, t = (k, v) => LC.t(k, v);
 
+  // ---------- extension registries: feature files plug into the UI here (docs/EXTENDING.md) ----------
+  LC.ext = {
+    panes: {},          // key -> { icon, label, order, badge(), render(nav), actions(), main(host), bottom, admin } : left app bar items
+    tabs: [],           // { key, icon, label, order, when(chan), render(host, chan) } : tabs above a chat
+    msgParts: [],       // (m, o) => node | null : extra content inside a message bubble
+    msgMenu: [],        // (m, o) => [menu items] : message "More" menu
+    chatMenu: [],       // (entry) => [items] : chat list item menu (entry = { id, kind, c?, u? })
+    userMenu: [],       // (uid) => [items]
+    mainMenu: [],       // () => [items] : top bar "Settings and more" menu
+    profileMenu: [],    // () => [items] : avatar menu
+    headerActions: [],  // (chan) => [buttons] : chat header, left of "More"
+    headerMenu: [],     // (chan) => [items] : chat header "More" menu
+    composerMore: [],   // (composer) => [items] : composer "More options" menu
+    attachMenu: [],     // (composer) => [items] : paperclip menu
+    composerTools: [],  // (composer) => node | null : buttons next to Send
+    beforeSend: [],     // (body, composer) => void : add fields to an outgoing message
+    settingsTabs: [],   // { key, icon, label, order, render() }
+    adminTabs: [],      // { key, icon, label, order, ownerOnly, render() }
+    commands: {},       // '/name' -> { help, run(args) } : slash commands in the search box
+    mentionSources: [], // (query) => [{ label, insert, icon?, sub? }] : extra @mention suggestions (tags, @team...)
+    callPanels: [],     // { key, icon, label, short?, order, when?(call), render(host, call) } : meeting side panels + toolbar buttons
+    callToolbar: [],    // (call) => [buttons] : extra meeting toolbar buttons
+    callMore: [],       // (call) => [menu items] : meeting "More" menu
+    beforeCall: [],     // async ({ chan, mode, joining }) => false | { micId, camId, cam, muted, ...extra body } : e.g. "before you join" screen
+    rail: [],           // (railNode) => void : after the left app bar is drawn
+  };
+  LC.extItems = (list, ...args) => list.flatMap((f) => { try { const r = f(...args); return Array.isArray(r) ? r : r ? [r] : []; } catch (e) { console.error('extension error', e); return []; } });
+
   // ---------- storage ----------
   const ls = (LC.ls = {
     get(k, d = null) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
@@ -42,7 +70,7 @@
   LC.realName = (id) => (S.users.get(id) ? S.users.get(id).name : t('unknown'));
   LC.uname = (id) => { const n = LC.prefs().nicknames; return (n && n[id]) || LC.realName(id); };
   LC.dmId = (a, b) => 'dm:' + [a, b].sort().join(':');
-  LC.peerOf = (chan) => chan.split(':').slice(1).find((i) => i !== S.me.id);
+  LC.peerOf = (chan) => chan.split(':').slice(1).find((i) => i !== S.me.id) || S.me.id; // dm:me:me = notes to self
   LC.chanInfo = (chan) => {
     if (!chan) return { kind: 'none', title: '' };
     if (chan.startsWith('dm:')) { const u = S.users.get(LC.peerOf(chan)); return { kind: 'dm', title: LC.uname(LC.peerOf(chan)), peer: u, icon: '' }; }
@@ -78,8 +106,10 @@
     const inner = u.avatar ? el('img', { src: LC.fileUrl({ id: u.avatar, name: 'a.png' }, true), alt: '', loading: 'lazy' }) : (u.name.trim()[0] || '?').toUpperCase();
     return el('div', { class: 'av ' + cls, style: `background:${u.color}`, title: u.name, 'aria-hidden': 'true' }, inner, dot ? LC.presenceDot(u.presence) : null);
   };
-  const PRES_ICON = { online: 'presence_available', away: 'presence_away', dnd: 'presence_dnd', busy: 'presence_busy', offline: 'presence_offline', invisible: 'presence_offline' };
-  LC.presenceDot = (p) => el('span', { class: 'dot ' + (p || 'offline'), title: t(p || 'offline') }, LC.icon(PRES_ICON[p] || 'presence_offline'));
+  // presence look: the people area extends these (states: docs/EXTENDING.md "Presence states")
+  LC.PRES_ICON = { online: 'presence_available', away: 'presence_away', brb: 'presence_away', dnd: 'presence_dnd', busy: 'presence_busy', call: 'presence_busy', meeting: 'presence_busy', presenting: 'presence_dnd', oof: 'presence_offline', offline: 'presence_offline', invisible: 'presence_offline' };
+  LC.presenceLabel = (p) => t(p || 'offline');
+  LC.presenceDot = (p) => el('span', { class: 'dot ' + (p || 'offline'), title: LC.presenceLabel(p) }, LC.icon(LC.PRES_ICON[p] || 'presence_offline'));
   // icon-only button (always has an accessible name) and icon + text button
   LC.ibtn = (icon, label, onclick, o = {}) => el('button', { class: o.cls || 'icon', title: label, 'aria-label': label, onclick, type: 'button', 'aria-haspopup': o.menu ? 'menu' : null, 'aria-pressed': o.pressed === undefined ? null : String(!!o.pressed), disabled: o.disabled }, LC.icon(icon, { filled: o.filled }));
   LC.btn = (icon, text, onclick, cls = 'secondary') => el('button', { class: cls + ' withicon', onclick, type: 'button' }, LC.icon(icon), el('span', { text }));
@@ -98,8 +128,11 @@
   LC.setPrefs = (patch) => LC.api('/api/prefs', patch).catch((e) => LC.toast(e.message));
 
   // ---------- live connection ----------
-  const EVENTS = ['init', 'user', 'channel', 'channel_removed', 'channel_deleted', 'message', 'update', 'purge', 'typing', 'seen', 'delivered', 'readstate', 'settings', 'emoji', 'me', 'joinrequest', 'joindecided', 'kicked', 'meta', 'note', 'board', 'boardlive', 'todos', 'events', 'callstate', 'callring', 'callsig', 'callreact', 'reminder', 'dmttl', 'schedulefail', 'ping'];
+  const EVENTS = ['activity', 'activityread', 'init', 'user', 'channel', 'channel_removed', 'channel_deleted', 'message', 'update', 'purge', 'typing', 'seen', 'delivered', 'readstate', 'settings', 'emoji', 'me', 'joinrequest', 'joindecided', 'kicked', 'meta', 'note', 'board', 'boardlive', 'todos', 'events', 'callstate', 'callring', 'callsig', 'callreact', 'reminder', 'dmttl', 'schedulefail', 'ping'];
   LC.on = (name, fn) => { (LC.handlers[name] ||= []).push(fn); };
+  // feature files register extra live-event names before the app connects (see docs/EXTENDING.md)
+  LC.addEvents = (...names) => { for (const n of names.flat()) if (typeof n === 'string' && !EVENTS.includes(n)) EVENTS.push(n); };
+  LC.emitLocal = (name, d) => dispatch(name, d);
   const dispatch = (name, d) => { for (const fn of LC.handlers[name] || []) { try { fn(d); } catch (e) { console.error('handler error for', name, e); } } };
   LC.connect = () => {
     if (S.es) S.es.close();

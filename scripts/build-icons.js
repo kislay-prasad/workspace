@@ -18,7 +18,15 @@ const FILLED = `chat alert call bookmark people_team calendar_ltr settings shiel
 checkmark_circle circle record people_list presenter`.split(/\s+/).filter(Boolean);
 const PRESENCE = [['presence_available', 'filled'], ['presence_away', 'filled'], ['presence_dnd', 'filled'], ['presence_busy', 'filled'], ['presence_offline', 'regular']];
 
-const dir = process.argv[2]; if (!dir) { console.error('usage: node scripts/build-icons.js <icons dir>'); process.exit(1); }
+// Feature areas list extra icons in scripts/icons/<area>.txt: one name per line ("name" = regular, "name filled" = also the filled variant).
+const EXTRA = path.join(__dirname, 'icons');
+if (fs.existsSync(EXTRA)) for (const f of fs.readdirSync(EXTRA).filter((n) => n.endsWith('.txt')).sort()) {
+  for (const line of fs.readFileSync(path.join(EXTRA, f), 'utf8').split(/\r?\n/)) {
+    const [n, v] = line.replace(/#.*/, '').trim().split(/\s+/); if (!n) continue;
+    if (!REGULAR.includes(n)) REGULAR.push(n); if (v === 'filled' && !FILLED.includes(n)) FILLED.push(n);
+  }
+}
+const dir = process.argv[2] || '/tmp/fluent/pkg/package/icons'; if (!fs.existsSync(dir)) { console.error('usage: node scripts/build-icons.js <fluentui svg-icons dir>  (npm pack @fluentui/svg-icons && tar -xzf fluentui-svg-icons-*.tgz)'); process.exit(1); }
 const inner = (file) => { const s = fs.readFileSync(path.join(dir, file), 'utf8').trim(); const m = /^<svg[^>]*viewBox="0 0 (\d+) \d+"[^>]*>([\s\S]*)<\/svg>$/.exec(s); if (!m) throw new Error('unexpected svg ' + file); return [Number(m[1]), m[2]]; };
 const out = {};
 for (const n of REGULAR) out[n] = inner(`${n}_20_regular.svg`);

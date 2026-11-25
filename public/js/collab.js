@@ -9,6 +9,8 @@
 
   LC.renderTab = async (tab) => {
     const host = $('#tabView'); boardApi = null; if (tab === 'chat') return;
+    const ext = LC.ext.tabs.find((x) => x.key === tab && (!x.when || x.when(S.chan)));
+    if (ext) { host.replaceChildren(); try { return await ext.render(host, S.chan); } catch (e) { return host.replaceChildren(el('p', { class: 'err pad', text: e.message })); } }
     host.replaceChildren(el('p', { class: 'muted pad', text: t('loading') })); const chan = S.chan;
     try {
       if (tab === 'files') return renderFiles(host, chan);

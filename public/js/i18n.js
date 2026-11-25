@@ -125,7 +125,6 @@
   const DICT = { en: EN, hi: HI, es: ES };
   LC.languages = { en: 'English', hi: 'हिन्दी', es: 'Español' };
   LC.langCode = () => { const sel = LC.ui && LC.ui.lang; if (sel && sel !== 'auto' && DICT[sel]) return sel; const nav = (navigator.language || 'en').slice(0, 2).toLowerCase(); return DICT[nav] ? nav : 'en'; };
-  LC.langDir = () => 'ltr';
   LC.t = (k, v) => {
     const d = DICT[LC.langCode()]; let s = (d && d[k]) || EN[k] || k;
     if (v) s = s.replace(/\{(\w+)\}/g, (_m, n) => (v[n] !== undefined ? v[n] : '{' + n + '}'));
@@ -138,4 +137,14 @@
     document.documentElement.lang = LC.langCode();
   };
   LC.dictionaries = DICT;
+  // feature modules add their own strings: LC.addStrings('en', { key: 'Text' }); a new language also needs its name:
+  // LC.addStrings('fr', { ... }, 'Français'); right-to-left languages: LC.addStrings('ar', { ... }, 'العربية', 'rtl')
+  const RTL = new Set();
+  LC.addStrings = (lang, strings, name, dir) => {
+    const d = (DICT[lang] ||= {}); // English: only adds keys that don't exist yet, so a module can't change core wording by accident
+    for (const [k, v] of Object.entries(strings || {})) if (lang !== 'en' || !(k in EN)) d[k] = v;
+    if (name && !LC.languages[lang]) LC.languages[lang] = name;
+    if (dir === 'rtl') RTL.add(lang);
+  };
+  LC.langDir = () => (RTL.has(LC.langCode()) ? 'rtl' : 'ltr');
 })();

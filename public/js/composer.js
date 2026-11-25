@@ -94,6 +94,7 @@
   LC.makeComposer = (cfg) => {
     const key = () => 'lc_draft:' + cfg.chan() + ':' + (cfg.thread() || '');
     let files = [], replyTo = null, editing = null, ttlChoice, recorder = null, acItems = [], acIdx = 0, lastTyping = 0, busy = false;
+    const api = {}; // filled in below; handed to extensions (LC.ext.composer*)
     const ta = el('textarea', { rows: 1, maxlength: 8000, placeholder: cfg.compact ? t('replyPlaceholder') : t('typeMessage'), 'aria-label': t('typeMessage') });
     const chips = el('div', { class: 'chips' }), ctx = el('div', { class: 'ctx hidden' }), notice = el('div', { class: 'notice hidden' }), recbar = el('div', { class: 'recbar hidden' }), ac = el('div', { class: 'ac hidden', role: 'listbox' });
     const fileIn = el('input', { type: 'file', multiple: true, class: 'hidden', onchange: (e) => { addFiles([...e.target.files]); e.target.value = ''; } });
@@ -157,6 +158,7 @@
       const done = files.filter((f) => f.status === 'done');
       if (!text.trim() && !done.length && !o.poll && !o.game) return; if (uploading() && !o.force) return;
       const body = { chan: cfg.chan(), text, files: done.map(({ id, name, size }) => ({ id, name, size })), replyTo: replyTo ? replyTo.id : undefined, thread: cfg.thread() || undefined, ttl: ttlChoice, sendAt: o.sendAt, poll: o.poll, game: o.game };
+      for (const f of LC.ext.beforeSend) { try { f(body, api, o); } catch (e) { console.error('beforeSend', e); } }
       busy = true; update();
       const snapshot = { text: ta.value, files: [...files], replyTo };
       if (!o.force) { ta.value = ''; files = []; replyTo = null; renderChips(); renderCtx(); autosize(); LC.ls.del(key()); }
@@ -182,6 +184,7 @@
       if ((m = /(^|\s)@([^\s@]{0,24})$/.exec(before))) {
         const q = m[2].toLowerCase(), list = audienceUsers().filter((u) => u.name.toLowerCase().startsWith(q) || u.name.toLowerCase().split(' ').some((w) => w.startsWith(q))).slice(0, 6).map((u) => ({ label: u.name, av: u, ins: '@' + u.name + ' ' }));
         if (!cfg.chan().startsWith('dm:') && (LC.isAdmin() || S.settings.membersCanEveryone)) for (const k of ['everyone', 'here']) if (k.startsWith(q)) list.push({ label: '@' + k, ins: '@' + k + ' ' });
+        for (const it of LC.extItems(LC.ext.mentionSources, q, cfg.chan())) if (list.length < 10) list.push({ label: it.label, ins: it.insert, icon: it.icon });
         return showAc(list, pos - m[2].length - 1);
       }
       if ((m = /(^|\s):([a-z0-9_]{2,20})$/.exec(before))) { const q = m[2].toLowerCase(); return showAc(Object.keys(S.emojis).filter((n) => n.startsWith(q)).slice(0, 6).map((n) => ({ label: ':' + n + ':', img: S.emojis[n], ins: ':' + n + ': ' })), pos - m[2].length - 1); }
@@ -189,7 +192,7 @@
     }
     function showAc(list, start) {
       if (!list.length) return closeAc(); clearTimeout(ac._t); acItems = list; acIdx = 0; ac._start = start;
-      ac.replaceChildren(...list.map((it, i) => el('button', { role: 'option', class: i === 0 ? 'on' : '', onmousedown: (e) => { e.preventDefault(); pickAc(i); } }, it.av ? LC.avatar(it.av, 'sm', false) : it.img ? el('img', { class: 'cemoji', src: LC.fileUrl({ id: it.img, name: 'e.png' }, true), alt: '' }) : null, el('span', { text: it.label }))));
+      ac.replaceChildren(...list.map((it, i) => el('button', { role: 'option', class: i === 0 ? 'on' : '', onmousedown: (e) => { e.preventDefault(); pickAc(i); } }, it.av ? LC.avatar(it.av, 'sm', false) : it.img ? el('img', { class: 'cemoji', src: LC.fileUrl({ id: it.img, name: 'e.png' }, true), alt: '' }) : it.icon ? LC.icon(it.icon) : null, el('span', { text: it.label }))));
       ac.classList.remove('hidden');
     }
     function pickAc(i) { const it = acItems[i]; if (!it) return; ta.setRangeText(it.ins, ac._start, ta.selectionStart, 'end'); closeAc(); autosize(); saveDraft(); update(); ta.focus(); }
@@ -212,7 +215,7 @@
 
     // ----- menus & creators -----
     function attachMenu(anchor) {
-      LC.menu(anchor, [{ icon: 'document', label: t('attachFiles'), fn: () => fileIn.click() }, { icon: 'image', label: t('attachPhoto'), fn: () => { fileIn.accept = 'image/*,video/*'; fileIn.click(); fileIn.accept = ''; } }, { icon: 'desktop', label: t('recordScreen'), fn: () => recordClip('screen') }, { icon: 'camera', label: t('recordCamera'), fn: () => recordClip('camera') }]);
+      LC.menu(anchor, [{ icon: 'document', label: t('attachFiles'), fn: () => fileIn.click() }, { icon: 'image', label: t('attachPhoto'), fn: () => { fileIn.accept = 'image/*,video/*'; fileIn.click(); fileIn.accept = ''; } }, { icon: 'desktop', label: t('recordScreen'), fn: () => recordClip('screen') }, { icon: 'camera', label: t('recordCamera'), fn: () => recordClip('camera') }, ...LC.extItems(LC.ext.attachMenu, api)]);
     }
     function moreMenu(anchor) {
       const ttls = [[undefined, t('ttlDefault')], [0, t('ttlOff')], [60, t('ttl1m')], [3600, t('ttl1h')], [86400, t('ttl1d')], [604800, t('ttl1w')]];
@@ -222,6 +225,7 @@
         { icon: 'send_clock', label: t('scheduleSend'), fn: () => scheduleDialog() }, { icon: 'calendar_clock', label: t('scheduledMsgs'), fn: () => LC.scheduledList() }, 'sep',
         ...ttls.map(([v, label]) => ({ icon: v === undefined ? 'timer' : '', label, checked: ttlChoice === v, fn: () => { ttlChoice = v; refreshTtl(); } })), 'sep',
         { icon: 'image', label: t('compressImages'), checked: !!LC.ui.compress, fn: () => LC.setUi({ compress: !LC.ui.compress }) },
+        ...LC.extItems(LC.ext.composerMore, api),
       ]);
     }
     const refreshTtl = () => { ttlDot.classList.toggle('hidden', ttlChoice === undefined); ttlDot.title = ttlChoice === undefined ? '' : ttlChoice ? t('ttlTitle', { t: LC.ttlLabel(ttlChoice) }) : t('ttlOff'); };
@@ -273,7 +277,8 @@
     }
     function reply(m) { editing = null; replyTo = m; renderCtx(); ta.focus(); }
     function edit(m) { replyTo = null; editing = m; ta.value = m.text || ''; renderCtx(); autosize(); ta.focus(); update(); }
-    const api = { el: root, focus: () => ta.focus(), refresh, reply, edit, addFiles, addDropped, insert, guard, ta };
+    Object.assign(api, { el: root, focus: () => ta.focus(), refresh, reply, edit, addFiles, addDropped, insert, guard, ta, cfg, send: (o) => send(o || {}), row, root });
+    for (const n of LC.extItems(LC.ext.composerTools, api)) if (n && n.nodeType) row.querySelector('.ctools').insertBefore(n, row.querySelector('.ctools .csep'));
     LC.on('me', () => guard()); LC.on('channel', () => guard()); LC.on('lang', () => { ta.placeholder = cfg.compact ? t('replyPlaceholder') : t('typeMessage'); });
     refresh(); return api;
   };

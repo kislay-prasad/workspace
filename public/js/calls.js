@@ -28,35 +28,55 @@
   // ---------- devices ----------
   async function getMic(id) { const base = { echoCancellation: true, noiseSuppression: true, autoGainControl: true }; try { return await navigator.mediaDevices.getUserMedia({ audio: id ? { ...base, deviceId: { exact: id } } : base }); } catch (e) { if (!id) throw e; return navigator.mediaDevices.getUserMedia({ audio: base }); } }
   async function getCam(id) { const base = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24 } }; try { return await navigator.mediaDevices.getUserMedia({ video: id ? { ...base, deviceId: { exact: id } } : base }); } catch (e) { if (!id) throw e; return navigator.mediaDevices.getUserMedia({ video: base }); } }
-  async function getLocal(mode) {
+  // o (from LC.ext.beforeCall hooks, e.g. a "before you join" screen): { micId, camId, cam: false = join with camera off, muted: true = join muted }
+  async function getLocal(mode, o = {}) {
     const local = new MediaStream(); let cam = false;
-    try { (await getMic(LC.ui.micId)).getAudioTracks().forEach((x) => local.addTrack(x)); }
+    try { (await getMic(o.micId || LC.ui.micId)).getAudioTracks().forEach((x) => { if (o.muted) x.enabled = false; local.addTrack(x); }); }
     catch (e) { if (e && e.name === 'NotFoundError') LC.toast(t('noMic')); else throw new Error(t('micDenied')); }
-    if (mode === 'video') { try { (await getCam(LC.ui.camId)).getVideoTracks().forEach((x) => local.addTrack(x)); cam = true; } catch { LC.toast(t('noCamera')); } }
+    if ((o.cam === undefined ? mode === 'video' : o.cam)) { try { (await getCam(o.camId || LC.ui.camId)).getVideoTracks().forEach((x) => local.addTrack(x)); cam = true; } catch { LC.toast(t('noCamera')); } }
     return { local, cam };
   }
+  // LC.ext.beforeCall: async ({ chan, mode, joining }) => false (cancel) | { micId, camId, cam, muted, ...extra body fields for start/join } | undefined
+  async function beforeCall(info) {
+    const o = {};
+    for (const h of LC.ext.beforeCall || []) { try { const r = await h({ ...info, opts: o }); if (r === false) return null; if (r && typeof r === 'object') Object.assign(o, r); } catch (e) { console.error('beforeCall hook', e); } }
+    return o;
+  }
+  const bodyExtra = (o) => { const { micId, camId, cam, muted, ...rest } = o; void micId; void camId; void cam; void muted; return rest; };
 
   // ---------- starting / joining ----------
   LC.startCall = async (chan, mode) => {
     if (call) { if (call.chan === chan) return LC.showCall(); return LC.toast(t('alreadyInCall')); }
     if (S.calls[chan]) return LC.joinCall(chan, mode);
     if (!media()) return LC.needSecure();
-    let got; try { got = await getLocal(mode); } catch (e) { return LC.toast(e.message); }
-    try { const r = await LC.api('/api/call/start', { chan, mode }); begin(chan, r.call, got); } catch (e) { stopStream(got.local); LC.toast(e.message); }
+    const o = await beforeCall({ chan, mode, joining: false }); if (!o || call) return;
+    let got; try { got = await getLocal(mode, o); } catch (e) { return LC.toast(e.message); }
+    try { const r = await LC.api('/api/call/start', { ...bodyExtra(o), chan, mode }); begin(chan, r.call, got, o); } catch (e) { stopStream(got.local); LC.toast(e.message); }
   };
   LC.joinCall = async (chan, mode) => {
     if (call) { if (call.chan === chan) return LC.showCall(); return LC.toast(t('alreadyInCall')); }
     const c = S.calls[chan]; if (!c) return LC.toast(t('callEnded'));
     if (!media()) return LC.needSecure();
-    stopRing(); let got; try { got = await getLocal(mode || c.mode); } catch (e) { return LC.toast(e.message); }
-    try { const r = await LC.api('/api/call/join', { chan }); begin(chan, r.call, got); } catch (e) { stopStream(got.local); LC.toast(e.message); }
+    stopRing(); const o = await beforeCall({ chan, mode: mode || c.mode, joining: true }); if (!o || call) return;
+    let got; try { got = await getLocal(mode || c.mode, o); } catch (e) { return LC.toast(e.message); }
+    try { const r = await LC.api('/api/call/join', { ...bodyExtra(o), chan }); begin(chan, r.call, got, o); } catch (e) { stopStream(got.local); LC.toast(e.message); }
   };
-  function begin(chan, info, got) {
-    call = { chan, mode: info.mode, local: got.local, screen: null, mixed: null, peers: new Map(), tiles: new Map(), t0: Date.now(), me: { mic: got.local.getAudioTracks().length > 0, cam: got.cam, hand: false }, mini: false, panel: null, spoke: {}, meLevel: {} };
+  function begin(chan, info, got, o = {}) {
+    const a = got.local.getAudioTracks()[0];
+    call = { chan, mode: info.mode, local: got.local, screen: null, mixed: null, peers: new Map(), tiles: new Map(), t0: Date.now(), me: { mic: !!a && a.enabled, cam: got.cam, hand: false }, mini: false, panel: null, spoke: {}, meLevel: {}, opts: o };
     S.calls[chan] = info; syncMedia();
     for (const id of info.participants) if (id !== S.me.id) connect(id, true);
     startLevels(); LC.showCall(); LC.renderCallBar(); if (S.chan && LC.renderHeader) LC.renderHeader();
+    LC.emitLocal('call:joined', { chan, call: info });
   }
+  // for feature modules (docs/EXTENDING.md): read the call, redraw the meeting window, open one of LC.ext.callPanels
+  LC.callApi = {
+    get chan() { return call ? call.chan : null; }, get me() { return call ? call.me : null; }, get local() { return call ? call.local : null; },
+    state: () => (call ? state() : null), participants: () => (call ? [S.me.id, ...state().participants.filter((x) => x !== S.me.id)] : []),
+    peers: () => (call ? call.peers : new Map()), redraw: () => drawSoon(), panel: () => (call ? call.panel : null),
+    setPanel: (key) => { if (!call) return; call.panel = call.panel === key ? null : key; drawUi(); }, mini: () => !!(call && call.mini), setMini: (v) => setMini(v),
+    toggleMic: () => toggleMic(), toggleCam: () => toggleCam(), syncMedia: () => syncMedia(), data: () => (call ? (call.ext ||= {}) : {}),
+  };
   const syncMedia = () => call && LC.api('/api/call/media', { chan: call.chan, ...call.me }).catch(() => {});
   LC.showCall = () => { if (!call) return; call.mini = false; drawUi(); };
   const setMini = (v) => { if (!call) return; call.mini = v; if (v && document.fullscreenElement) document.exitFullscreen().catch(() => {}); drawUi(); };
@@ -206,6 +226,8 @@
       ctl('people', t('participants'), () => { call.panel = call.panel === 'people' ? null : 'people'; drawUi(); }, { on: call.panel === 'people', pressed: call.panel === 'people', text: t('people') }),
       ctl('hand_right', me.hand ? t('lowerHand') : t('raiseHand'), toggleHand, { on: me.hand, pressed: me.hand, text: t('raise') }),
       ctl('emoji', t('react'), (e) => reactMenu(e.currentTarget), { text: t('react'), menu: true }),
+      ...extPanels().map((p) => ctl(p.icon, p.label, () => LC.callApi.setPanel(p.key), { on: call.panel === p.key, pressed: call.panel === p.key, text: p.short || p.label })),
+      ...LC.extItems(LC.ext.callToolbar || [], LC.callApi),
       ctl('more_horizontal', t('moreOptions'), (e) => moreMenu(e.currentTarget), { text: t('more'), menu: true }),
       el('span', { class: 'csep', 'aria-hidden': 'true' }),
       ctl(me.cam ? 'video' : 'video_off', me.cam ? t('turnCameraOff') : t('turnCameraOn'), toggleCam, { pressed: me.cam, off: !me.cam, text: t('camera') }),
@@ -214,7 +236,11 @@
         LC.native && LC.native.screens ? el('button', { class: 'cbtn caret', title: t('shareOptions'), 'aria-label': t('shareOptions'), 'aria-haspopup': 'dialog', onclick: () => sharePicker() }, LC.icon('chevron_down')) : null) : null,
       el('button', { class: 'leave', onclick: () => LC.leaveCall(), title: t('leaveCall'), 'aria-label': t('leaveCall') }, LC.icon('call_end', { filled: true }), el('span', { text: t('leave') })));
     const head = el('div', { class: 'cbar' }, el('div', { class: 'ctitle' }, LC.ibtn('arrow_minimize', t('minimize'), () => setMini(true), { cls: 'icon cmin' }), el('div', { class: 'ctname' }, el('b', { text: LC.chanInfo(call.chan).title }), el('span', { class: 'ctimer', id: 'callTimer' }))), controls);
-    ui.replaceChildren(head, el('div', { class: 'cbody' }, stage, call.panel === 'people' ? peoplePanel(ids) : null), call.rlayer);
+    const xp = extPanels().find((p) => p.key === call.panel);
+    let side = call.panel === 'people' ? peoplePanel(ids) : null;
+    if (xp) { side = el('div', { class: 'cside', role: 'group', 'aria-label': xp.label }, el('div', { class: 'row-between' }, el('h2', { text: xp.label }), LC.ibtn('dismiss', t('close'), () => LC.callApi.setPanel(xp.key)))); try { xp.render(side, LC.callApi); } catch (e) { console.error('call panel', e); } }
+    ui.replaceChildren(head, el('div', { class: 'cbody' }, stage, side), call.rlayer);
+    LC.emitLocal('call:drawn', { ui, stage, controls });
     ui.className = 'callui'; ui.removeAttribute('style'); ui.setAttribute('role', 'region'); ui.setAttribute('aria-label', t('callWindow')); tickTimer();
   }
   // the small call window can be dragged by its title
@@ -256,8 +282,11 @@
     const b = el('div', { class: 'floatr', style: { left: 8 + Math.random() * 74 + '%' } }, el('span', { class: 'fe', text: r.emoji }), el('span', { class: 'fn', text: LC.uname(r.from) }));
     call.rlayer.append(b); setTimeout(() => b.remove(), 3600);
   });
+  // LC.ext.callPanels: { key, icon, label, short?, order, when?(callApi), render(host, callApi) } -> toolbar button + side panel
+  const extPanels = () => (LC.ext.callPanels || []).filter((p) => { try { return !p.when || p.when(LC.callApi); } catch { return false; } }).sort((a, b) => (a.order || 50) - (b.order || 50));
   function moreMenu(anchor) {
-    LC.menu(anchor, [{ icon: document.fullscreenElement ? 'full_screen_minimize' : 'full_screen_maximize', label: document.fullscreenElement ? t('exitFullScreen') : t('fullScreen'), fn: () => fullscreen($('#callUI')) }, { icon: 'arrow_minimize', label: t('minimize'), fn: () => setMini(true) }, 'sep', { icon: 'settings', label: t('deviceSettings'), fn: () => deviceDialog() }]);
+    const extra = LC.extItems(LC.ext.callMore || [], LC.callApi);
+    LC.menu(anchor, [{ icon: document.fullscreenElement ? 'full_screen_minimize' : 'full_screen_maximize', label: document.fullscreenElement ? t('exitFullScreen') : t('fullScreen'), fn: () => fullscreen($('#callUI')) }, { icon: 'arrow_minimize', label: t('minimize'), fn: () => setMini(true) }, ...(extra.length ? ['sep', ...extra] : []), 'sep', { icon: 'settings', label: t('deviceSettings'), fn: () => deviceDialog() }]);
   }
   async function deviceDialog() {
     const devs = await navigator.mediaDevices.enumerateDevices().catch(() => []);
@@ -329,7 +358,8 @@
     for (const id of [...call.peers.keys()]) dropPeer(id);
     stopStream(call.local); if (call.screen) stopStream(call.screen); if (call.mixed) { try { call.mixed.ctx.close(); } catch {} }
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    call = null; drawUi(); LC.renderCallBar(); if (S.chan && LC.renderHeader) LC.renderHeader();
+    const chan = call.chan; call = null; drawUi(); LC.renderCallBar(); if (S.chan && LC.renderHeader) LC.renderHeader();
+    LC.emitLocal('call:left', { chan });
   }
   LC.leaveCall = async () => { if (!call) return; const chan = call.chan; endLocal(); LC.api('/api/call/leave', { chan }).catch(() => {}); LC.playSound('pop'); };
   window.addEventListener('beforeunload', () => { if (call && navigator.sendBeacon) navigator.sendBeacon('/api/call/leave?token=' + encodeURIComponent(S.token), new Blob([JSON.stringify({ chan: call.chan })], { type: 'application/json' })); });

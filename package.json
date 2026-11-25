@@ -3,7 +3,7 @@
   "version": "4.2.1",
   "description": "Private chat sessions for you and your friends. Host on your own computer; nothing goes through the cloud. Zero dependencies.",
   "main": "server.js",
-  "scripts": { "start": "node server.js", "test": "node test.js" },
+  "scripts": { "start": "node server.js", "test": "node test.js && node tests/run-api.js" },
   "engines": { "node": ">=18" },
   "license": "MIT"
 }

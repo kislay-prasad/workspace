@@ -15,17 +15,37 @@
   LC.menuToggle = menuToggle;
   const lang = () => (LC.ui.lang === 'auto' ? undefined : LC.ui.lang);
   LC.shortTime = (ts) => { const d = new Date(ts), n = new Date(); if (d.toDateString() === n.toDateString()) return LC.fmtTime(ts); const days = (n - d) / 86400000; return days < 6 ? d.toLocaleDateString(lang(), { weekday: 'short' }) : d.toLocaleDateString(lang(), { day: 'numeric', month: 'numeric' }); };
-  const RAIL = [['activity', 'alert', 'railActivity'], ['chat', 'chat', 'railChat'], ['calls', 'call', 'railCalls'], ['saved', 'bookmark', 'railSaved']];
-  LC.setPane = (pane) => { S.pane = pane; if (PHONE()) menuToggle(true); renderRail(); renderNavNow(); };
+  // Left app bar. Every item is a "pane" in LC.ext.panes: render(nav) draws the list column; an optional
+  // main(host) takes over the big right-hand area like Teams' Calendar (see docs/EXTENDING.md).
+  const lbl = (x) => (typeof x === 'function' ? x() : x);
+  const paneList = () => Object.entries(LC.ext.panes).map(([key, p]) => ({ key, ...p })).filter((p) => !p.hidden || !p.hidden()).sort((a, b) => (a.order ?? 50) - (b.order ?? 50));
+  LC.setPane = (pane) => {
+    const p = LC.ext.panes[pane]; if (!p) return;
+    if (p.action) return p.action(); // e.g. Settings, Manage: open a dialog instead of a list
+    S.pane = pane; if (PHONE()) menuToggle(true);
+    if (p.main) LC.openApp(pane); else if (S.app) LC.closeApp();
+    renderRail(); renderNavNow();
+  };
   function renderRail() {
     const rail = $('#rail'); if (!rail || !S.me) return;
-    const badge = { activity: Object.values(S.mentions).reduce((a, b) => a + b, 0), chat: LC.totalUnread(), calls: Object.keys(S.calls).length };
-    const item = (key, icon, label, n, fn, active) => el('button', { class: 'rbtn' + (active ? ' on' : ''), 'data-pane': key, 'aria-current': active ? 'page' : null, 'aria-label': label + (n ? ` (${n})` : ''), title: label, onclick: fn },
-      el('span', { class: 'rico' }, LC.icon(icon, { filled: active }), n ? el('span', { class: 'rbadge' + (key === 'calls' ? ' live' : ''), text: n > 99 ? '99+' : String(n) }) : null), el('span', { class: 'rlabel', text: label }));
-    rail.replaceChildren(el('div', { class: 'rtop' }, ...RAIL.map(([k, ic, lab]) => item(k, ic, t(lab), badge[k] || 0, () => LC.setPane(k), S.pane === k))),
-      el('div', { class: 'rbottom' }, LC.isAdmin() ? item('manage', 'shield_person', t('railManage'), S.pendingReqs.length, () => LC.adminPanel(), false) : null, item('settings', 'settings', t('settings'), 0, () => LC.settingsPanel(), false)));
+    const item = (p) => { const active = S.pane === p.key && !p.action, n = p.badge ? p.badge() || 0 : 0, label = lbl(p.label);
+      return el('button', { class: 'rbtn' + (active ? ' on' : ''), 'data-pane': p.key, 'aria-current': active ? 'page' : null, 'aria-label': label + (n ? ` (${n})` : ''), title: label, onclick: () => LC.setPane(p.key) },
+        el('span', { class: 'rico' }, LC.icon(p.icon, { filled: active }), n ? el('span', { class: 'rbadge' + (p.live ? ' live' : ''), text: n > 99 ? '99+' : String(n) }) : null), el('span', { class: 'rlabel', text: label })); };
+    const all = paneList();
+    rail.replaceChildren(el('div', { class: 'rtop' }, ...all.filter((p) => !p.bottom).map(item)), el('div', { class: 'rbottom' }, ...all.filter((p) => p.bottom).map(item)));
+    for (const f of LC.ext.rail) { try { f(rail); } catch (e) { console.error('rail hook', e); } }
   }
   LC.renderRail = renderRail;
+  // a pane with main(host) shows in the big area instead of a conversation (Teams' Calendar, Files...)
+  LC.openApp = (key) => {
+    const p = LC.ext.panes[key]; if (!p || !p.main) return;
+    if (S.thread) LC.closeThread(); S.app = key; $('#main').classList.add('app-mode');
+    $('#title').textContent = lbl(p.title || p.label); $('#topic').replaceChildren(p.subtitle ? lbl(p.subtitle) : ''); $('#headAvatar').replaceChildren(el('div', { class: 'av tile appicon', 'aria-hidden': 'true' }, LC.icon(p.icon, { filled: true })));
+    $('#headActions').replaceChildren(...(p.headerActions ? p.headerActions() : [])); $('#tabs').replaceChildren(); $('#callBar').classList.add('hidden');
+    $('#chatView').classList.add('hidden'); const host = $('#tabView'); host.classList.remove('hidden'); host.replaceChildren(); menuToggle(false);
+    try { p.main(host); } catch (e) { host.replaceChildren(el('p', { class: 'err pad', text: e.message })); }
+  };
+  LC.closeApp = () => { if (!S.app) return; S.app = null; $('#main').classList.remove('app-mode'); };
   function chatEntries() {
     const prefs = LC.prefs(), pinned = prefs.pinnedChats || [], archived = new Set(prefs.archived || []);
     const chans = [...S.channels.values()].map((c) => ({ id: c.id, kind: c.members ? 'group' : 'channel', c })), people = [...S.users.values()].filter((u) => u.id !== S.me.id && !u.removed && !u.deleted).map((u) => ({ id: LC.dmId(S.me.id, u.id), kind: 'dm', u }));
@@ -69,12 +89,13 @@
   function renderNavNow() {
     const nav = $('#nav'); if (!nav || !S.me) return; const scroll = nav.scrollTop;
     renderRail(); renderMe(); LC.updateBadge();
-    const titles = { chat: t('railChat'), activity: t('railActivity'), calls: t('railCalls'), saved: t('savedMsgs') };
-    $('#sideTitle').textContent = titles[S.pane] || titles.chat;
-    $('#sideActions').replaceChildren(...(S.pane === 'chat' ? [LC.ibtn('filter', t('quickSwitcher'), () => LC.quickSwitch()), LC.ibtn('compose', t('newChannel'), () => LC.newChannelDialog())] : S.pane === 'activity' ? [LC.ibtn('mail_read', t('markAllRead'), () => Object.keys(S.unread).filter((c) => S.unread[c] || S.mentions[c]).forEach((c) => LC.api('/api/read', { chan: c })))] : []));
-    if (S.pane === 'activity') return renderActivity(nav);
-    if (S.pane === 'calls') return renderCalls(nav);
-    if (S.pane === 'saved') return renderSaved(nav);
+    const pane = LC.ext.panes[S.pane] || LC.ext.panes.chat;
+    $('#sideTitle').textContent = lbl(pane.label);
+    $('#sideActions').replaceChildren(...(pane.actions ? pane.actions() : []));
+    if (pane.render !== renderChats) { nav.replaceChildren(); try { return pane.render ? pane.render(nav) : null; } catch (e) { return nav.replaceChildren(el('p', { class: 'err pad', text: e.message })); } }
+    renderChats(nav, scroll);
+  }
+  function renderChats(nav, scroll) {
     nav.replaceChildren();
     const { pinned, archived, chans, people } = chatEntries(), prefs = LC.prefs(), favs = new Set(prefs.favorites || []), pinSet = new Set(pinned.map((e) => e.id)), shut = collapsed();
     const rest = (e) => !pinSet.has(e.id) && !archived.has(e.id);
@@ -121,18 +142,30 @@
         LC.ibtn('bookmark_off', t('unsave'), () => LC.setPrefs({ saved: (LC.prefs().saved || []).filter((x) => x !== m.id) }).then(() => renderSaved(nav))))) : [emptyState('bookmark', t('noSaved'))]));
     } catch (e) { nav.replaceChildren(el('p', { class: 'err pad', text: e.message })); }
   }
+  Object.assign(LC.ext.panes, {
+    activity: { icon: 'alert', label: () => t('railActivity'), order: 10, badge: () => Object.values(S.mentions).reduce((a, b) => a + b, 0), render: renderActivity,
+      actions: () => [LC.ibtn('mail_read', t('markAllRead'), () => Object.keys(S.unread).filter((c) => S.unread[c] || S.mentions[c]).forEach((c) => LC.api('/api/read', { chan: c })))] },
+    chat: { icon: 'chat', label: () => t('railChat'), order: 20, badge: () => LC.totalUnread(), render: renderChats,
+      actions: () => [LC.ibtn('filter', t('quickSwitcher'), () => LC.quickSwitch()), LC.ibtn('compose', t('newChannel'), () => LC.newChannelDialog())] },
+    calls: { icon: 'call', label: () => t('railCalls'), order: 60, badge: () => Object.keys(S.calls).length, live: true, render: renderCalls },
+    saved: { icon: 'bookmark', label: () => t('savedMsgs'), order: 80, render: renderSaved },
+    manage: { icon: 'shield_person', label: () => t('railManage'), order: 900, bottom: true, hidden: () => !LC.isAdmin(), badge: () => S.pendingReqs.length, action: () => LC.adminPanel() },
+    settings: { icon: 'settings', label: () => t('settings'), order: 950, bottom: true, action: () => LC.settingsPanel() },
+  });
+  LC.renderChats = renderChats; LC.chatEntries = chatEntries; LC.navItem = navItem; LC.navSection = section; LC.emptyState = emptyState;
   function renderMe() {
     const box = $('#meBox'); if (!box || !S.me) return; const m = S.me;
-    box.replaceChildren(el('button', { class: 'meb', onclick: (e) => presenceMenu(e.currentTarget), 'aria-label': t('myStatus') + ': ' + m.name, title: m.name + ' · ' + (m.statusText || t(m.presence === 'invisible' ? 'invisible' : m.presence)), 'aria-haspopup': 'menu' }, LC.avatar(m, '', true)));
+    box.replaceChildren(el('button', { class: 'meb', onclick: (e) => LC.profileMenu(e.currentTarget), 'aria-label': t('myStatus') + ': ' + m.name, title: m.name + ' · ' + (m.statusText || t(m.presence === 'invisible' ? 'invisible' : m.presence)), 'aria-haspopup': 'menu' }, LC.avatar(m, '', true)));
   }
   function presenceMenu(anchor) {
     const set = (state) => LC.api('/api/presence', { state }).catch((e) => LC.toast(e.message)), cur = S.me.presence;
     LC.menu(anchor, [{ icon: 'person', label: S.me.name + (S.me.statusText ? ' — ' + S.me.statusText : ''), disabled: true }, 'sep',
       { icon: 'presence_available', iconCls: 'p-online', label: t('online'), checked: cur === 'auto', fn: () => set('auto') }, { icon: 'presence_away', iconCls: 'p-away', label: t('away'), checked: cur === 'away', fn: () => set('away') },
       { icon: 'presence_dnd', iconCls: 'p-dnd', label: t('dnd'), checked: cur === 'dnd', fn: () => set('dnd') }, { icon: 'presence_offline', iconCls: 'p-offline', label: t('invisible'), checked: cur === 'invisible', fn: () => set('invisible') }, 'sep',
-      { icon: 'person_edit', label: t('editProfile'), fn: () => LC.settingsPanel('profile') }, { icon: 'settings', label: t('settings'), fn: () => LC.settingsPanel() },
+      { icon: 'person_edit', label: t('editProfile'), fn: () => LC.settingsPanel('profile') }, { icon: 'settings', label: t('settings'), fn: () => LC.settingsPanel() }, ...LC.extItems(LC.ext.profileMenu),
       { icon: 'sign_out', label: t('signOut'), fn: async () => { if (await LC.confirm(t('confirmSignOut'))) LC.signOut('manual'); } }]);
   }
+  LC.profileMenu = presenceMenu; // replaceable (people/status features)
   function chatMenu(anchor, e) {
     const prefs = LC.prefs(), id = e.id, pinned = prefs.pinnedChats || [], isPin = pinned.includes(id), arch = (prefs.archived || []).includes(id), muted = LC.isMuted(id), idx = pinned.indexOf(id);
     const setMute = (ms) => LC.setPrefs({ muted: { ...(prefs.muted || {}), [id]: ms === true ? true : Date.now() + ms } }), unmute = () => { const m = { ...(prefs.muted || {}) }; delete m[id]; LC.setPrefs({ muted: m }); };
@@ -144,7 +177,7 @@
       { icon: arch ? 'archive_arrow_back' : 'archive', label: arch ? t('unarchive') : t('archive'), fn: () => LC.setPrefs({ archived: arch ? (prefs.archived || []).filter((x) => x !== id) : [...(prefs.archived || []), id] }) },
       (S.unread[id] || 0) ? { icon: 'mail_read', label: t('markRead'), fn: () => LC.api('/api/read', { chan: id }) } : null,
       e.kind === 'dm' ? 'sep' : null, e.kind === 'dm' ? { icon: 'star', label: (prefs.favorites || []).includes(e.u.id) ? t('unfavorite') : t('favorite'), fn: () => LC.toggleFavorite(e.u.id) } : null, e.kind === 'dm' ? { icon: 'tag', label: t('setNickname'), fn: () => LC.nicknameDialog(e.u.id) } : null,
-      e.kind !== 'dm' ? { icon: 'info', label: t('chatInfo'), fn: () => LC.chatInfo(id) } : null,
+      e.kind !== 'dm' ? { icon: 'info', label: t('chatInfo'), fn: () => LC.chatInfo(id) } : null, ...LC.extItems(LC.ext.chatMenu, e),
     ]);
   }
   LC.chatMenu = (anchor, id) => { const e = chatEntries().all.get(id); if (e) chatMenu(anchor, e); };
@@ -156,13 +189,17 @@
       !me ? { icon: 'video', label: t('videoCall'), fn: async () => { await LC.openChat(dm); LC.startCall(dm, 'video'); } } : null, !me ? { icon: 'call', label: t('voiceCall'), fn: async () => { await LC.openChat(dm); LC.startCall(dm, 'voice'); } } : null,
       !me ? { icon: 'tag', label: t('setNickname'), fn: () => LC.nicknameDialog(uid) } : null, !me ? { icon: 'star', label: (LC.prefs().favorites || []).includes(uid) ? t('unfavorite') : t('favorite'), fn: () => LC.toggleFavorite(uid) } : null,
       !me && LC.isAdmin() ? 'sep' : null, !me && LC.isAdmin() ? { icon: 'shield_person', label: t('manageUser'), fn: () => LC.adminPanel('people', uid) } : null,
-      u.statusText ? 'sep' : null, u.statusText ? { icon: u.statusEmoji || 'comment', label: u.statusText, disabled: true } : null]);
+      u.statusText ? 'sep' : null, u.statusText ? { icon: u.statusEmoji || 'comment', label: u.statusText, disabled: true } : null, ...LC.extItems(LC.ext.userMenu, uid)]);
   };
 
   // ---------- header, tabs ----------
   const TABS = [['chat', 'chat', 'tabChat'], ['files', 'folder', 'tabFiles'], ['notes', 'note', 'tabNotes'], ['board', 'whiteboard', 'tabBoard'], ['todos', 'task_list_ltr', 'tabTodos'], ['calendar', 'calendar_ltr', 'tabCalendar']];
+  LC.tabsFor = (chan) => {
+    const ext = LC.ext.tabs.filter((x) => !x.when || x.when(chan)), keys = new Set(ext.map((x) => x.key));
+    return [...TABS.filter(([k]) => !keys.has(k)).map(([key, icon, lab], i) => ({ key, icon, label: t(lab), order: i * 10 })), ...ext.map((x) => ({ ...x, label: lbl(x.label) }))].sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
+  };
   function renderHeader() {
-    const i = LC.chanInfo(S.chan); if (!S.chan) return;
+    const i = LC.chanInfo(S.chan); if (!S.chan || S.app) return;
     $('#title').textContent = i.title; $('#headAvatar').replaceChildren(LC.chatLead(S.chan)); const topic = $('#topic');
     if (i.kind === 'dm') { const u = i.peer; topic.replaceChildren(u ? (u.presence !== 'offline' ? t(u.presence) : u.lastSeen ? t('lastSeen', { when: LC.fmtDateTime(u.lastSeen) }) : t('offline')) + (u.statusText ? ' · ' + (u.statusEmoji || '') + ' ' + u.statusText : '') : ''); }
     else if (i.c && i.c.members) topic.replaceChildren(t('peopleCount', { n: i.c.members.length }) + ' · ' + i.c.members.map(LC.uname).join(', '));
@@ -170,8 +207,9 @@
     const acts = $('#headActions'), live = S.calls[S.chan];
     acts.replaceChildren(
       el('div', { class: 'callgroup' + (live ? ' live' : ''), role: 'group', 'aria-label': t('call') }, LC.ibtn('video', live ? t('joinCall') : t('videoCall'), () => (live ? LC.joinCall(S.chan, 'video') : LC.startCall(S.chan, 'video')), { cls: 'icon cg' }), LC.ibtn('call', live ? t('joinCall') : t('voiceCall'), () => (live ? LC.joinCall(S.chan, 'voice') : LC.startCall(S.chan, 'voice')), { cls: 'icon cg' })),
+      ...LC.extItems(LC.ext.headerActions, S.chan),
       LC.ibtn('search', t('searchInChat'), () => LC.openSearch({ chan: S.chan })), LC.ibtn('pin', t('pinnedMsgs'), () => LC.pinnedList()), LC.ibtn('info', t('chatInfo'), () => LC.chatInfo(S.chan)),
-      LC.ibtn('more_horizontal', t('moreOptions'), (e) => LC.menu(e.currentTarget, [{ icon: 'calendar_arrow_right', label: t('jumpToDate'), fn: () => jumpDateMenu() }, { icon: 'chat_multiple', label: t('chatOptions'), fn: () => LC.chatMenu(e.target.closest('button') || $('#headActions'), S.chan) }]), { menu: true }));
+      LC.ibtn('more_horizontal', t('moreOptions'), (e) => LC.menu(e.currentTarget, [{ icon: 'calendar_arrow_right', label: t('jumpToDate'), fn: () => jumpDateMenu() }, { icon: 'chat_multiple', label: t('chatOptions'), fn: () => LC.chatMenu(e.target.closest('button') || $('#headActions'), S.chan) }, ...LC.extItems(LC.ext.headerMenu, S.chan)]), { menu: true }));
     LC.renderCallBar && LC.renderCallBar();
   }
   LC.renderHeader = renderHeader;
@@ -179,7 +217,7 @@
     const inp = el('input', { type: 'date', 'aria-label': t('jumpToDate') }); LC.modal([el('h2', {}, LC.icon('calendar_arrow_right'), ' ' + t('jumpToDate')), inp, el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('cancel'), onclick: LC.closeModal }), el('button', { class: 'primary', text: t('go'), onclick: () => { if (!inp.value) return; LC.closeModal(); LC.jumpToDate(new Date(inp.value + 'T00:00:00').getTime()); } }))]);
   }
   function renderTabs() {
-    const box = $('#tabs'); box.replaceChildren(...TABS.map(([k, ic, lab]) => el('button', { class: 'tab' + (S.tab === k ? ' on' : ''), role: 'tab', 'aria-selected': String(S.tab === k), onclick: () => LC.setTab(k) }, LC.icon(ic, { filled: S.tab === k }), el('span', { text: t(lab) }))));
+    if (S.app) return; const box = $('#tabs'); box.replaceChildren(...LC.tabsFor(S.chan).map(({ key: k, icon: ic, label }) => el('button', { class: 'tab' + (S.tab === k ? ' on' : ''), role: 'tab', 'aria-selected': String(S.tab === k), 'data-tab': k, onclick: () => LC.setTab(k) }, LC.icon(ic, { filled: S.tab === k }), el('span', { text: label }))));
   }
   LC.setTab = (tab) => {
     S.tab = tab; renderTabs(); const chat = tab === 'chat'; $('#chatView').classList.toggle('hidden', !chat); $('#tabView').classList.toggle('hidden', chat);
@@ -197,6 +235,7 @@
   }
   LC.openChat = async (chan, o = {}) => {
     if (!chan || !(chan.startsWith('dm:') ? S.users.has(LC.peerOf(chan)) : S.channels.has(chan))) chan = 'general';
+    if (S.app) { LC.closeApp(); if (LC.ext.panes[S.pane] && LC.ext.panes[S.pane].main) S.pane = 'chat'; }
     const changed = S.chan !== chan; S.chan = chan; LC.ls.set('lc_chan', chan);
     if (changed) { LC.closeThread(); S.tab = 'chat'; S.readAt[chan] = S.read[chan] ?? 0; stick = true; }
     menuToggle(false); renderHeader(); renderTabs(); LC.renderNav();

@@ -142,6 +142,7 @@
     if (m.poll) body.append(pollEl(m)); if (m.game) body.append(gameEl(m));
     if (m.files && m.files.length) body.append(attachments(m));
     if (m.preview) body.append(previewEl(m.preview));
+    for (const part of LC.extItems(LC.ext.msgParts, m, o)) if (part && part.nodeType) body.append(part);
     const keys = Object.keys(m.reactions || {});
     if (keys.length) body.append(el('div', { class: 'reacts' }, keys.map((k) => { const ids = m.reactions[k], cm = /^:([a-z0-9_]+):$/.exec(k); return el('button', { class: 'react' + (ids.includes(S.me.id) ? ' mine' : ''), title: ids.map(LC.uname).join(', '), 'aria-label': `${k} ${ids.length}`, onclick: () => LC.api('/api/react', { id: m.id, emoji: k }).catch((e) => LC.toast(e.message)) }, cm && S.emojis[cm[1]] ? el('img', { class: 'cemoji', src: LC.fileUrl({ id: S.emojis[cm[1]], name: 'e.png' }, true), alt: k }) : k, ' ' + ids.length); })));
     if (m.threadCount && !o.thread) body.append(el('button', { class: 'thread-sum', onclick: () => LC.openThread(m) }, LC.icon('comment'), ' ' + t('replies', { n: m.threadCount }), el('span', { class: 'muted', text: ' · ' + LC.ago(m.threadLast || m.ts) })));
@@ -172,6 +173,7 @@
       m.edits ? { icon: 'history', label: t('viewOriginal'), fn: () => LC.showHistory(m) } : null,
       (mine && m.text && !m.poll && !m.game) || (mine && (m.files || []).length) ? 'sep' : null,
       mine && !m.poll && !m.game ? { icon: 'edit', label: t('edit'), fn: () => (o.thread ? LC.composers.thread : LC.composers.main).edit(m) } : null,
+      ...LC.extItems(LC.ext.msgMenu, m, o),
       mine || LC.isAdmin() ? { icon: 'delete', label: t('delete'), danger: true, fn: async () => { if (await LC.confirm(t('confirmDelete'), { danger: true, ok: t('delete') })) LC.api('/api/delete', { id: m.id }).catch((e) => LC.toast(e.message)); } } : null,
     ]);
   };

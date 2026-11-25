@@ -25,6 +25,7 @@
       { icon: 'mail_read', label: t('markAllRead'), fn: () => Object.keys(S.unread).filter((c) => S.unread[c]).forEach((c) => LC.api('/api/read', { chan: c })) },
       LC.isAdmin() ? 'sep' : null, LC.isAdmin() ? { icon: 'shield_person', label: t('manage') + (S.pendingReqs.length ? ` (${S.pendingReqs.length})` : ''), fn: () => LC.adminPanel() } : null,
       'sep', { icon: 'keyboard', label: t('shortcuts'), fn: () => LC.shortcutsHelp() }, LC.native && LC.native.diagnostics ? { icon: 'stethoscope', label: t('diagnostics'), fn: () => LC.native.diagnostics() } : null,
+      ...LC.extItems(LC.ext.mainMenu),
       { icon: 'sign_out', label: t('signOut'), fn: async () => { if (await LC.confirm(t('confirmSignOut'))) LC.signOut('manual'); } },
     ]);
   };
@@ -101,7 +102,8 @@
       { key: 'emoji', icon: 'emoji', label: t('customEmoji'), render: () => emojiPane() },
       { key: 'about', icon: 'info', label: t('tabAbout'), render: () => el('div', {}, el('p', {}, el('b', { text: S.chatName }), ' · LANChat' + (S.appVersion ? ' ' + S.appVersion : '')), el('p', { class: 'muted', text: t('aboutText') }), el('p', { class: 'muted small', text: t('yourRole', { role: t('role_' + S.me.role) }) }), el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('shortcuts'), onclick: () => LC.shortcutsHelp() }), el('button', { class: 'secondary', text: t('signOut'), onclick: async () => { if (await LC.confirm(t('confirmSignOut'))) LC.signOut('manual'); } })), el('h3', { text: t('myAccount') }), LC.isOwner() ? el('p', { class: 'muted small', text: t('ownerCantDelete') }) : el('div', {}, el('p', { class: 'muted small', text: t('deleteMyAccountHelp') }), el('div', { class: 'acts' }, el('button', { class: 'secondary danger', text: t('deleteMyAccount'), onclick: async () => { if (!(await LC.confirm(t('confirmDeleteAccount'), { danger: true, ok: t('delete') }))) return; const purge = await LC.confirm(t('confirmDeleteAccountMsgs'), { ok: t('alsoDeleteMsgs'), cancel: t('keepMsgs') }); LC.api('/api/account/delete', { purge }).then(() => LC.signOut('deleted')).catch(fail); } })))) },
     ];
-    tabbed(t('settings'), tabs, start, { icon: 'settings' });
+    const extTabs = LC.ext.settingsTabs.map((x) => ({ ...x, label: typeof x.label === 'function' ? x.label() : x.label })), ek = new Set(extTabs.map((x) => x.key));
+    tabbed(t('settings'), [...tabs.filter((x) => !ek.has(x.key)), ...extTabs].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)), start, { icon: 'settings' });
   };
 
   // ---------- custom emoji ----------
@@ -237,7 +239,9 @@
         return el('div', {}, list(t('blockedNames'), 'name', b.names), list(t('blockedDevices'), 'device', b.devices), list(t('blockedIps'), 'ip', b.ips), !b.names.length && !b.devices.length && !b.ips.length ? el('p', { class: 'empty', text: t('noBlocked') }) : el('p', { class: 'muted small', text: t('blockNote') }));
       } },
     ];
-    adminTabs = tabbed(t('manage'), tabs.filter(Boolean), focusUser ? 'people' : start);
+    const extTabs = LC.ext.adminTabs.filter((x) => !x.ownerOnly || owner).map((x) => ({ ...x, label: typeof x.label === 'function' ? x.label() : x.label })), ek = new Set(extTabs.map((x) => x.key));
+    adminTabs = tabbed(t('manage'), [...tabs.filter(Boolean).filter((x) => !ek.has(x.key)), ...extTabs].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)), focusUser ? 'people' : start);
+    LC.adminTabsApi = adminTabs;
   };
   const refreshAdmin = () => { if (adminTabs && !$('#modal').classList.contains('hidden') && adminTabs.current() === 'requests') adminTabs.show('requests'); };
   LC.on('joinrequest', refreshAdmin); LC.on('joindecided', refreshAdmin);

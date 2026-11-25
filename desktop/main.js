@@ -119,6 +119,7 @@ function onServerEvent(s, name, p) {
 function createWindow() {
   win = new BrowserWindow({ width: 1180, height: 780, minWidth: 380, minHeight: 500, title: 'LANChat ' + app.getVersion(), icon: appIcon(), backgroundColor: '#f5f5f5', show: false, webPreferences: { contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.js') } });
   win.once('ready-to-show', () => { if (!hiddenStart) win.show(); });
+  for (const f of ext.onWindow) { try { f(win); } catch (e) { console.error('ext window hook', e.message); } }
   win.setTitle('LANChat ' + app.getVersion()); win.on('page-title-updated', (e, title) => { e.preventDefault(); win.setTitle(`${title} — LANChat ${app.getVersion()}`); });
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, url) => { let same = false; try { same = new URL(url).origin === new URL(win.webContents.getURL()).origin; } catch {} if (!same) { e.preventDefault(); if (/^https?:/.test(url)) shell.openExternal(url); } });
@@ -318,7 +319,13 @@ async function updateFromFolder() {
 
 // ---------- tray + menu ----------
 function createTray() {
-  try { tray = new Tray(trayIcon()); tray.setToolTip('LANChat'); tray.on('click', () => (win && win.isVisible() ? win.hide() : showMain())); tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Open LANChat', click: showMain }, { label: 'Sessions…', click: showSessions }, { type: 'separator' }, { label: 'Quit', click: async () => { if (friendsOnline() > 0 && !(await confirmQuit())) return; doQuit(); } }])); } catch { tray = null; }
+  try { tray = new Tray(trayIcon()); tray.setToolTip('LANChat'); tray.on('click', () => (win && win.isVisible() ? win.hide() : showMain())); rebuildTray(); } catch { tray = null; }
+}
+// extension items (desktop/ext-*.js) go between "Sessions…" and "Quit"; call rebuildTray() after changing them
+function rebuildTray() {
+  if (!tray) return;
+  const extra = ext.trayMenu.map((i) => (typeof i === 'function' ? i() : i)).flat().filter(Boolean);
+  try { tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Open LANChat', click: showMain }, { label: 'Sessions…', click: showSessions }, { type: 'separator' }, ...extra, ...(extra.length ? [{ type: 'separator' }] : []), { label: 'Quit', click: async () => { if (friendsOnline() > 0 && !(await confirmQuit())) return; doQuit(); } }])); } catch (e) { console.error('tray menu', e.message); }
 }
 const panel = (name) => () => { showMain(); if (win) win.webContents.send('open-panel', name); };
 function buildMenu() {
@@ -332,12 +339,33 @@ function buildMenu() {
       { label: 'Open data folder', enabled: host, click: () => shell.openPath(s.dir) }, { type: 'separator' },
       { label: 'Close window to the tray', type: 'checkbox', checked: !!cfg.closeToTray, click: (m) => { cfg.closeToTray = m.checked; save(); } },
       { label: 'Start LANChat when I sign in', type: 'checkbox', checked: !!cfg.startWithWindows, click: (m) => { cfg.startWithWindows = m.checked; save(); try { app.setLoginItemSettings({ openAtLogin: m.checked, args: m.checked ? ['--hidden'] : [] }); } catch {} } }, { type: 'separator' },
-      { label: 'Check for update from a folder…', click: updateFromFolder }, { type: 'separator' },
+      { label: 'Check for update from a folder…', click: updateFromFolder }, { type: 'separator' }, ...ext.menu, ...(ext.menu.length ? [{ type: 'separator' }] : []),
       { label: 'Quit', accelerator: 'CmdOrCtrl+Q', click: async () => { if (friendsOnline() > 0 && !(await confirmQuit())) return; doQuit(); } },
     ] },
     { label: 'View', submenu: [{ role: 'reload' }, { role: 'togglefullscreen' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'resetZoom' }] },
     { label: 'Help', submenu: [{ label: 'Keyboard shortcuts', click: panel('shortcuts') }, { label: 'Connection help…', click: showDiag }, { type: 'separator' }, { label: `LANChat ${app.getVersion()}`, enabled: false }] },
   ]));
+}
+
+// ---------- desktop feature modules: desktop/ext-*.js (see docs/EXTENDING.md) ----------
+// Each module exports (api) => void. Renderer <-> main messages use channels named "x:<module>:<name>".
+const ext = { onWindow: [], onArgs: [], menu: [], trayMenu: [] };
+function loadExtensions() {
+  const fromMain = (e) => !!win && !win.isDestroyed() && e.sender === win.webContents;
+  const api = {
+    app, ipcMain, BrowserWindow, Menu, Tray, dialog, shell, screen, session, desktopCapturer, clipboard, nativeImage, Notification,
+    getWin: () => win, getTray: () => tray, cfg: () => cfg, save, showMain, openSession, USER, ROOT, PUBLIC, appIcon,
+    // handle('name', fn) answers lanchatNative.invoke('x:name', ...) from the main window only
+    handle: (name, fn) => ipcMain.handle('x:' + name, (e, ...a) => (fromMain(e) ? fn(e, ...a) : null)),
+    on: (name, fn) => ipcMain.on('x:' + name, (e, ...a) => { if (fromMain(e)) fn(e, ...a); }),
+    sendToWin: (name, ...a) => { if (win && !win.isDestroyed()) win.webContents.send('x:' + name, ...a); },
+    onWindow: (fn) => { ext.onWindow.push(fn); if (win) fn(win); }, onArgs: (fn) => ext.onArgs.push(fn),
+    addMenuItems: (items) => { ext.menu.push(...items); buildMenu(); }, addTrayItems: (items) => { ext.trayMenu.push(...items); rebuildTray(); }, rebuildTray: () => rebuildTray(), rebuildMenu: () => buildMenu(),
+  };
+  for (const f of fs.readdirSync(__dirname).filter((n) => /^ext-[a-z0-9-]+\.js$/.test(n)).sort()) {
+    try { require(path.join(__dirname, f))(api); } catch (e) { console.error('desktop extension failed:', f, e.message); }
+  }
+  for (const f of ext.onArgs) { try { f(process.argv, true); } catch {} }
 }
 
 // ---------- one LANChat at a time; a newer copy takes over from an older one ----------
@@ -348,7 +376,7 @@ const LOCK = { app: 'lanchat', version: app.getVersion() };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 app.on('second-instance', (_e, _argv, _cwd, data) => {
   if (data && data.app === 'lanchat' && newer(String(data.version || ''), app.getVersion())) return stepAside();
-  showMain();
+  showMain(); for (const f of ext.onArgs) { try { f(_argv, false); } catch {} }
 });
 function stepAside() { quitting = true; for (const id of [...running.keys()]) { stopTunnel(id); try { running.get(id).app.stop(); } catch {} } app.exit(0); }
 const verAt = (exe) => { for (const d of [path.join(path.dirname(exe), 'resources', 'app'), path.join(path.dirname(exe), '..', 'Resources', 'app')]) { try { return String(JSON.parse(fs.readFileSync(path.join(d, 'package.json'), 'utf8')).version || ''); } catch {} } return ''; };
@@ -395,7 +423,7 @@ const firstLock = app.requestSingleInstanceLock(LOCK);
 app.whenReady().then(async () => {
   if (!firstLock && !(await takeOver())) return app.quit();
   writeInstance();
-  setupSecurity(); createTray(); buildMenu();
+  setupSecurity(); loadExtensions(); createTray(); buildMenu();
   try { if (cfg.startWithWindows) app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] }); } catch {}
   for (const s of cfg.sessions.filter((x) => x.kind === 'host' && x.autoStart !== false)) { try { await startSession(s); } catch (e) { console.error('autostart failed', e.message); } }
   const active = cfg.sessions.find((x) => x.id === cfg.active);
