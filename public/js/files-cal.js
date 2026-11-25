@@ -8,7 +8,7 @@
   const CAL = (LC.calendar = {});
   LC.addEvents('fl_events', 'fl_calprefs');
   LC.addStrings('en', {
-    fl_cal: 'Calendar', fl_descTabCal: 'This chat’s events: plan one-off or repeating events, answer, get reminded and join.', fl_today: 'Today', fl_prevRange: 'Previous', fl_nextRange: 'Next', fl_pickDate: 'Go to a date', fl_view: 'Calendar view', fl_vDay: 'Day', fl_vWorkweek: 'Work week', fl_vWeek: 'Week', fl_vMonth: 'Month',
+    fl_cal: 'Calendar', fl_descCalApp: 'Events from all your chats and your meetings, in one calendar.', fl_descTabCal: 'This chat’s events: plan one-off or repeating events, answer, get reminded and join.', fl_today: 'Today', fl_prevRange: 'Previous', fl_nextRange: 'Next', fl_pickDate: 'Go to a date', fl_view: 'Calendar view', fl_vDay: 'Day', fl_vWorkweek: 'Work week', fl_vWeek: 'Week', fl_vMonth: 'Month',
     fl_newEvent: 'New event', fl_newMeeting: 'New meeting', fl_allDay: 'All day', fl_more: '+{n} more', fl_upcoming: 'Upcoming', fl_noUpcoming: 'Nothing coming up. Select Add event to plan something.', fl_calMore: 'More calendar options',
     fl_eTitle: 'Add a title', fl_eChat: 'Chat', fl_eStart: 'Start', fl_eEnd: 'End', fl_eDate: 'date', fl_eTime: 'time', fl_eTz: 'Time zone', fl_eRepeat: 'Repeat', fl_eLocation: 'Add a location', fl_eOnline: 'Online: join with this chat’s call', fl_eNotes: 'Add details for the event',
     fl_eCat: 'Category (only you see it)', fl_none: 'None', fl_rNone: 'Does not repeat', fl_rDaily: 'Every day', fl_rWeekdays: 'Every weekday (Mon–Fri)', fl_rWeekly: 'Every week', fl_rMonthly: 'Every month', fl_rYearly: 'Every year', fl_rEvery: 'Repeat every', fl_rDays: 'day(s)', fl_rWeeks: 'week(s)', fl_rMonths: 'month(s)', fl_rYears: 'year(s)', fl_rOn: 'On',
@@ -503,12 +503,12 @@
     nav.replaceChildren(el('div', { class: 'fl-calnav' }, miniMonth(), el('div', { class: 'sec' }, el('span', { class: 'sectitle', text: t('fl_calendars') })),
       LC.meetings ? toggle('meetings', t('fl_meetings'), 'var(--brand)') : null, ...chats.map((c) => toggle(c, chatTitle(c), ''))));
   }
-  LC.ext.panes.calendar = { icon: 'calendar_ltr', label: () => t('fl_cal'), title: () => t('fl_cal'), order: 40, render: renderCalNav, main: (host) => { appView = mount(host, {}); } };
+  LC.ext.panes.calendar = { icon: 'calendar_ltr', label: () => t('fl_cal'), desc: () => t('fl_descCalApp'), title: () => t('fl_cal'), order: 40, render: renderCalNav, main: (host) => { appView = mount(host, {}); } };
   CAL.open = (date, chan) => { LC.setPane('calendar'); if (appView && date) appView.goto(new Date(date)); void chan; };
 
   // ---------- each chat's Calendar tab ----------
   let tabView = null;
-  LC.ext.tabs.push({ key: 'calendar', icon: 'calendar_ltr', label: () => t('tabCalendar'), desc: () => t('fl_descTabCal'), order: 50, render: (host, chan) => { tabView = mount(host, { chan }); } });
+  LC.ext.tabs.push({ key: 'calendar', icon: 'calendar_ltr', label: () => t('tabCalendar'), desc: () => t('fl_descTabCal'), order: 30, render: (host, chan) => { tabView = mount(host, { chan }); } });
   // routes-collab.js still redraws its old calendar into #tabView on its 'events' event (todo reminders send one):
   // this handler runs after it and puts the current calendar back
   LC.on('events', () => { const host = $('#tabView'); for (const v of [tabView, appView]) if (v && !v.root.isConnected && host && ((v === appView && S.app === 'calendar') || (v === tabView && !S.app && S.tab === 'calendar' && S.chan === v.o.chan))) { host.replaceChildren(v.root); live.add(v); } });

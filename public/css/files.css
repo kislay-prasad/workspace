@@ -139,6 +139,8 @@ td.fl-c-mod,td.fl-c-by,td.fl-c-size{color:var(--text2)}
 .fl-onlyphone{display:none}
 
 @media (max-width:760px){
+  /* the phone app bar is full: Files and Calendar open from More apps › All apps and from each chat's tabs */
+  .rail .rbtn[data-pane="files"],.rail .rbtn[data-pane="calendar"]{display:none}
   .fl-bar .fl-tb span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
   .fl-bar .fl-tb{padding:5px 8px}
   .fl-search{width:100%;order:10}.fl-bar .grow{display:none}
