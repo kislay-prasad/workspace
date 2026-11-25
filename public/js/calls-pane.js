@@ -45,14 +45,14 @@
     const code = el('input', { class: 'cl-code-in', inputmode: 'numeric', maxlength: 3, placeholder: '123', 'aria-label': t('cl_pickupCode'), pattern: '[0-9]*' });
     const pick = async (e) => { e.preventDefault(); try { const r = await LC.api('/api/call/pickup', { code: code.value.trim() }); code.value = ''; await LC.openChat(r.chan); LC.joinCall(r.chan, r.mode); } catch (x) { fail(x); } };
     const live = Object.entries(S.calls), sd = (prefs().speedDial || []).map((id) => S.users.get(id)).filter(Boolean), groups = Array.isArray(LC.prefs().contactGroups) ? LC.prefs().contactGroups : [];
-    nav.replaceChildren(
+    nav.replaceChildren(...[
       sec(t('cl_makeCall')), el('div', { class: 'cl-navbox' }, q, found),
       sec(t('cl_pickup')), el('form', { class: 'cl-navbox cl-pickup', onsubmit: pick }, code, el('button', { class: 'primary sm', type: 'submit', text: t('cl_pickupBtn') })),
       live.length ? sec(t('cl_activeNow')) : null, ...live.map(([chan, c]) => el('div', { class: 'callrow' }, el('span', { class: 'livecall' }, LC.icon(c.mode === 'video' ? 'video' : 'call', { filled: true })), el('span', { class: 'itext' }, el('b', { class: 'name', text: LC.chanInfo(chan).title }), el('span', { class: 'prev', text: c.participants.map(LC.uname).join(', ') + (c.parked ? ' · ' + t('cl_parkedBy', { name: LC.uname(c.parked.by), code: c.parked.code }) : '') })),
         LC.inCall() && LC.callChan() === chan ? el('button', { class: 'secondary sm', text: t('openCall'), onclick: () => LC.showCall() }) : el('button', { class: 'primary sm', text: t('joinCall'), onclick: async () => { await LC.openChat(chan); LC.joinCall(chan); } }))),
       sec(t('cl_speedDial'), LC.ibtn('edit', t('cl_editSpeed'), editSpeed, { cls: 'icon plus' })), ...(sd.length ? sd.map(personRow) : [el('p', { class: 'muted small pad', text: t('cl_speedEmpty') })]),
       sec(t('cl_contactGroups')), ...(groups.length ? groups.map(groupRow) : [el('div', { class: 'pad' }, el('p', { class: 'muted small', text: t('cl_groupsEmpty') }), LC.ext.panes.people ? el('button', { class: 'link', text: t('cl_makeGroups'), onclick: () => LC.setPane('people') }) : null)]),
-      sec(t('people')), ...people().sort((a, b) => ((b.presence !== 'offline') - (a.presence !== 'offline')) || LC.uname(a.id).localeCompare(LC.uname(b.id))).map(personRow));
+      sec(t('people')), ...people().sort((a, b) => ((b.presence !== 'offline') - (a.presence !== 'offline')) || LC.uname(a.id).localeCompare(LC.uname(b.id))).map(personRow)].filter(Boolean));
   }
   function groupRow(g) {
     const ids = (g.members || []).filter((id) => S.users.has(id) && id !== S.me.id), go = (mode) => async () => {
@@ -101,7 +101,7 @@
   }
   const pane = {
     icon: 'call', label: () => t('railCalls'), order: 60, render: renderNav,
-    main: (host) => { mainHost = host; host.classList.add('cl-callshost'); hist = null; drawMain(); if (tab === 'history' && missed) LC.api('/api/activity/read', { all: true, types: ['missedCall'] }).catch(() => {}); },
+    main: (host) => { mainHost = host; hist = null; drawMain(); if (tab === 'history' && missed) LC.api('/api/activity/read', { all: true, types: ['missedCall'] }).catch(() => {}); },
     badge: () => missed + unheard || Object.keys(S.calls).length,
     get live() { return !(missed + unheard) && Object.keys(S.calls).length > 0; },
     actions: () => [LC.ibtn('star', t('cl_editSpeed'), editSpeed)],

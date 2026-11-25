@@ -109,11 +109,11 @@
     } });
     const draw = () => {
       const c = cur(), hasCustom = !!LC.ls.get(CUSTOM, '');
-      box.replaceChildren(o.preview ? el('div', { class: 'cl-fxprevwrap' }, prev) : '', note,
+      box.replaceChildren(...[o.preview ? el('div', { class: 'cl-fxprevwrap' }, prev) : null, note,
         el('h3', { class: 'cl-h3', text: t('cl_filters') }), el('div', { class: 'cl-fxgrid', role: 'group', 'aria-label': t('cl_filters') }, Object.keys(FILTERS).map((k) => opt('f', k, t('cl_f_' + k)))),
         el('h3', { class: 'cl-h3', text: t('cl_backgrounds') }), el('div', { class: 'cl-fxgrid', role: 'group', 'aria-label': t('cl_backgrounds') }, opt('bg', 'none', t('cl_bgNone')), opt('bg', 'blur', t('cl_bgBlur')), ...IMAGES.map((k) => opt('bg', 'img:' + k, t('cl_bg_' + k))), hasCustom ? opt('bg', 'img:custom', t('cl_bgCustom')) : null,
           el('button', { class: 'cl-fxopt cl-fxadd', type: 'button', 'aria-label': t('cl_bgAdd'), title: t('cl_bgAdd'), onclick: () => file.click() }, LC.icon('add'), el('span', { text: t('cl_bgAdd') }))), file,
-        c.bg !== 'none' ? el('p', { class: 'muted small', text: c.bg === 'blur' && X && X.call && X.call.camFx && X.call.camFx.native ? t('cl_fxNative') : t('cl_fxOval') }) : null);
+        c.bg !== 'none' ? el('p', { class: 'muted small', text: c.bg === 'blur' && X && X.call && X.call.camFx && X.call.camFx.native ? t('cl_fxNative') : t('cl_fxOval') }) : null].filter(Boolean));
       box.dataset.drawn = '1'; showPreview();
     };
     host.append(box); draw();

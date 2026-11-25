@@ -202,7 +202,7 @@ H.suite('Calls (calling, meetings, sharing, recording)', async (t) => {
     // consult first
     await P('/api/call/start', { chan: dmAB, mode: 'voice', ep: 'a1' }, ana); await P('/api/call/join', { chan: dmAB, ep: 'b1' }, bob);
     r = await P('/api/call/consult', { chan: dmAB, to: cy.id }, ana); t.eq(r.s, 200, r.d); t.eq(r.d.chan, dmAC);
-    t.eq(st(dmAB).consult, { by: ana.id, to: cy.id }); t.eq(st(dmAB).participants, [bob.id]);
+    t.eq(st(dmAB).consult, { by: ana.id, to: cy.id }); t.eq(st(dmAB).participants, [bob.id]); t.eq(st(dmAC).consultOf, { from: dmAB, by: ana.id, other: bob.id, to: cy.id });
     r = await P('/api/call/transfer', { chan: dmAC, complete: true }, ana); t.eq(r.s, 409, 'Cy has not answered');
     await P('/api/call/join', { chan: dmAC, ep: 'c1' }, cy);
     r = await P('/api/call/transfer', { chan: dmAC, complete: true }, ana); t.eq(r.s, 200, r.d);

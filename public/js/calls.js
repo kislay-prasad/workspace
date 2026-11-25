@@ -34,7 +34,7 @@
     cl_rateTitle: 'How was the call quality?', cl_star: '{n} star', cl_stars: '{n} stars', cl_issues: 'What went wrong?', cl_issue_audio: 'Audio', cl_issue_video: 'Video', cl_issue_screen: 'Screen sharing', cl_issue_echo: 'Echo or noise',
     cl_issue_dropped: 'Call dropped', cl_issue_other: 'Something else', cl_submit: 'Submit', cl_notNow: 'Not now', cl_thanks: 'Thanks for the feedback', cl_leaveAndJoin: 'Leave your current call and join this one?', cl_largeCams: 'Cameras start off in large meetings, to keep the call smooth.',
     cl_camMenu: 'Camera options', cl_micMenu: 'Microphone options', cl_leaveMenu: 'Leave options', cl_effects: 'Video effects', cl_rejoining: 'Reconnecting to the call…', cl_shareOptions: 'Share options', cl_openChatMain: 'Open the chat',
-    cl_fromDevice: '{name} (other device)', cl_signer: 'Signer', cl_hands: 'Raised hands', cl_reactions: 'Reactions', cl_calling: 'Calling {name}…', cl_endForAll: 'End for everyone',
+    cl_fromDevice: '{name} (other device)', cl_recStopped: 'Recording stopped. It will be in the chat.', cl_signer: 'Signer', cl_hands: 'Raised hands', cl_reactions: 'Reactions', cl_calling: 'Calling {name}…', cl_endForAll: 'End for everyone',
   });
   LC.addStrings('hi', { cl_onHold: 'होल्ड पर', cl_hold: 'होल्ड करें', cl_resume: 'फिर शुरू करें', cl_view: 'व्यू', cl_gallery: 'गैलरी', cl_speaker: 'स्पीकर', cl_youreMuted: 'आप म्यूट हैं', cl_unmute: 'अनम्यूट', cl_meetingChat: 'मीटिंग चैट', cl_meetingInfo: 'मीटिंग जानकारी', cl_leaveVm: 'वॉइसमेल छोड़ें', cl_noAnswer: '{name} ने जवाब नहीं दिया।', cl_recording: 'रिकॉर्डिंग', cl_rateTitle: 'कॉल की क्वालिटी कैसी थी?', cl_endMeeting: 'मीटिंग खत्म करें', cl_addPeople: 'लोग जोड़ें', cl_transfer: 'ट्रांसफ़र' });
   LC.addStrings('es', { cl_onHold: 'En espera', cl_hold: 'Poner en espera', cl_resume: 'Reanudar', cl_view: 'Vista', cl_gallery: 'Galería', cl_speaker: 'Orador', cl_youreMuted: 'Tienes el micro silenciado', cl_unmute: 'Activar micro', cl_meetingChat: 'Chat de la reunión', cl_meetingInfo: 'Información de la reunión', cl_leaveVm: 'Dejar un mensaje de voz', cl_noAnswer: '{name} no contestó.', cl_recording: 'Grabando', cl_rateTitle: '¿Qué tal fue la calidad de la llamada?', cl_endMeeting: 'Finalizar reunión', cl_addPeople: 'Agregar personas', cl_transfer: 'Transferir' });
@@ -277,6 +277,7 @@
       if (e.call.noCams && roleOf(S.me.id) === 'attendee' && !allow.cam && call.me.cam) toggleCam();
       if (e.call.participants.length > 1) call.wasAlone = false; else if (e.call.participants.length === 1 && call.banners.noAnswer && (e.call.ringing || []).length) call.banners.noAnswer = null;
       for (const p of call.peers.values()) { applyVolume(p); setSenders(p); }
+      if (call.lastRec && !e.call.rec) LC.toast(t('cl_recStopped'), { ms: 4000 }); call.lastRec = e.call.rec || null;
       for (const f of X.onState) { try { f(e.call); } catch (err) { console.error(err); } }
       drawSoon();
     }
@@ -466,7 +467,7 @@
     if (eps.length === 2 && view !== 'large' && eps.includes(call.ep)) return el('div', { class: 'stage duo' }, tileFor(eps.find((x) => x !== call.ep)), tileFor(call.ep));
     const per = view === 'large' ? 49 : 9, pg = pager(eps.length, per), shown = eps.slice(call.page * per, call.page * per + per), sg = shown.filter((ep) => signers().has(uidOf(ep))).length;
     const n = shown.length + sg * 3, cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : n <= 25 ? 5 : n <= 36 ? 6 : 7, rows = Math.max(1, Math.ceil(n / cols));
-    return el('div', { class: 'stage gallery cl-grid' + (view === 'large' ? ' cl-large' : ''), style: `--cols:${cols};--rows:${rows}` }, shown.map(tileFor), pg);
+    return el('div', { class: 'stage gallery' + (sg ? ' cl-grid' : '') + (view === 'large' ? ' cl-large' : ''), style: `--cols:${cols};--rows:${rows}` }, shown.map(tileFor), pg);
   }
   function bannerNodes(st) {
     const out = [], b = call.banners, close = (k) => LC.ibtn('dismiss', t('cl_dismiss'), () => { b[k] = 0; if (k === 'net') call.netHushed = true; if (k === 'muted') call.mutedHushed = Date.now(); if (k === 'rec') call.recSeen = st.rec && st.rec.started; drawUi(); }, { cls: 'icon sm' });
@@ -548,7 +549,7 @@
       bar.addEventListener('pointermove', move); bar.addEventListener('pointerup', up);
     });
   }
-  const tickTimer = () => { const n = $('#callTimer'); if (n && call) n.textContent = fmtDur(Date.now() - call.t0); };
+  const tickTimer = () => { const n = $('#callTimer'); if (n && call) n.textContent = fmtDur(Date.now() - call.t0); if (call) for (const x of document.querySelectorAll('#callUI [data-since]')) x.textContent = fmtDur(Date.now() - Number(x.dataset.since)); };
   setInterval(tickTimer, 1000);
   const fullscreen = (node) => { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else if (node && node.requestFullscreen) node.requestFullscreen().catch(() => {}); };
 
