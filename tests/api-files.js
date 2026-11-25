@@ -122,10 +122,10 @@ H.suite('Files', async (t) => {
     const e1 = await fetch(`${s.B}/api/share?k=${exp.d.link.k}`); t.eq(e1.status, 404); t.ok(!(await e1.text()).includes('plan'));
     t.eq((await s.call('GET', '/api/files/link/open?k=' + exp.d.link.k, undefined, bob.token)).s, 404);
     s.tick(); t.ok(!s.db.fileLinks[exp.d.link.id], 'expired links are removed');
-    s.ctx.allowAnyoneLink = () => false;
+    const realRule = s.ctx.allowAnyoneLink; s.ctx.allowAnyoneLink = () => false;
     t.eq((await s.call('POST', '/api/files/link', { id: plan.id, ttl: 3600, scope: 'anyone' }, bob.token)).s, 403, 'chat rules can forbid public links');
     t.eq((await s.call('POST', '/api/files/link', { id: plan.id, ttl: 3600 }, bob.token)).s, 200, 'members links still work');
-    delete s.ctx.allowAnyoneLink;
+    if (realRule) s.ctx.allowAnyoneLink = realRule; else delete s.ctx.allowAnyoneLink;
   });
 
   await t.section('Files app: only files shared in chats you can see; mine, type and recording filters', async () => {
@@ -290,5 +290,26 @@ H.suite('Files', async (t) => {
     t.eq((await s.call('POST', '/api/calendar/prefs', { tz2: 'Mars/Olympus' }, bob.token)).d.tz2, '');
     const ev = s.sse(bob.token); const init = await ev.waitFor('init'); ev.close(); t.eq(init.flCal.cats.red, 'Work', 'sent at start-up');
     t.eq((await s.call('GET', '/api/calendar/prefs', undefined, ana.token)).d.cats, {}, 'per person');
+  });
+
+  await t.section('teams: team and private channels keep their files and events to their members; confidential labels block public links', async () => {
+    if (!s.ctx.api['POST /api/teams/create']) return; // teams area not present
+    const tm = await s.call('POST', '/api/teams/create', { name: 'Launch', members: [bob.id] }, ana.token); t.eq(tm.s, 200, tm.d);
+    const gen = tm.d.general, team = tm.d.team; const priv = (await s.call('POST', '/api/teams/channel', { team: team.id, name: 'Leads', type: 'private', members: [] }, ana.token)).d.id;
+    const f1 = await up(ana, 'roadmap.txt', 'q1'); await post(ana, gen, [f1]); const f2 = await up(ana, 'salaries.csv', 'x,1'); await post(ana, priv, [f2]);
+    await evAdd(ana, priv, { title: 'Leads sync', start: base + 2 * DAY, end: base + 2 * DAY + 3600000 });
+    t.eq((await list(eve, gen)).s, 404, 'not in the team'); t.eq((await list(bob, priv)).s, 404, 'not in the private channel');
+    t.ok(!(await s.call('GET', '/api/files/all', undefined, bob.token)).d.files.some((f) => f.id === f2.id), 'Files app');
+    t.ok(!(await range(bob, base, base + 7 * DAY)).d.events.some((e) => e.title === 'Leads sync'), 'calendar');
+    const fb = await s.call('GET', `/api/freebusy?users=${ana.id}&from=${base}&to=${base + 7 * DAY}`, undefined, bob.token); t.ok(fb.d.busy[ana.id].some((b) => !b.title), 'busy without the private title');
+    const zf = path.join(s.dir, 't.zip'); fs.writeFileSync(zf, Buffer.from(await (await raw(`/api/files/zip?ids=${f1.id},${f2.id}`, bob.token)).arrayBuffer())); t.eq(readZipIndex(zf).map((e) => e.name), ['roadmap.txt']);
+    const l = await s.call('POST', '/api/files/link', { id: f2.id, ttl: 3600 }, ana.token); t.eq((await s.call('GET', '/api/files/link/open?k=' + l.d.link.k, undefined, bob.token)).s, 404);
+    t.eq((await s.call('POST', '/api/files/link', { id: f1.id, ttl: 3600, scope: 'anyone' }, ana.token)).s, 200, 'public link allowed without a label');
+    await s.call('POST', '/api/teams/update', { id: team.id, label: 'confidential' }, ana.token);
+    if (s.db.teams[team.id].label !== 'confidential') { s.db.teams[team.id].label = 'confidential'; s.ctx.store.save(); } // labels may be admin-only: set it directly
+    {
+      t.eq((await s.call('POST', '/api/files/link', { id: f1.id, ttl: 3600, scope: 'anyone' }, ana.token)).s, 403, 'no public links from a confidential team');
+      const old = Object.values(s.db.fileLinks).find((x) => x.file === f1.id && x.scope === 'anyone'); t.eq((await fetch(`${s.B}/api/share?k=${old.k}`)).status, 404, 'existing public links stop working');
+    }
   });
 });
