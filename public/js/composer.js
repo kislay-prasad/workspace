@@ -4,38 +4,8 @@
   const LC = window.LC, { el, S } = LC, t = (k, v) => LC.t(k, v), $ = LC.$;
   LC.composers = {};
 
-  // ---------- emoji picker ----------
-  const EMOJI = {
-    '😀': '😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😗 😚 😙 😋 😛 😜 🤪 😝 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶 😏 😒 🙄 😬 😮‍💨 🤥 😌 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 🤯 🤠 🥳 😎 🤓 🧐 😕 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 😦 😧 😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿 💀 💩 🤡 👻 👽 🤖',
-    '👋': '👋 🤚 🖐 ✋ 🖖 👌 🤌 🤏 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ 👍 👎 ✊ 👊 🤛 🤜 👏 🙌 👐 🤲 🤝 🙏 ✍️ 💅 🤳 💪 🦾 🧠 👀 👅 👄 👶 🧒 👦 👧 🧑 👨 👩 🧔 👴 👵 🙍 🙎 🙅 🙆 💁 🙋 🧏 🙇 🤦 🤷 💃 🕺 👯 🧘 🏃 🚶',
-    '🐶': '🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🙈 🙉 🙊 🐔 🐧 🐦 🐤 🦆 🦅 🦉 🦇 🐺 🐗 🐴 🦄 🐝 🐛 🦋 🐌 🐞 🐜 🐢 🐍 🦎 🐙 🦑 🦀 🐠 🐟 🐬 🐳 🦈 🐊 🐘 🦒 🦘 🐕 🐈 🌵 🎄 🌲 🌴 🌱 🍀 🍁 🍄 🌸 🌹 🌻 🌼 🌈 ☀️ 🌤 ⛅ 🌧 ⚡ ❄️ 🔥 💧 🌊',
-    '🍔': '🍏 🍎 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🍒 🍑 🥭 🍍 🥥 🥝 🍅 🥑 🥦 🥕 🌽 🌶 🥔 🍞 🥐 🧀 🥚 🍳 🥞 🥓 🥩 🍗 🍖 🌭 🍔 🍟 🍕 🥪 🌮 🌯 🍜 🍝 🍣 🍱 🍛 🍤 🍙 🍚 🍦 🍩 🍪 🎂 🍰 🧁 🍫 🍬 🍭 ☕ 🍵 🥤 🍺 🍻 🥂 🍷 🍸 🍹',
-    '⚽': '⚽ 🏀 🏈 ⚾ 🎾 🏐 🏉 🎱 🏓 🏸 🥊 🥋 ⛳ 🏹 🎣 🎮 🕹 🎲 ♟ 🎯 🎳 🎰 🧩 🎨 🎭 🎬 🎤 🎧 🎼 🎹 🥁 🎷 🎺 🎸 🎻 🏆 🥇 🥈 🥉 🏅 🎖 🎫 🎟 🎪',
-    '🚗': '🚗 🚕 🚙 🚌 🚎 🏎 🚓 🚑 🚒 🚚 🚜 🛵 🏍 🚲 🛴 ✈️ 🛫 🛬 🚀 🛸 🚁 ⛵ 🚤 🚢 🚂 🚆 🚇 🏠 🏡 🏢 🏥 🏫 🏰 🗼 🗽 ⛰ 🌋 🏖 🏝 🏕 🌍 🌎 🌏 🗺 🧭',
-    '💡': '⌚ 📱 💻 ⌨️ 🖥 🖨 🖱 💽 💾 📷 📹 🎥 📞 ☎️ 📺 📻 ⏰ 🔋 🔌 💡 🔦 🕯 💰 💳 💎 🔧 🔨 🛠 ⚙️ 🔫 💣 🔪 🛡 🔮 💊 💉 🧬 🔬 🔭 📡 🧹 🧺 🧻 🚽 🛁 🔑 🗝 🚪 🛋 🎁 🎈 🎉 🎊 📦 ✉️ 📧 📝 📁 📅 📌 📎 ✂️ 🔒 🔓',
-    '❤': '❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 ✨ ⭐ 🌟 💫 💥 💢 💦 💨 💬 💭 🔔 🔕 ✅ ❌ ⭕ ❗ ❓ ‼️ ⚠️ 🚫 ♻️ ➕ ➖ ➗ ✖️ 💯 🔞 🆗 🆒 🆕 🆓 ▶️ ⏸ ⏹ 🔁 🔀 ⬆️ ⬇️ ⬅️ ➡️ 🔝',
-  };
-  const STICKERS = '😂 🤣 😍 🥰 😎 🤔 😭 😡 🥳 🤯 😴 🙄 👍 👏 🙏 💪 🔥 ❤️ 💯 🎉 ✨ 👀 🍕 🎂 ☕ 🚀 🐶 🐱 🌈 💩 👻 🤝'.split(' ');
-  LC.openPicker = (anchor, onPick, o = {}) => {
-    const p = $('#picker'); let tab = o.reactions ? '😀' : (LC.ls.get('lc_recent', []).length ? 'recent' : '😀'), q = '';
-    const draw = () => {
-      const recent = LC.ls.get('lc_recent', []), names = Object.keys(S.emojis).sort();
-      const tabs = [['recent', 'clock'], ...Object.keys(EMOJI).map((k) => [k, k]), ['custom', 'star'], ...(o.stickers ? [['stickers', 'sticker']] : [])];
-      const pick = (e) => { if (!/^:/.test(e)) LC.ls.set('lc_recent', [e, ...LC.ls.get('lc_recent', []).filter((x) => x !== e)].slice(0, 24)); p.classList.add('hidden'); onPick(e); };
-      let grid;
-      if (tab === 'custom') grid = el('div', { class: 'grid cgrid' }, names.filter((n) => n.includes(q.toLowerCase())).map((n) => el('button', { title: ':' + n + ':', onclick: () => pick(':' + n + ':') }, el('img', { class: 'cemoji big', src: LC.fileUrl({ id: S.emojis[n], name: n + '.png' }, true), alt: ':' + n + ':' }))), !names.length ? el('p', { class: 'muted small', text: t('noCustomEmoji') }) : null);
-      else if (tab === 'stickers') grid = el('div', { class: 'grid sgrid' }, STICKERS.map((e) => el('button', { class: 'sticker', text: e, onclick: () => { p.classList.add('hidden'); o.onSticker(e); } })));
-      else grid = el('div', { class: 'grid' }, (tab === 'recent' ? recent : EMOJI[tab].split(' ')).map((e) => el('button', { text: e, onclick: () => pick(e) })));
-      const tabName = { recent: t('recent'), custom: t('customEmoji'), stickers: t('stickers') };
-      p.replaceChildren(el('div', { class: 'ptabs', role: 'tablist' }, tabs.map(([k, ic]) => el('button', { class: k === tab ? 'on' : '', role: 'tab', 'aria-selected': String(k === tab), 'aria-label': tabName[k] || ic, title: tabName[k] || '', onclick: () => { tab = k; draw(); } }, LC.hasIcon(ic) ? LC.icon(ic) : ic))),
-        tab === 'custom' ? el('input', { class: 'psearch', placeholder: t('searchEmoji'), value: q, oninput: (e) => { q = e.target.value; const pos = e.target.selectionStart; draw(); const i = p.querySelector('.psearch'); i.focus(); i.setSelectionRange(pos, pos); } }) : null, grid,
-        tab === 'custom' ? el('button', { class: 'secondary sm withicon', onclick: () => { p.classList.add('hidden'); LC.emojiManager(); } }, LC.icon('add'), t('addEmoji')) : null);
-    };
-    draw(); p.classList.remove('hidden'); p.style.visibility = 'hidden';
-    const r = anchor.getBoundingClientRect(), w = p.offsetWidth, h = p.offsetHeight;
-    p.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.right - w)) + 'px'; p.style.top = (r.top - h - 8 > 8 ? r.top - h - 8 : Math.min(r.bottom + 8, innerHeight - h - 8)) + 'px'; p.style.visibility = '';
-  };
-  document.addEventListener('mousedown', (e) => { const p = $('#picker'); if (!p.classList.contains('hidden') && !p.contains(e.target) && !e.target.closest('[aria-label][data-picker], .tools button, .emojibtn')) p.classList.add('hidden'); });
+  // ---------- emoji picker: LC.openPicker lives in chatux-emoji.js (search, skin tones, stickers, My GIFs) ----------
+  LC.ext.composerSetup = LC.ext.composerSetup || []; // (composer) => void : chatux compose features (format box, subject, priority…)
 
   // ---------- uploads ----------
   LC.upload = (blob, name, onProgress) => {
@@ -95,13 +65,14 @@
     const key = () => 'lc_draft:' + cfg.chan() + ':' + (cfg.thread() || '');
     let files = [], replyTo = null, editing = null, ttlChoice, recorder = null, acItems = [], acIdx = 0, lastTyping = 0, busy = false;
     const api = {}; // filled in below; handed to extensions (LC.ext.composer*)
-    const ta = el('textarea', { rows: 1, maxlength: 8000, placeholder: cfg.compact ? t('replyPlaceholder') : t('typeMessage'), 'aria-label': t('typeMessage') });
+    const ta = el('textarea', { rows: 1, maxlength: 8000, placeholder: cfg.compact ? t('replyPlaceholder') : t('typeMessage'), 'aria-label': t('typeMessage'), spellcheck: 'true', autocapitalize: 'sentences' });
+    const refreshHooks = [], sentHooks = [];
     const chips = el('div', { class: 'chips' }), ctx = el('div', { class: 'ctx hidden' }), notice = el('div', { class: 'notice hidden' }), recbar = el('div', { class: 'recbar hidden' }), ac = el('div', { class: 'ac hidden', role: 'listbox' });
     const fileIn = el('input', { type: 'file', multiple: true, class: 'hidden', onchange: (e) => { addFiles([...e.target.files]); e.target.value = ''; } });
     const sendBtn = el('button', { class: 'send', title: t('send'), 'aria-label': t('send'), onclick: () => send() }, LC.icon('send', { filled: true }));
     const ttlDot = el('span', { class: 'ttldot hidden' }, LC.icon('timer'));
     const btn = (icon, title, fn, cls = '') => el('button', { class: 'icon ' + cls, title, 'aria-label': title, type: 'button', onclick: fn }, LC.icon(icon));
-    const micBtn = btn('mic', t('voiceNote'), () => toggleVoice(), 'mic'), emojiBtn = btn('emoji', t('emoji'), (e) => LC.openPicker(e.currentTarget, (em) => insert(em), { stickers: !cfg.compact, onSticker: (em) => send({ text: em, force: true }) }), 'emojibtn');
+    const micBtn = btn('mic', t('voiceNote'), () => toggleVoice(), 'mic'), emojiBtn = btn('emoji', t('emoji'), (e) => LC.openPicker(e.currentTarget, (em) => insert(em), { stickers: !cfg.compact, composer: api }), 'emojibtn');
     const moreBtn = btn('more_horizontal', t('moreOptions'), (e) => moreMenu(e.currentTarget), 'morebtn'); moreBtn.append(ttlDot);
     const row = el('div', { class: 'row' }, ta, el('div', { class: 'ctools' }, emojiBtn, btn('attach', t('attach'), (e) => attachMenu(e.currentTarget), 'attachbtn'), micBtn, moreBtn, el('span', { class: 'csep', 'aria-hidden': 'true' }), sendBtn));
     const banner = el('div', { class: 'cbanner hidden' }); // LC.ext.composerBanner: e.g. "Ana is out of office"
@@ -110,7 +81,7 @@
 
     const autosize = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; };
     const insert = (s) => { ta.setRangeText(s, ta.selectionStart, ta.selectionEnd, 'end'); ta.focus(); autosize(); saveDraft(); };
-    const saveDraft = LC.debounce(() => { if (editing) return; const v = ta.value; if (v) LC.ls.set(key(), v); else LC.ls.del(key()); }, 300);
+    const saveDraft = LC.debounce(() => { if (editing) return; const v = ta.value; if (v) LC.ls.set(key(), v); else LC.ls.del(key()); LC.emitLocal('cx:draft', { chan: cfg.chan() }); }, 300);
     const renderCtx = () => {
       ctx.replaceChildren();
       if (editing) ctx.append(el('span', {}, LC.icon('edit'), ' ' + t('editingMsg')), LC.ibtn('dismiss', t('cancel'), cancelCtx));
@@ -157,9 +128,10 @@
         if (!text.trim() && !(editing.files || []).length) return; const id = editing.id; busy = true;
         try { await LC.api('/api/edit', { id, text }); editing = null; ta.value = LC.ls.get(key(), ''); renderCtx(); autosize(); } catch (e) { LC.toast(e.message); } busy = false; update(); return;
       }
+      if (!o.force && LC.isCommand && LC.isCommand(text)) { ta.value = ''; LC.ls.del(key()); autosize(); update(); closeAc(); LC.runCommand(text); return; } // /away, /goto …
       const done = files.filter((f) => f.status === 'done');
-      if (!text.trim() && !done.length && !o.poll && !o.game) return; if (uploading() && !o.force) return;
-      const body = { chan: cfg.chan(), text, files: done.map(({ id, name, size }) => ({ id, name, size })), replyTo: replyTo ? replyTo.id : undefined, thread: cfg.thread() || undefined, ttl: ttlChoice, sendAt: o.sendAt, poll: o.poll, game: o.game };
+      if (!text.trim() && !done.length && !o.poll && !o.game && !o.extra) return; if (uploading() && !o.force) return;
+      const body = { chan: cfg.chan(), text, files: (o.extra ? [] : done).map(({ id, name, size }) => ({ id, name, size })), replyTo: replyTo ? replyTo.id : undefined, thread: cfg.thread() || undefined, ttl: ttlChoice, sendAt: o.sendAt, poll: o.poll, game: o.game, ...(o.extra || {}) };
       for (const f of LC.ext.beforeSend) { try { f(body, api, o); } catch (e) { console.error('beforeSend', e); } }
       busy = true; update();
       const snapshot = { text: ta.value, files: [...files], replyTo };
@@ -167,9 +139,9 @@
       try {
         const r = await LC.api('/api/send', body);
         if (r.scheduled) LC.toast(t('scheduledFor', { when: LC.fmtDateTime(r.scheduled.sendAt) }), { action: { label: t('view'), fn: () => LC.scheduledList() } });
-        ttlChoice = undefined; refreshTtl();
+        ttlChoice = undefined; refreshTtl(); for (const f of sentHooks) { try { f(body, o); } catch (x) { console.error('composer sent hook', x); } }
       } catch (e) {
-        if (e.offline) { LC.outboxAdd(body); LC.toast(t('queuedOffline')); }
+        if (e.offline) { LC.outboxAdd(body); LC.toast(t('queuedOffline')); for (const f of sentHooks) { try { f(body, o); } catch {} } }
         else { LC.toast(e.message); if (!o.force) { ta.value = snapshot.text; files = snapshot.files; replyTo = snapshot.replyTo; renderChips(); renderCtx(); autosize(); } }
       }
       busy = false; update(); if (!cfg.noFocus) ta.focus();
@@ -183,6 +155,7 @@
     function closeAc() { ac.classList.add('hidden'); acItems = []; }
     function updateAc() {
       const pos = ta.selectionStart, before = ta.value.slice(0, pos); let m;
+      if (!editing && LC.commandList && (m = /^\/([\w-]{0,20})$/.exec(before)) && ta.value.indexOf('\n') < 0) return showAc(LC.commandList(m[1]).slice(0, 12).map((c) => ({ label: c.name + (c.args ? ' ' + c.args : ''), sub: c.help, icon: 'slash_forward', ins: c.name + ' ', cmd: c.name, args: !!c.args })), 0);
       if ((m = /(^|\s)@([^\s@]{0,24})$/.exec(before))) {
         const q = m[2].toLowerCase(), list = audienceUsers().filter((u) => u.name.toLowerCase().startsWith(q) || u.name.toLowerCase().split(' ').some((w) => w.startsWith(q))).slice(0, 6).map((u) => ({ label: u.name, av: u, ins: '@' + u.name + ' ' }));
         if (!cfg.chan().startsWith('dm:') && (LC.isAdmin() || S.settings.membersCanEveryone)) for (const k of ['everyone', 'here']) if (k.startsWith(q)) list.push({ label: '@' + k, ins: '@' + k + ' ' });
@@ -194,10 +167,14 @@
     }
     function showAc(list, start) {
       if (!list.length) return closeAc(); clearTimeout(ac._t); acItems = list; acIdx = 0; ac._start = start;
-      ac.replaceChildren(...list.map((it, i) => el('button', { role: 'option', class: i === 0 ? 'on' : '', onmousedown: (e) => { e.preventDefault(); pickAc(i); } }, it.av ? LC.avatar(it.av, 'sm', false) : it.img ? el('img', { class: 'cemoji', src: LC.fileUrl({ id: it.img, name: 'e.png' }, true), alt: '' }) : it.icon ? LC.icon(it.icon) : null, el('span', { text: it.label }))));
+      ac.replaceChildren(...list.map((it, i) => el('button', { role: 'option', class: i === 0 ? 'on' : '', 'aria-selected': String(i === 0), onmousedown: (e) => { e.preventDefault(); pickAc(i); } }, it.av ? LC.avatar(it.av, 'sm', false) : it.img ? el('img', { class: 'cemoji', src: LC.fileUrl({ id: it.img, name: 'e.png' }, true), alt: '' }) : it.icon ? LC.icon(it.icon) : null, el('span', { text: it.label }), it.sub ? el('small', { class: 'muted cx-acsub', text: it.sub }) : null)));
       ac.classList.remove('hidden');
     }
-    function pickAc(i) { const it = acItems[i]; if (!it) return; ta.setRangeText(it.ins, ac._start, ta.selectionStart, 'end'); closeAc(); autosize(); saveDraft(); update(); ta.focus(); }
+    function pickAc(i) {
+      const it = acItems[i]; if (!it) return;
+      if (it.cmd && !it.args) { ta.value = ''; closeAc(); autosize(); saveDraft(); update(); LC.runCommand(it.cmd); return; } // commands without a name to type run at once
+      ta.setRangeText(it.ins, ac._start, ta.selectionStart, 'end'); closeAc(); autosize(); saveDraft(); update(); ta.focus();
+    }
 
     ta.addEventListener('input', () => {
       autosize(); saveDraft(); update(); updateAc();
@@ -205,11 +182,17 @@
     });
     ta.addEventListener('keydown', (e) => {
       if (!ac.classList.contains('hidden') && acItems.length) {
-        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { acIdx = (acIdx + (e.key === 'ArrowDown' ? 1 : -1) + acItems.length) % acItems.length; [...ac.children].forEach((c, i) => c.classList.toggle('on', i === acIdx)); e.preventDefault(); return; }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { acIdx = (acIdx + (e.key === 'ArrowDown' ? 1 : -1) + acItems.length) % acItems.length; [...ac.children].forEach((c, i) => { c.classList.toggle('on', i === acIdx); c.setAttribute('aria-selected', String(i === acIdx)); }); e.preventDefault(); return; }
         if (e.key === 'Enter' || e.key === 'Tab') { pickAc(acIdx); e.preventDefault(); return; } if (e.key === 'Escape') { closeAc(); e.preventDefault(); return; }
       }
-      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !matchMedia('(pointer:coarse)').matches) { e.preventDefault(); send(); }
-      else if (e.key === 'Escape' && (editing || replyTo)) { cancelCtx(); }
+      if (e.key === 'Enter' && !e.isComposing) {
+        const expanded = root.classList.contains('cx-expanded'), ctrlMode = LC.prefs().sendKey === 'ctrl', coarse = matchMedia('(pointer:coarse)').matches;
+        if (e.ctrlKey || e.metaKey) { e.preventDefault(); send(); return; }
+        if (!e.shiftKey && !expanded && !ctrlMode && !coarse) { e.preventDefault(); send(); return; }
+        if (LC.continueList && LC.continueList(ta)) { e.preventDefault(); autosize(); saveDraft(); update(); } // a new line in a list starts the next item
+        return;
+      }
+      if (e.key === 'Escape' && (editing || replyTo)) { cancelCtx(); }
       else if (e.key === 'ArrowUp' && !ta.value && !cfg.compact) { const w = S.win[cfg.chan()]; const mine = w && [...w.msgs].reverse().find((m) => m.from === S.me.id && !m.deleted && m.text && !m.poll && !m.game); if (mine) { edit(mine); e.preventDefault(); } }
     });
     let acTimer; ta.addEventListener('blur', () => { clearTimeout(acTimer); acTimer = setTimeout(closeAc, 150); }); ta.addEventListener('focus', () => clearTimeout(acTimer));
@@ -276,10 +259,13 @@
     function refresh() { // chat/thread changed
       closeAc(); if (editing) { editing = null; } replyTo = null; renderCtx(); files = []; renderChips(); ta.value = LC.ls.get(key(), ''); autosize(); ttlChoice = undefined; refreshTtl(); guard(); update(); renderBanner();
       ta.placeholder = cfg.compact ? t('replyPlaceholder') : t('typeMessage');
+      for (const f of refreshHooks) { try { f(); } catch (e) { console.error('composer refresh hook', e); } }
     }
     function reply(m) { editing = null; replyTo = m; renderCtx(); ta.focus(); }
     function edit(m) { replyTo = null; editing = m; ta.value = m.text || ''; renderCtx(); autosize(); ta.focus(); update(); }
-    Object.assign(api, { el: root, focus: () => ta.focus(), refresh, reply, edit, addFiles, addDropped, insert, guard, ta, cfg, send: (o) => send(o || {}), row, root, renderBanner });
+    Object.assign(api, { el: root, focus: () => ta.focus(), refresh, reply, edit, addFiles, addDropped, insert, guard, ta, cfg, send: (o) => send(o || {}), row, root, renderBanner,
+      autosize, update, saveDraft, editing: () => editing, onRefresh: (f) => refreshHooks.push(f), onSent: (f) => sentHooks.push(f), moreMenu: (a) => moreMenu(a) });
+    for (const f of LC.ext.composerSetup) { try { f(api); } catch (e) { console.error('composerSetup', e); } }
     for (const n of LC.extItems(LC.ext.composerTools, api)) if (n && n.nodeType) row.querySelector('.ctools').insertBefore(n, row.querySelector('.ctools .csep'));
     LC.on('me', () => guard()); LC.on('channel', () => guard()); LC.on('user', () => renderBanner()); LC.on('lang', () => { ta.placeholder = cfg.compact ? t('replyPlaceholder') : t('typeMessage'); });
     refresh(); return api;
