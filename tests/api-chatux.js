@@ -170,7 +170,7 @@ H.suite('chatux: chat experience', async (t) => {
     s.ctx.S.messagingRules = { stickers: false, gifs: false, memes: false };
     t.eq((await call('POST', '/api/send', { chan: 'general', text: '', sticker: { p: 'cats', s: 'wave' } }, bob.token)).s, 403);
     t.eq((await call('POST', '/api/send', { chan: 'general', text: '', files: [{ id: up.d.id }], meme: true }, bob.token)).s, 403);
-    delete s.ctx.S.messagingRules;
+    delete s.db.settings.messagingRules;
     const ini = await init(cara); t.ok(ini.last.general, 'preview present');
   });
 

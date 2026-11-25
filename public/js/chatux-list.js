@@ -37,7 +37,7 @@
     return { all, pinned: pinned.map((id) => all.get(id)).filter(Boolean), archived, chans, people, self };
   }
   LC.chatEntries = chatEntries;
-  const entryName = (e) => (e.self ? `${LC.uname(S.me.id)} ${t('cx_you')}` : e.kind === 'dm' ? LC.uname(e.u.id) : e.c.name);
+  const entryName = (e) => String((e.self ? `${LC.uname(S.me.id)} ${t('cx_you')}` : e.kind === 'dm' ? LC.uname(e.u.id) : e.c.name) || '');
   LC.entryName = entryName;
 
   // ---------- the picture in front of a chat: person, group (picture or icon), meeting (calendar), channel tile ----------
@@ -186,7 +186,7 @@
     const recent = [...E.chans.filter((e) => (e.type === 'group' || e.type === 'meeting') && !e.team), ...E.people.filter((e) => S.last[e.id])].filter(free)
       .sort((a, b) => lastTs(b) - lastTs(a) || entryName(a).localeCompare(entryName(b)));
     if (recent.length) { nav.append(section('recent', t('recentChats'), null, { drop: 'recent' })); if (!shut.recent) recent.forEach((e) => nav.append(item(e))); }
-    const ppl = E.people.filter((e) => free(e) && !S.last[e.id]).sort((a, b) => (favs.has(b.u.id) - favs.has(a.u.id)) || ((b.u.presence !== 'offline') - (a.u.presence !== 'offline')) || LC.uname(a.u.id).localeCompare(LC.uname(b.u.id)));
+    const ppl = E.people.filter((e) => free(e) && !S.last[e.id]).sort((a, b) => (favs.has(b.u.id) - favs.has(a.u.id)) || ((b.u.presence !== 'offline') - (a.u.presence !== 'offline')) || entryName(a).localeCompare(entryName(b)));
     nav.append(section('people', t('people'))); if (!shut.people) ppl.forEach((e) => nav.append(item(e)));
     if (E.people.length === 0) nav.append(el('div', { class: 'empty small', text: t('nobodyYet') }));
     const arch = [...E.archived].map((id) => E.all.get(id)).filter((e) => e && !e.hidden);

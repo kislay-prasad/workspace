@@ -195,13 +195,13 @@
   LC.jumpToDate = async (ts) => { const chan = S.chan; try { await loadAround(chan, ts); renderMessages('top'); } catch (e) { LC.toast(e.message); } };
   // o.q: also highlight these words in the conversation (search results, find in chat)
   LC.jumpToMessage = async (chan, id, o = {}) => {
-    if (S.chan !== chan || S.tab !== 'chat') await LC.openChat(chan, { noFocus: true });
     if (o.q !== undefined) LC.highlightQuery = o.q;
+    if (S.chan !== chan || S.tab !== 'chat' || S.app) await LC.openChat(chan, { noFocus: true }); // also leaves a page that took over the big area (search results…)
     const w = S.win[chan]; let found = w && w.msgs.find((m) => m.id === id);
     if (!found) { try { const r = await LC.api('/api/messages/byids', { ids: [id] }), m = r.messages[0]; if (!m) return LC.toast(t('msgGone')); if (m.thread) { const root = (await LC.api('/api/messages/byids', { ids: [m.thread] })).messages[0]; if (root) { await LC.openThread(root); return flashMessage(id, '#threadMsgs'); } } await loadAround(chan, m.ts); renderMessages('keep'); } catch (e) { return LC.toast(e.message); } }
     flashMessage(id);
   };
-  const flashMessage = (id, where = '#msgs') => raf(() => { const n = $(where) && $(where).querySelector(`[data-id="${id}"]`); if (n) { n.scrollIntoView({ block: 'center' }); n.classList.add('flash'); setTimeout(() => n.classList.remove('flash'), 1800); } });
+  const flashMessage = (id, where = '#msgs') => raf(() => { const box = $(where), n = box && box.querySelector(`[data-id="${id}"]`); if (box && LC.highlightQuery && LC.highlightIn) LC.highlightIn(box, LC.highlightQuery); if (n) { n.scrollIntoView({ block: 'center' }); n.classList.add('flash'); setTimeout(() => n.classList.remove('flash'), 1800); } });
   LC.flashMessage = flashMessage;
   async function loadOlder() {
     const w = S.win[S.chan]; if (!w || !w.older || loadingOlder || !w.msgs.length) return; loadingOlder = true; const box = $('#msgs'), h = box.scrollHeight, chan = S.chan;

@@ -20,7 +20,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     p.on('pageerror', (e) => errs.push(label + ' pageerror: ' + e.message)); p.on('console', (m) => { if (m.type() === 'error' && !/401|Failed to load resource/.test(m.text())) errs.push(label + ' console: ' + m.text().slice(0, 200)); });
     await p.goto(o.url || B); await p.waitForSelector('#app:not(.hidden) .item.active'); return p;
   };
-  const step = async (name, fn) => { try { await fn(); pass++; console.log('  ✓', name); } catch (e) { failN++; console.log('  ✗', name, '\n     ', e.message.split('\n').slice(0, 3).join(' | ')); } };
+  const step = async (name, fn) => { try { await fn(); pass++; console.log('  ✓', name); } catch (e) { failN++; console.log('  ✗', name, '\n     ', e.message.split('\n').slice(0, 3).join(' | ')); try { await H.screenshot({ path: `${SHOTS}/fail-${failN}.png` }); await P.screenshot({ path: `${SHOTS}/fail-${failN}-bob.png` }); } catch {} } };
   const send = async (p, text) => { await p.fill('#composerHost textarea', text); await p.press('#composerHost textarea', 'Enter'); };
   const msgMenu = async (p, text) => { const m = p.locator('.msg', { hasText: text }).last(); await m.hover(); await m.locator('.tools button[title="More"]').click(); };
   const openChat = (p, chan) => p.evaluate((ch) => LC.openChat(ch), chan);
@@ -69,8 +69,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   });
 
   console.log('Search and commands');
-  const tx = await c.ctx === undefined; void tx;
-  await step('search box: suggestions while typing (people, chats), results page with tabs and highlights', async () => {
+    await step('search box: suggestions while typing (people, chats), results page with tabs and highlights', async () => {
     const up = await H.evaluate(async () => { const f = new File(['The quarterly zebracorn report is ready.'], 'report.txt', { type: 'text/plain' }); const u = await LC.upload(f, 'report.txt').promise; await LC.api('/api/send', { chan: 'general', text: 'report attached', files: [{ id: u.id, name: u.name, size: u.size }] }); return u.id; }); void up;
     await send(P, 'the zebracorn budget meeting'); await H.click('#search'); await H.fill('#search', 'Bo'); await H.waitForSelector('#cxSearchList .cx-opt:has-text("Bob")'); await H.waitForSelector('#cxSearchList .cx-sughead:has-text("People")');
     await H.fill('#search', 'zebracorn'); await H.press('#search', 'Enter'); await H.waitForSelector('#tabView .cx-rmsg mark.cx-hl'); await H.waitForSelector('.cx-rtabs [role=tab]:has-text("Files")');
@@ -90,22 +89,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await H.fill('#composerHost textarea', '/'); await H.waitForSelector('#composerHost .ac button:has-text("/away")'); await H.fill('#composerHost textarea', '/aw'); await H.press('#composerHost textarea', 'Enter');
     await H.waitForFunction(() => LC.S.me.presence === 'away'); if (await H.inputValue('#composerHost textarea')) throw new Error('box not cleared');
     await H.click('#search'); await H.fill('#search', '/goto news'); await H.press('#search', 'Enter'); await H.waitForFunction(() => LC.S.chan === 'news');
-    await H.fill('#composerHost textarea', '/help'); await H.press('#composerHost textarea', 'Enter'); await H.waitForSelector('.modal .cx-cmdtable kbd:has-text("/unread")'); await H.keyboard.press('Escape');
+    await openChat(H, 'general'); await H.fill('#composerHost textarea', '/help'); await H.press('#composerHost textarea', 'Enter'); await H.waitForSelector('.modal .cx-cmdtable kbd:has-text("/unread")'); await H.keyboard.press('Escape');
     await H.evaluate(() => LC.api('/api/presence', { state: 'auto' })); await openChat(H, 'general');
   });
 
   console.log('Chat list');
   await step('drafts show a pencil and "Draft:" in the list; Drafts filter', async () => {
     await openChat(H, dm(host, bob)); await H.fill('#composerHost textarea', 'half-written thought'); await sleep(450); await openChat(H, 'general');
-    await H.waitForSelector(`.item[data-chan="${dm(host, bob)}"] .cx-draft:has-text("half-written")`); await H.click('.cx-chip:has-text("Drafts")'); await H.waitForSelector(`#nav .item[data-chan="${dm(host, bob)}"]`);
-    if (await H.locator('#nav .item[data-chan="general"]').count()) throw new Error('filter shows general'); await H.click('.cx-chip:has-text("Drafts")');
+    await H.waitForSelector(`.item[data-chan="${dm(host, bob)}"] .cx-draft:has-text("half-written")`); await H.click('.cx-chip:has-text("Drafts")'); await H.waitForSelector('#nav .item[data-chan="general"]', { state: 'detached' }); await H.waitForSelector(`#nav .item[data-chan="${dm(host, bob)}"]`);
+    await H.click('.cx-chip:has-text("Drafts")'); await H.waitForSelector('#nav .item[data-chan="general"]');
   });
   await step('mark a chat as unread (menu), synced on the server; opening it clears it; Unread filter', async () => {
     await H.click('#nav .item[data-chan="news"] .kebab'); await H.click('.popmenu button:has-text("Mark as unread")'); await H.waitForSelector('#nav .item[data-chan="news"].unread .cx-flag');
-    if (!(c.db.cxUnread[host.id] || {}).news) throw new Error('not on server'); await H.click('.cx-chip:has-text("Unread")'); await H.waitForSelector('#nav .item[data-chan="news"]'); await H.click('.cx-chip:has-text("Unread")');
+    if (!(c.db.cxUnread[host.id] || {}).news) throw new Error('not on server'); await H.click('.cx-chip:has-text("Unread")'); await H.waitForSelector('#nav .item[data-chan="general"]', { state: 'detached' }); await H.waitForSelector('#nav .item[data-chan="news"]'); await H.click('.cx-chip:has-text("Unread")'); await H.waitForSelector('#nav .item[data-chan="general"]');
     await openChat(H, 'news'); await H.waitForFunction(() => !LC.S.cx.unread.news); await openChat(H, 'general'); if ((c.db.cxUnread[host.id] || {}).news) throw new Error('not cleared');
   });
-  await step('meeting chats show with a calendar tile and under the Meetings filter', async () => { await H.click('.cx-chip:has-text("Meetings")'); await H.waitForSelector('#nav .item[data-chan="m-plan"] .av.cx-meet'); await H.click('.cx-chip:has-text("Meetings")'); });
+  await step('meeting chats show with a calendar tile and under the Meetings filter', async () => { await H.click('.cx-chip:has-text("Meetings")'); await H.waitForSelector('#nav .item[data-chan="general"]', { state: 'detached' }); await H.waitForSelector('#nav .item[data-chan="m-plan"] .av.cx-meet'); await H.click('.cx-chip:has-text("Meetings")'); await H.waitForSelector('#nav .item[data-chan="general"]'); });
   await step('notes to self at the top as "<name> (You)"', async () => { const first = await H.locator('#nav .item').first().getAttribute('data-chan'); if (first !== dm(host, host)) throw new Error(first); await H.click('#nav .item:has-text("Host (You)")'); await send(H, 'buy milk'); await H.waitForSelector('#msgs .msg:has-text("buy milk")'); await H.waitForSelector('#title:has-text("(You)")'); });
   let gid;
   await step('New chat: To: box with two people and a group name', async () => {
@@ -121,11 +120,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   });
   await step('adding someone without history: they do not see older messages', async () => {
     await send(H, 'secret plans before dave');
-    const dave = c.makeUser('Dave'); const dt = c.newToken(dave); await H.evaluate(() => LC.emitLocal('user', {})).catch(() => {}); await sleep(200);
-    await H.evaluate(async (g) => { await LC.api('/api/channel/members', { id: g, add: [Object.values(LC.S.users).length ? null : null].filter(Boolean) }).catch(() => {}); }, gid);
-    await H.reload(); await H.waitForSelector('#app:not(.hidden) .item.active'); await openChat(H, gid); await H.click('#headActions .cx-peoplebtn'); await H.waitForSelector('.modal .cx-picker');
+    const dave = c.makeUser('Dave'); const dt = c.newToken(dave); c.emitUser(dave); await H.waitForFunction(() => [...LC.S.users.values()].some((u) => u.name === 'Dave'));
+    await openChat(H, gid); await H.click('#headActions .cx-peoplebtn'); await H.waitForSelector('.modal .cx-picker');
     await H.check('.modal .cx-picker .pick:has-text("Dave") input'); await H.check('.modal input[name=cxHist][value=none]'); await H.click('.modal .acts .primary:has-text("Add")');
-    await H.waitForSelector('#msgs .msg.sys.k-add'); const D = await open(dt, 'dave'); await openChat(D, gid); await D.waitForSelector('#msgs .msg.sys');
+    await H.waitForSelector('#msgs .msg.sys.k-add'); await H.keyboard.press('Escape'); await H.waitForSelector('#modal.hidden', { state: 'attached' }); const D = await open(dt, 'dave'); await openChat(D, gid); await D.waitForSelector('#msgs .msg.sys');
     if (await D.locator('#msgs .msg:has-text("secret plans")').count()) throw new Error('history leaked'); await D.ctx.close();
   });
   await step('delete a 1:1 chat for me: gone from the list until a new message arrives', async () => {
@@ -137,16 +135,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   });
   await step('your own sections: create, drag a chat in, it is stored in your settings', async () => {
     await openChat(H, 'general'); await H.click('#sideActions button[aria-label="More chat list options"]'); await H.click('.popmenu button:has-text("New section")'); await H.fill('.modal.top input', 'Family'); await H.press('.modal.top input', 'Enter');
-    await H.waitForSelector('#nav .sec:has-text("Family")'); await H.dragTo(`#nav .item[data-chan="${gid}"]`, '#nav .sec:has-text("Family")');
+    await H.waitForSelector('#nav .sec:has-text("Family")'); await H.dragAndDrop(`#nav .item[data-chan="${gid}"]`, '#nav .sec:has-text("Family")');
     await H.waitForFunction((g) => (LC.prefs().chatSections || []).some((s) => s.name === 'Family' && s.chats.includes(g)), gid);
     if (!c.db.users[host.id].prefs.chatSections[0].chats.includes(gid)) throw new Error('not on server'); await H.screenshot({ path: SHOTS + '/chatlist-sections-light.png' });
   });
-  await step('hide previews (Settings › Appearance) and Ctrl+Enter sending mode', async () => {
-    await H.click('#gearBtn'); await H.click('.popmenu button:has-text("Settings")'); await H.click('.tabbtn:has-text("Appearance")'); await H.click('.modal label:has-text("Hide message previews") input'); await H.click('.modal input[name=cxSendKey][value=ctrl]'); await H.keyboard.press('Escape');
+  await step('hide previews (Settings › Appearance) and Ctrl+Enter sending mode', async () => { try {
+    await openChat(P, 'general'); await H.click('#gearBtn'); await H.click('.popmenu button:has-text("Settings")'); await H.click('.tabbtn:has-text("Appearance")'); await H.click('.modal label:has-text("Hide message previews") input'); await H.click('.modal input[name=cxSendKey][value=ctrl]'); await H.keyboard.press('Escape');
     await H.waitForSelector('#nav .item.cx-nopreview'); await H.fill('#composerHost textarea', 'line one'); await H.press('#composerHost textarea', 'Enter'); await H.keyboard.type('line two');
     if ((await H.inputValue('#composerHost textarea')) !== 'line one\nline two') throw new Error('Enter sent'); await H.press('#composerHost textarea', 'Control+Enter'); await P.waitForSelector('.msg:has-text("line two")');
-    await H.evaluate(() => LC.setPrefs({ hidePreviews: false, sendKey: 'enter' }));
-  });
+  } finally { await H.evaluate(() => LC.setPrefs({ hidePreviews: false, sendKey: 'enter' })); await H.waitForFunction(() => LC.prefs().sendKey === 'enter'); } });
 
   console.log('Writing messages');
   await step('Format box: toolbar wraps the selection, lists, table, code block with language, live preview', async () => {
@@ -181,21 +178,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     c.S.messagingRules = { edit: false, stickers: false }; c.emit('settings', c.clientSettings()); await openChat(P, 'general'); await P.waitForFunction(() => LC.msgRules().edit === false);
     await send(P, 'cannot edit me'); await msgMenu(P, 'cannot edit me'); if (await P.locator('.popmenu button .ml:text-is("Edit")').count()) throw new Error('edit shown'); await P.keyboard.press('Escape');
     await P.click('#composerHost .emojibtn'); if (await P.locator('#picker .ptabs button[aria-label="Stickers"]').count()) throw new Error('stickers shown'); await P.keyboard.press('Escape');
-    delete c.S.messagingRules; c.emit('settings', c.clientSettings());
+    delete c.db.settings.messagingRules; c.emit('settings', c.clientSettings());
   });
 
   console.log('Message actions');
   await step('copy link to a message; opening the link jumps to it', async () => {
     await openChat(H, 'general'); await send(H, 'link target message'); await msgMenu(H, 'link target message'); await H.click('.popmenu button:has-text("Copy link")');
     const link = await H.evaluate(() => navigator.clipboard.readText()); if (!/#m=general\/[0-9a-f]+$/.test(link)) throw new Error(link);
-    for (let i = 0; i < 25; i++) await send(P, 'filler ' + i);
+    for (let i = 0; i < 25; i++) c.createMessage(bob, { chan: 'general', text: 'filler ' + i }); // server-side: the UI would hit the 30-per-10s limit
     const L = await open(bt, 'bob-link', { url: link }); await L.waitForSelector('#msgs .msg:has-text("link target message")'); if (await L.evaluate(() => location.hash)) throw new Error('hash kept'); await L.ctx.close();
   });
   await step('mark unread from here: "New messages" divider and unread count', async () => { await msgMenu(H, 'filler 20'); await H.click('.popmenu button:has-text("Mark as unread")'); await H.waitForSelector('#unreadSep + .msg:has-text("filler 20")'); await H.waitForSelector('#nav .item[data-chan="general"] .badge'); });
   await step('pinned messages bar shows the latest pin; See all lists them', async () => { await msgMenu(H, 'link target message'); await H.click('.popmenu button:has-text("Pin")'); await P.waitForSelector('.cx-pinbar:not(.hidden):has-text("link target message")'); await P.click('.cx-pinbar .cx-seeall'); await P.waitForSelector('.modal .hit:has-text("link target message")'); await P.keyboard.press('Escape'); });
   await step('See more for long messages', async () => { await send(P, Array.from({ length: 30 }, (_, i) => 'line ' + i).join('\n')); await H.waitForSelector('.msg:has-text("line 29") .cx-more'); await H.click('.msg:has-text("line 29") .cx-more'); await H.waitForSelector('.msg:has-text("line 29") .txt.cx-open'); });
   await step('threads: new-replies count, notifications off/on, followed threads view', async () => {
-    await send(H, 'who is in for lunch?'); await P.locator('.msg', { hasText: 'who is in for lunch?' }).hover(); await P.click('.msg:has-text("who is in for lunch?") .tools button[title="Reply in thread"]'); await P.fill('#threadPanel textarea', 'me!'); await P.press('#threadPanel textarea', 'Enter');
+    await send(H, 'who is in for lunch?'); await P.locator('.msg', { hasText: 'who is in for lunch?' }).hover(); await P.click('.msg:has-text("who is in for lunch?") .tools button[title="Reply in thread"]'); await P.fill('#threadPanel textarea', 'me!'); await P.press('#threadPanel textarea', 'Enter'); await P.waitForSelector('#threadPanel .msg:has-text("me!")');
     await H.waitForSelector('.msg:has-text("who is in for lunch?") .cx-newpill:has-text("1 new")'); await H.waitForSelector('#nav .cx-threadsrow .badge');
     await H.click('#nav .cx-threadsrow'); await H.waitForSelector('#tabView .cx-thcard:has-text("lunch")'); await H.screenshot({ path: SHOTS + '/followed-threads-light.png' }); await H.click('#tabView .cx-thmain');
     await H.waitForSelector('#threadPanel .msg:has-text("me!")'); await H.waitForSelector('.msg:has-text("who is in for lunch?") .cx-newpill', { state: 'detached' });

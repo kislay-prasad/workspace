@@ -27,7 +27,7 @@
   LC.addEvents('cxunread', 'cxreadset', 'cxfollow', 'cxthread', 'cxhidden', 'cxgifs');
   LC.on('cxunread', (e) => { if (e.on) cx.unread[e.chan] = Date.now(); else delete cx.unread[e.chan]; LC.renderNav(); LC.updateBadge(); });
   LC.on('cxreadset', (e) => { S.read[e.chan] = e.seq; S.unread[e.chan] = e.unread; S.mentions[e.chan] = e.mentions; LC.renderNav(); LC.updateBadge(); });
-  LC.on('cxfollow', (e) => { if (e.on) { cx.follows.add(e.id); cx.unfollows.delete(e.id); } else { cx.follows.delete(e.id); cx.unfollows.add(e.id); } LC.renderNav(); });
+  LC.on('cxfollow', (e) => { if (e.on) { cx.follows.add(e.id); cx.unfollows.delete(e.id); if (e.n) cx.threads[e.id] = { n: e.n, chan: e.chan }; } else { cx.follows.delete(e.id); cx.unfollows.add(e.id); } LC.renderNav(); if (S.chan && S.tab === 'chat' && LC.renderMessages) LC.renderMessages('keep'); }); // a follow can arrive after the root's update: redraw its "new replies"
   LC.on('cxthread', (e) => { cx.seen[e.id] = e.n; if (cx.threads[e.id]) cx.threads[e.id].n = Math.max(cx.threads[e.id].n, e.n); LC.renderNav(); if (S.chan && S.tab === 'chat') LC.renderMessages('keep'); });
   LC.on('cxhidden', (e) => { if (e.on) cx.hidden[e.chan] = e.ts || Date.now(); else delete cx.hidden[e.chan]; LC.renderNav(); });
   LC.on('cxgifs', (e) => { cx.gifs = e.gifs; LC.emitLocal('cx:gifs', e.gifs); });
