@@ -87,7 +87,7 @@
   const badgeArt = (b, size = 72) => { const x = BADGES.find((y) => y[0] === b) || BADGES[0], svg = sv('svg', { viewBox: '0 0 80 80', width: String(size), height: String(size), class: 'cx-badge', 'aria-hidden': 'true', focusable: 'false' }); svg.append(sv('circle', { cx: '40', cy: '40', r: '36', fill: x[2] }), sv('circle', { cx: '40', cy: '40', r: '28', fill: '#fff', opacity: '.25' }), sv('circle', { cx: '40', cy: '40', r: '36', fill: 'none', stroke: '#fff', 'stroke-width': '3', 'stroke-dasharray': '4 5' }), sv('text', { x: '40', y: '42', 'font-size': '34', 'text-anchor': 'middle', 'dominant-baseline': 'central' }, x[1])); return svg; };
   LC.praiseEl = (m) => {
     const p = m.praise, x = BADGES.find((y) => y[0] === p.b) || BADGES[0], names = p.to.map((id) => LC.uname(id)).join(', ');
-    return el('div', { class: 'cx-praise', style: { '--cx-badge': x[2] } }, el('div', { class: 'cx-praisehead' }, badgeArt(p.b), el('div', {}, el('div', { class: 'cx-praisetitle', text: t('cx_b_' + p.b) }), el('div', { class: 'cx-praisefor', text: t('cx_praiseFor', { names }) }))),
+    return el('div', { class: 'cx-praise', style: '--cx-badge:' + x[2] }, el('div', { class: 'cx-praisehead' }, badgeArt(p.b), el('div', {}, el('div', { class: 'cx-praisetitle', text: t('cx_b_' + p.b) }), el('div', { class: 'cx-praisefor', text: t('cx_praiseFor', { names }) }))),
       p.note ? el('div', { class: 'cx-praisenote' }, LC.renderInline(p.note)) : null, el('div', { class: 'muted small', text: t('cx_praiseFrom', { name: LC.uname(m.from) }) }));
   };
   LC.praiseDialog = (composer) => {
