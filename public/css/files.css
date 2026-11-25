@@ -148,3 +148,5 @@ td.fl-c-mod,td.fl-c-by,td.fl-c-size{color:var(--text2)}
   .fl-onlyphone{display:block}
   .fl-apptitle{font-size:18px}
 }
+.fl-files.with-details .fl-c-by{display:none}
+@media (max-width:1100px){.fl-table .fl-c-by{display:none}}

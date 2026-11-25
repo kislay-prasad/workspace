@@ -212,7 +212,7 @@
         F.canPreview(cur.name) ? el('button', { class: 'secondary sm', text: t('fl_open'), onclick: () => (isCur ? F.open(cur) : F.open({ ...cur, size: v.size }, null, { url: F.versionUrl(cur, v.n), version: v.n })) }) : null,
         el('a', { class: 'secondary sm', href: isCur ? LC.fileUrl(cur) : F.versionUrl(cur, v.n), download: cur.name, text: t('download'), 'aria-label': t('download') + ' ' + (isCur ? t('fl_current') : t('fl_versionN', { n: v.n })) }),
         !isCur && d.canEdit ? el('button', { class: 'secondary sm', text: t('fl_restore'), 'aria-label': t('fl_restore') + ' ' + t('fl_versionN', { n: v.n }), onclick: async () => { if (!(await LC.confirm(t('fl_confirmRestore', { n: v.n })))) return; try { await LC.api('/api/files/restore', { id: cur.id, n: v.n }); LC.toast(t('fl_restored', { n: v.n })); draw(); } catch (e) { fail(e); } } }) : null);
-      list.replaceChildren(row({ n: cur.v, ts: cur.mod, by: cur.modBy, size: cur.size }, true), ...d.versions.map((v) => row(v, false)), !d.versions.length ? el('p', { class: 'muted small', text: t('fl_noVersions') }) : null, d.canEdit ? el('div', { class: 'acts' }, el('button', { class: 'secondary withicon', onclick: () => F.newVersion(cur).then(draw) }, LC.icon('arrow_upload'), el('span', { text: t('fl_newVersion') }))) : null);
+      list.replaceChildren(...[row({ n: cur.v, ts: cur.mod, by: cur.modBy, size: cur.size }, true), ...d.versions.map((v) => row(v, false)), !d.versions.length ? el('p', { class: 'muted small', text: t('fl_noVersions') }) : null, d.canEdit ? el('div', { class: 'acts' }, el('button', { class: 'secondary withicon', onclick: () => F.newVersion(cur).then(draw) }, LC.icon('arrow_upload'), el('span', { text: t('fl_newVersion') }))) : null].filter(Boolean));
     };
     draw();
   };
@@ -349,7 +349,7 @@
       const b = (icon, label, fn, o = {}) => el('button', { class: 'fl-tb' + (o.primary ? ' primary' : ''), type: 'button', onclick: fn, disabled: o.disabled, 'aria-haspopup': o.menu ? 'menu' : null }, LC.icon(icon), el('span', { text: label }));
       const typeSel = el('select', { class: 'fl-type', 'aria-label': t('fl_filterType'), onchange: (e) => { type = e.target.value; draw(); } }, el('option', { value: 'all', text: t('fl_allTypes') }), ...TYPES.map((k) => el('option', { value: k, text: t('fl_t_' + k) }))); typeSel.value = type;
       const search = el('input', { type: 'search', class: 'fl-search', placeholder: t('fl_searchFiles'), 'aria-label': t('fl_searchHere'), value: q, oninput: LC.debounce((e) => { q = e.target.value.trim().toLowerCase(); drawList(); drawCrumbs(); }, 200) });
-      bar.replaceChildren(
+      bar.replaceChildren(...[
         ...(n ? [
           el('span', { class: 'fl-selcount', text: t('fl_selected', { n }) }), LC.ibtn('dismiss', t('fl_clearSel'), () => { sel.clear(); draw(); }),
           one && !one.isFolder ? b('open', t('fl_open'), () => F.open(one, data.files)) : null,
@@ -365,11 +365,11 @@
         ]),
         el('span', { class: 'grow' }), typeSel, search,
         el('div', { class: 'fl-viewsw', role: 'group', 'aria-label': t('fl_listView') + ' / ' + t('fl_gridView') }, LC.ibtn('text_bullet_list', t('fl_listView'), () => { view = 'list'; LC.ls.set('fl_view', view); draw(); }, { pressed: view === 'list' }), LC.ibtn('grid', t('fl_gridView'), () => { view = 'grid'; LC.ls.set('fl_view', view); draw(); }, { pressed: view === 'grid' })),
-        LC.ibtn('info', t('fl_details'), () => { showDetails = !showDetails; LC.ls.set('fl_details', showDetails); if (matchMedia('(max-width: 760px)').matches) { showDetails = false; const it = selected()[0]; if (it && !it.isFolder) F.details(it.id); return; } draw(); }, { pressed: showDetails }));
+        LC.ibtn('info', t('fl_details'), () => { showDetails = !showDetails; LC.ls.set('fl_details', showDetails); if (matchMedia('(max-width: 760px)').matches) { showDetails = false; const it = selected()[0]; if (it && !it.isFolder) F.details(it.id); return; } draw(); }, { pressed: showDetails })].filter(Boolean));
     }
     function drawCrumbs() {
       const parts = [{ id: '', name: t('fl_root') }, ...pathOf(st.folder)];
-      crumbs.replaceChildren(el('ol', {}, parts.map((p, i) => el('li', {}, i === parts.length - 1 && !q ? el('span', { class: 'fl-crumb cur', 'aria-current': 'location', text: p.name }) : dropTarget(el('button', { class: 'fl-crumb', text: p.name, onclick: () => go(p.id) }), p.id)))), q ? el('span', { class: 'muted small fl-crumbq', text: '“' + q + '”' }) : null);
+      crumbs.replaceChildren(...[el('ol', {}, parts.map((p, i) => el('li', {}, i === parts.length - 1 && !q ? el('span', { class: 'fl-crumb cur', 'aria-current': 'location', text: p.name }) : dropTarget(el('button', { class: 'fl-crumb', text: p.name, onclick: () => go(p.id) }), p.id)))), q ? el('span', { class: 'muted small fl-crumbq', text: '“' + q + '”' }) : null].filter(Boolean));
     }
     const dl = () => { const fs = selFiles(), ds = selFolders(); if (fs.length === 1 && !ds.length) return F.download(fs[0]); download(F.zipUrl({ chan, ids: fs.map((f) => f.id).join(','), folders: ds.map((f) => f.id).join(',') })); };
     // drag and drop: rows onto folders / crumbs move; files from the computer upload into the folder they are dropped on
