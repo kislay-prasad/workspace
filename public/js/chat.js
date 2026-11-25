@@ -45,7 +45,12 @@
     $('#chatView').classList.add('hidden'); const host = $('#tabView'); host.classList.remove('hidden'); host.replaceChildren(); menuToggle(false);
     try { p.main(host); } catch (e) { host.replaceChildren(el('p', { class: 'err pad', text: e.message })); }
   };
-  LC.closeApp = () => { if (!S.app) return; S.app = null; $('#main').classList.remove('app-mode'); };
+  // leaving a pane that took over the big area (Calendar, Files, People…) brings the open conversation back
+  LC.closeApp = () => {
+    if (!S.app) return; S.app = null; $('#main').classList.remove('app-mode'); if (!S.chan) return;
+    renderHeader(); renderTabs(); const chat = S.tab === 'chat'; $('#chatView').classList.toggle('hidden', !chat); $('#tabView').classList.toggle('hidden', chat);
+    if (chat) { $('#tabView').replaceChildren(); renderMessages('keep'); } else if (LC.renderTab) LC.renderTab(S.tab);
+  };
   // the chat list itself (entries, rows, sections, filters, menus) lives in chatux-list.js
   const briefOf = (m) => { const o = { id: m.id, from: m.from || null, ts: m.ts, text: m.deleted ? '' : String(m.text || '').slice(0, 140), system: m.system || undefined, kind: m.kind, deleted: m.deleted || undefined };
     if (!m.deleted) { if (m.files && m.files.length) o.file = m.files[0].name; if (m.poll) o.poll = m.poll.q; if (m.game) o.game = true; if (m.subject) o.subject = m.subject; if (m.sticker) o.sticker = m.sticker.c || 1; if (m.praise) o.praise = m.praise.b; if (m.announce) o.announce = m.announce.title; if (m.location) o.location = 1; if (m.priority) o.priority = m.priority; if (m.gif) o.gif = 1; if (m.meme) o.meme = 1; }
@@ -74,7 +79,7 @@
     const head = (label) => el('div', { class: 'sec' }, el('span', { class: 'sectitle', text: label }));
     nav.replaceChildren(head(t('activeCalls')), ...(live.length ? live.map(([chan, c]) => el('div', { class: 'callrow' }, el('span', { class: 'livecall' }, LC.icon(c.mode === 'video' ? 'video' : 'call', { filled: true })), el('span', { class: 'itext' }, el('b', { class: 'name', text: LC.chanInfo(chan).title }), el('span', { class: 'prev', text: c.participants.map(LC.uname).join(', ') })),
       LC.inCall() && LC.callChan() === chan ? el('button', { class: 'secondary sm', text: t('openCall'), onclick: () => LC.showCall() }) : el('button', { class: 'primary sm', text: t('joinCall'), onclick: async () => { await LC.openChat(chan); LC.joinCall(chan); } }))) : [el('p', { class: 'muted small pad', text: t('noActiveCalls') })]),
-    head(t('people')), ...people.map((u) => { const dm = LC.dmId(S.me.id, u.id); return el('div', { class: 'callrow' }, LC.avatar(u, '', true), el('span', { class: 'itext' }, el('b', { class: 'name', text: LC.uname(u.id) }), el('span', { class: 'prev', text: t(u.presence) })), LC.ibtn('video', t('videoCallWith', { name: LC.uname(u.id) }), async () => { await LC.openChat(dm); LC.startCall(dm, 'video'); }), LC.ibtn('call', t('voiceCallWith', { name: LC.uname(u.id) }), async () => { await LC.openChat(dm); LC.startCall(dm, 'voice'); })); }),
+    head(t('people')), ...people.map((u) => { const dm = LC.dmId(S.me.id, u.id); return el('div', { class: 'callrow' }, LC.avatar(u, '', true), el('span', { class: 'itext' }, el('b', { class: 'name', text: LC.uname(u.id) }), el('span', { class: 'prev', text: LC.presenceLabel(u.presence) })), LC.ibtn('video', t('videoCallWith', { name: LC.uname(u.id) }), async () => { await LC.openChat(dm); LC.startCall(dm, 'video'); }), LC.ibtn('call', t('voiceCallWith', { name: LC.uname(u.id) }), async () => { await LC.openChat(dm); LC.startCall(dm, 'voice'); })); }),
     ...(people.length ? [] : [el('div', { class: 'empty small', text: t('nobodyYet') })]));
   }
   async function renderSaved(nav) {
@@ -98,7 +103,7 @@
   });
   function renderMe() {
     const box = $('#meBox'); if (!box || !S.me) return; const m = S.me;
-    box.replaceChildren(el('button', { class: 'meb', onclick: (e) => LC.profileMenu(e.currentTarget), 'aria-label': t('myStatus') + ': ' + m.name, title: m.name + ' · ' + (m.statusText || t(m.presence === 'invisible' ? 'invisible' : m.presence)), 'aria-haspopup': 'menu' }, LC.avatar(m, '', true)));
+    box.replaceChildren(el('button', { class: 'meb', onclick: (e) => LC.profileMenu(e.currentTarget), 'aria-label': t('myStatus') + ': ' + m.name, title: m.name + ' · ' + (m.statusText || LC.presenceLabel(m.presence)), 'aria-haspopup': 'menu' }, LC.avatar(m, '', true)));
   }
   function presenceMenu(anchor) {
     const set = (state) => LC.api('/api/presence', { state }).catch((e) => LC.toast(e.message)), cur = S.me.presence;
@@ -130,7 +135,7 @@
     const i = LC.chanInfo(S.chan); if (!S.chan || S.app) return;
     $('#title').textContent = LC.chatTitle ? LC.chatTitle(S.chan) : i.title; $('#headAvatar').replaceChildren(LC.chatLead(S.chan)); const topic = $('#topic');
     if (LC.isSelfChat && LC.isSelfChat(S.chan)) topic.replaceChildren(t('cx_notesToSelf'));
-    else if (i.kind === 'dm') { const u = i.peer; topic.replaceChildren(u ? (u.presence !== 'offline' ? t(u.presence) : u.lastSeen ? t('lastSeen', { when: LC.fmtDateTime(u.lastSeen) }) : t('offline')) + (u.statusText ? ' · ' + (u.statusEmoji || '') + ' ' + u.statusText : '') : ''); }
+    else if (i.kind === 'dm') { const u = i.peer; topic.replaceChildren(u ? (u.presence !== 'offline' ? LC.presenceLabel(u.presence) : u.lastSeen ? t('lastSeen', { when: LC.fmtDateTime(u.lastSeen) }) : t('offline')) + (u.statusText ? ' · ' + (u.statusEmoji || '') + ' ' + u.statusText : '') : ''); }
     else if (i.c && i.c.members) topic.replaceChildren(t('peopleCount', { n: i.c.members.length }) + ' · ' + i.c.members.map(LC.uname).join(', '));
     else { const bits = []; if (i.topic) bits.push(i.topic); if (i.c && i.c.readonly) bits.push(el('span', { class: 'tbit' }, LC.icon('megaphone'), t('announcements'))); if (i.c && i.c.slow) bits.push(el('span', { class: 'tbit' }, LC.icon('animal_turtle'), t('slowMode', { n: i.c.slow }))); if (i.c && i.c.ttl) bits.push(el('span', { class: 'tbit' }, LC.icon('timer'), LC.ttlLabel(i.c.ttl))); topic.replaceChildren(...bits.flatMap((b, k) => (k ? [' · ', b] : [b]))); }
     const acts = $('#headActions'), live = S.calls[S.chan], group = !!(i.c && LC.isGroupChat && LC.isGroupChat(i.c));

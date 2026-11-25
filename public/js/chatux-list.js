@@ -67,7 +67,7 @@
   function navItem(e, o = {}) {
     const id = e.id, un = S.unread[id] || 0, mn = S.mentions[id] || 0, flagged = !!cx().unread[id], muted = LC.isMuted(id), last = S.last[id], draft = S.chan === id && LC.composers.main ? '' : draftOf(id);
     const hide = !!LC.prefs().hidePreviews, name = entryName(e);
-    const fallback = e.kind === 'dm' ? (e.self ? t('cx_notesToSelf') : e.u.statusText ? (e.u.statusEmoji || '') + ' ' + e.u.statusText : t(e.u.presence)) : e.type === 'meeting' ? t('cx_meetingChat') : e.type === 'channel' ? e.c.topic || '' : '';
+    const fallback = e.kind === 'dm' ? (e.self ? t('cx_notesToSelf') : e.u.statusText ? (e.u.statusEmoji || '') + ' ' + e.u.statusText : LC.presenceLabel(e.u.presence)) : e.type === 'meeting' ? t('cx_meetingChat') : e.type === 'channel' ? e.c.topic || '' : '';
     const prevNode = draft ? el('span', { class: 'prev cx-draft' }, LC.icon('edit', { cls: 'cx-pencil' }), el('b', { text: t('cx_draft') + ' ' }), draft.split('\n')[0].slice(0, 80)) : hide && last ? null : el('span', { class: 'prev', text: previewOf(id) || fallback });
     const badge = mn ? el('span', { class: 'badge mention', text: '@' + mn, 'aria-label': t('unreadMentions', { n: mn }) }) : un && !muted ? el('span', { class: 'badge', text: un > 99 ? '99+' : un, 'aria-label': t('unreadMsgs', { n: un }) }) : un || flagged ? el('span', { class: 'dotmark' + (flagged ? ' cx-flag' : ''), role: 'img', 'aria-label': flagged ? t('cx_markUnread') : t('unreadMsgs', { n: un }) }) : null;
     const main = el('button', { class: 'itemmain', 'aria-current': S.chan === id ? 'page' : null, onclick: () => LC.openChat(id) }, LC.chatLead(id),

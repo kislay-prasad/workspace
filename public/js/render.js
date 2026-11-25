@@ -324,7 +324,7 @@
       body.append(el('button', { class: 'thread-sum' + (fresh ? ' cx-fresh' : ''), onclick: () => LC.openThread(m) }, LC.icon('comment'), ' ' + t('replies', { n: m.threadCount }), fresh ? el('span', { class: 'cx-newpill', text: t('cx_newReplies', { n: fresh }), title: t('cx_newRepliesLong', { n: fresh }) }) : null, el('span', { class: 'muted', text: ' · ' + LC.ago(m.threadLast || m.ts) })));
     }
     const tk = LC.tickState(m); let status = null;
-    if (tk) status = el('span', { class: 'ticks ' + tk, 'aria-label': t('tick_' + tk), title: t('tick_' + tk) }, LC.icon(tk === 'seen' ? 'eye' : 'checkmark_circle', { filled: tk === 'delivered' }));
+    if (tk) status = el('span', { class: 'ticks ' + tk, role: 'img', 'aria-label': t('tick_' + tk), title: t('tick_' + tk) }, LC.icon(tk === 'seen' ? 'eye' : 'checkmark_circle', { filled: tk === 'delivered' }));
     else if (o.lastMine) { const n = LC.groupSeen(m); if (n) status = el('span', { class: 'seenby small muted' }, LC.icon('eye'), ' ' + t('seenBy', { n })); }
     // hover bar: quick reactions (animated), more reactions, reply in thread, quote, more
     const react = (e) => LC.api('/api/react', { id: m.id, emoji: e }).catch((x) => LC.toast(x.message));
