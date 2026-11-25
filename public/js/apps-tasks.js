@@ -77,7 +77,7 @@
   // ---------- small pieces ----------
   const prioIcon = (x) => (PRIO_ICON[x.priority] ? el('span', { class: 'ap-prio p-' + x.priority, title: t('ap_pr_' + x.priority) }, LC.icon(PRIO_ICON[x.priority], { filled: x.priority !== 'low', label: t('ap_priority') + ': ' + t('ap_pr_' + x.priority) })) : null);
   const dueChip = (x) => (x.due ? el('span', { class: 'ap-chip' + (late(x) ? ' late' : x.done ? ' done' : ''), title: t('ap_due') + ': ' + LC.fmtDateTime(x.due) }, LC.icon('calendar_ltr'), A.fmtDue(x.due)) : null);
-  const labelChips = (x) => (x.labels.length && P.plan ? el('div', { class: 'ap-clabels' }, ...x.labels.map((id) => { const l = P.plan.labels.find((y) => y.id === id); return l ? el('span', { class: 'ap-label', style: { '--lc': l.color }, text: l.name || ' ', title: labelName(l), 'aria-label': labelName(l) }) : null; })) : null);
+  const labelChips = (x) => (x.labels.length && P.plan ? el('div', { class: 'ap-clabels' }, ...x.labels.map((id) => { const l = P.plan.labels.find((y) => y.id === id); return l ? el('span', { class: 'ap-label', style: '--lc:' + l.color, text: l.name || ' ', title: labelName(l), 'aria-label': labelName(l) }) : null; })) : null);
   const completeBox = (x, can) => el('input', { type: 'checkbox', class: 'ap-round', checked: !!x.done, disabled: !can, 'aria-label': (x.done ? t('ap_markUndone') : t('ap_markDone')) + ': ' + x.text, title: x.done ? t('ap_markUndone') : t('ap_markDone'), onclick: (e) => e.stopPropagation(), onchange: () => setDone(x, !x.done) });
   const setDone = (x, done) => { x.done = done; x.progress = done ? 'completed' : 'notstarted'; redraw(); return call('update', { id: x.id, set: { progress: x.progress } }); };
   function cardMenu(anchor, x) {
@@ -188,7 +188,7 @@
     el('button', { class: 'secondary sm', text: t('ap_clearFilter'), onclick: () => { P.filter = {}; A.closePop(); draw(); } })), { label: t('ap_filter') });
   }
   function labelsDialog() {
-    const rows = P.plan.labels.map((l, i) => { const inp = el('input', { value: l.name, maxlength: 40, placeholder: LABEL_NAMES[i], 'aria-label': t('ap_labelN', { n: i + 1 }) }); inp.addEventListener('change', () => planCall('label', { id: l.id, name: inp.value }).then((r) => { if (r) { P.plan = r.plan; draw(); } })); return el('div', { class: 'ap-lrow' }, el('span', { class: 'ap-label', style: { '--lc': l.color } }, LABEL_NAMES[i]), inp); });
+    const rows = P.plan.labels.map((l, i) => { const inp = el('input', { value: l.name, maxlength: 40, placeholder: LABEL_NAMES[i], 'aria-label': t('ap_labelN', { n: i + 1 }) }); inp.addEventListener('change', () => planCall('label', { id: l.id, name: inp.value }).then((r) => { if (r) { P.plan = r.plan; draw(); } })); return el('div', { class: 'ap-lrow' }, el('span', { class: 'ap-label', style: '--lc:' + l.color }, LABEL_NAMES[i]), inp); });
     A.modal(t('ap_editLabels'), 'tag', rows, [el('button', { class: 'primary', text: t('ap_done'), onclick: LC.closeModal })], { wide: false });
   }
   function draw() {
@@ -202,7 +202,7 @@
       LC.ibtn('more_horizontal', t('ap_more'), (e) => LC.menu(e.currentTarget, [{ icon: 'tag', label: t('ap_editLabels'), fn: labelsDialog, disabled: !can }, { icon: 'arrow_download', label: t('ap_exportCsv'), fn: exportCsv }]), { menu: true }));
     const body = el('div', { class: 'ap-tbody' + (P.view === 'board' ? ' board' : '') }, P.view === 'list' ? listView(can) : P.view === 'charts' ? chartsView() : boardView(can));
     const none = !P.tasks.length ? A.empty('task_list_ltr', t('ap_noTasks'), t('ap_noTasksHelp')) : !P.tasks.some(passes) ? el('p', { class: 'muted pad', text: t('ap_nothingMatches') }) : null;
-    host.replaceChildren(el('div', { class: 'ap-tasks' }, A.head('task_list_ltr', t('ap_tasks'), el('span', { class: 'muted small', text: t('tasksLeft', { n: P.tasks.filter((x) => !x.done).length }) })), can ? quickAdd() : el('p', { class: 'notice', text: t('ap_readonly') }), bar, none && P.view !== 'board' ? none : null, body, none && P.view === 'board' && !P.tasks.length ? none : null));
+    A.put(host, el('div', { class: 'ap-tasks' }, A.head('task_list_ltr', t('ap_tasks'), el('span', { class: 'muted small', text: t('tasksLeft', { n: P.tasks.filter((x) => !x.done).length }) })), can ? quickAdd() : el('p', { class: 'notice', text: t('ap_readonly') }), bar, none && P.view !== 'board' ? none : null, body, none && P.view === 'board' && !P.tasks.length ? none : null));
     const nb = host.querySelector('.ap-tbody'); if (keep && nb) { nb.scrollLeft = keep[0]; nb.scrollTop = keep[1]; }
     if (fk && fk.id) { const again = host.querySelector(`[data-id="${fk.id}"] .ap-copen, [data-id="${fk.id}"] .ap-tlink`); if (again) again.focus(); }
   }
@@ -231,7 +231,7 @@
     title.addEventListener('change', () => { if (title.value.trim() && title.value !== x.text) set({ title: title.value }); });
     title.addEventListener('keydown', (e) => { if (e.key === 'Enter') title.blur(); });
     const who = A.peoplePick({ people: people(), value: x.assignees, label: t('ap_assignedTo'), disabled: !can, onChange: (v) => set({ assignees: v }) });
-    const labels = el('div', { class: 'ap-dlabels' }, ...x.labels.map((id) => { const l = P.plan.labels.find((y) => y.id === id); return l ? el('span', { class: 'ap-label big', style: { '--lc': l.color } }, el('span', { text: labelName(l) }), can ? el('button', { type: 'button', class: 'ap-lx', 'aria-label': t('ap_remove') + ': ' + labelName(l), onclick: () => set({ labels: x.labels.filter((y) => y !== id) }) }, LC.icon('dismiss')) : null) : null; }),
+    const labels = el('div', { class: 'ap-dlabels' }, ...x.labels.map((id) => { const l = P.plan.labels.find((y) => y.id === id); return l ? el('span', { class: 'ap-label big', style: '--lc:' + l.color }, el('span', { text: labelName(l) }), can ? el('button', { type: 'button', class: 'ap-lx', 'aria-label': t('ap_remove') + ': ' + labelName(l), onclick: () => set({ labels: x.labels.filter((y) => y !== id) }) }, LC.icon('dismiss')) : null) : null; }),
       can ? el('button', { type: 'button', class: 'secondary sm withicon', 'aria-haspopup': 'menu', onclick: (e) => LC.menu(e.currentTarget, P.plan.labels.map((l, i) => ({ label: labelName(l, i), checked: x.labels.includes(l.id), fn: () => set({ labels: x.labels.includes(l.id) ? x.labels.filter((y) => y !== l.id) : [...x.labels, l.id] }) })).concat(['sep', { icon: 'edit', label: t('ap_editLabels'), fn: labelsDialog }])) }, LC.icon('tag'), el('span', { text: t('ap_labels') })) : null);
     const sel = (opts, v, f, label) => { const s = A.select(opts, v, f, label); s.disabled = !can; return A.field(label, s); };
     const date = (v, label, key) => { const i = A.dateInput(v, label); i.disabled = !can; i.addEventListener('change', () => set({ [key]: i.value ? A.fromDay(i.value) + (key === 'due' ? 17 : 9) * 3600000 : 0 })); return A.field(label, i); };
@@ -248,7 +248,7 @@
     const fileIn = el('input', { type: 'file', class: 'hidden', onchange: async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const up = await LC.upload(f, f.name).promise; await call('attach', { id: x.id, file: { id: up.id } }); } catch (er) { A.fail(er); } } });
     const comment = el('textarea', { rows: 2, maxlength: 2000, placeholder: t('ap_addComment'), 'aria-label': t('ap_addComment'), disabled: !can });
     const comments = el('div', { class: 'ap-comments' }, ...[...x.comments].reverse().map((c) => el('div', { class: 'ap-comment' }, LC.avatar(S.users.get(c.by), 'sm'), el('div', { class: 'grow' }, el('div', { class: 'ap-cmhead' }, el('b', { text: LC.uname(c.by) }), el('time', { class: 'muted small', text: LC.fmtDateTime(c.ts) }), c.by === S.me.id || LC.isAdmin() ? LC.ibtn('delete', t('ap_delete'), () => call('comment', { id: x.id, del: c.id })) : null), el('div', { class: 'ap-cmtext', text: c.text })))));
-    D.node.replaceChildren(
+    A.put(D.node, 
       el('div', { class: 'row-between' }, el('div', { class: 'ap-dtop' }, completeBox(x, can), title), LC.ibtn('dismiss', t('ap_close'), LC.closeModal)),
       el('div', { class: 'ap-dsub muted small' }, el('span', { text: t('ap_inChat', { where: A.chatTitle(D.chan) }) }), ' · ', el('span', { text: t('ap_createdBy', { name: LC.uname(x.by), when: LC.fmtDateTime(x.ts) }) })),
       el('div', { class: 'ap-row ap-dwho' }, who, labels),
@@ -270,8 +270,8 @@
   // ---------- the Tasks tab ----------
   A.tab({ key: 'todos', icon: 'task_list_ltr', label: () => t('tabTodos'), desc: () => t('ap_tasksDesc'), order: 27,
     async render(host, chan) {
-      P.host = host; host.replaceChildren(el('p', { class: 'muted pad', text: t('ap_loading') }));
-      try { await load(chan); } catch (e) { return host.replaceChildren(el('p', { class: 'err pad', text: e.message })); }
+      P.host = host; A.put(host, el('p', { class: 'muted pad', text: t('ap_loading') }));
+      try { await load(chan); } catch (e) { return A.put(host, el('p', { class: 'err pad', text: e.message })); }
       if (S.chan !== chan) return; draw();
     } });
 
@@ -287,9 +287,9 @@
     const row = (x) => el('div', { class: 'ap-mrow todo' + (x.done ? ' done' : '') + (x.late ? ' late' : ''), role: 'listitem', 'data-id': x.id },
       el('input', { type: 'checkbox', class: 'ap-round', checked: !!x.done, 'aria-label': (x.done ? t('ap_markUndone') : t('ap_markDone')) + ': ' + x.text, onchange: async () => { x.done = !x.done; drawMine(); await A.call('/api/ap/task', { chan: x.chan, op: 'update', id: x.id, set: { progress: x.done ? 'completed' : 'notstarted' } }); refreshMine(); } }),
       el('button', { type: 'button', class: 'ap-mopen', onclick: () => details(x.id, x.chan) }, el('span', { class: 'ap-mtitle', text: x.text }), el('span', { class: 'muted small', text: A.chatTitle(x.chan) + (x.bucketName ? ' · ' + x.bucketName : '') })),
-      x.labelDefs && x.labelDefs.length ? el('span', { class: 'ap-clabels' }, ...x.labelDefs.map((l) => el('span', { class: 'ap-label', style: { '--lc': l.color }, text: l.name || ' ', title: l.name })) ) : null,
+      x.labelDefs && x.labelDefs.length ? el('span', { class: 'ap-clabels' }, ...x.labelDefs.map((l) => el('span', { class: 'ap-label', style: '--lc:' + l.color, text: l.name || ' ', title: l.name })) ) : null,
       prioIcon(x), x.progress === 'inprogress' ? LC.icon('circle_half_fill', { label: t('ap_p_inprogress') }) : null, dueChip(x));
-    host.replaceChildren(el('div', { class: 'ap-page' },
+    A.put(host, el('div', { class: 'ap-page' },
       el('div', { class: 'ap-tbar' }, A.seg([['active', t('ap_active')], ['done', t('ap_p_completed')], ['all', t('ap_all')]], M.show, (v) => { M.show = v; drawMine(); }, t('ap_myTasks')), el('span', { class: 'grow' }),
         el('label', { class: 'ap-inline' }, el('span', { class: 'small muted', text: t('ap_groupBy') }), A.select([['due', t('ap_due')], ['plan', t('ap_plan')], ['priority', t('ap_priority')]], M.group, (v) => { M.group = v; drawMine(); }, t('ap_groupBy')))),
       list.length ? el('div', { class: 'ap-mlist' }, ...groupsOf.filter((g) => g.items.length).map((g) => el('section', { class: 'ap-mgroup', 'aria-label': g.label }, el('h3', {}, g.label, el('span', { class: 'ap-count', text: String(g.items.length) })), el('div', { role: 'list' }, ...g.items.sort((a, b) => (a.due || 9e15) - (b.due || 9e15)).map(row)))))
@@ -301,10 +301,10 @@
     pane: {
       render(nav) {
         const item = (label, icon, on, fn, n) => el('button', { class: 'ap-navitem' + (on ? ' on' : ''), 'aria-current': on ? 'page' : null, onclick: fn }, LC.icon(icon), el('span', { class: 'grow', text: label }), n ? el('span', { class: 'ap-count', text: String(n) }) : null);
-        nav.replaceChildren(item(t('ap_myTasks'), 'person', true, () => LC.openApp('ap_tasks'), M.tasks.filter((x) => !x.done).length), el('div', { class: 'ap-navsec', text: t('ap_plans') }),
+        A.put(nav, item(t('ap_myTasks'), 'person', true, () => LC.openApp('ap_tasks'), M.tasks.filter((x) => !x.done).length), el('div', { class: 'ap-navsec', text: t('ap_plans') }),
           ...M.plans.map((p) => item(A.chatTitle(p.chan), 'task_list_ltr', false, async () => { await LC.openChat(p.chan); LC.setTab('todos'); }, p.open)));
       },
-      async main(host) { M.host = host; P.onClose = () => refreshMine(); host.replaceChildren(el('p', { class: 'muted pad', text: t('ap_loading') })); try { await loadMine(); } catch (e) { return host.replaceChildren(el('p', { class: 'err pad', text: e.message })); } drawMine(); LC.renderNav(); },
+      async main(host) { M.host = host; P.onClose = () => refreshMine(); A.put(host, el('p', { class: 'muted pad', text: t('ap_loading') })); try { await loadMine(); } catch (e) { return A.put(host, el('p', { class: 'err pad', text: e.message })); } drawMine(); LC.renderNav(); },
     } });
   A.openers.tasks = async (a) => { const id = a.ref && a.ref.id; if (a.chan) { await LC.openChat(a.chan); LC.setTab('todos'); if (id) setTimeout(() => details(id, a.chan), 150); } };
 })();

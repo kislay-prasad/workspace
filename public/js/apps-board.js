@@ -117,7 +117,7 @@
     const cv = el('canvas', { class: 'boardcv', tabindex: '0', role: 'application', 'aria-roledescription': t('ap_wb'), 'aria-label': t('ap_wbCanvas') }), g = cv.getContext('2d');
     const stage = el('div', { class: 'ap-wbstage' }, cv), bar = el('div', { class: 'ap-wbbar', role: 'toolbar', 'aria-label': t('ap_wb') }), zoomBar = el('div', { class: 'ap-wbzoom', role: 'toolbar', 'aria-label': t('ap_wbFit') });
     const root = el('div', { class: 'ap-fillbox ap-wb' }, bar, el('div', { class: 'ap-wbmain' }, stage, zoomBar));
-    host.replaceChildren(root);
+    A.put(host, root);
     let dpr = 1, cw = 0, ch = 0;
     const resize = () => { const r = stage.getBoundingClientRect(); dpr = window.devicePixelRatio || 1; cw = Math.max(1, Math.round(r.width)); ch = Math.max(1, Math.round(r.height)); cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr); if (!W.fitted && W.loaded) fit(true); redraw(); };
     const ro = new ResizeObserver(() => resize()); ro.observe(stage);
@@ -163,7 +163,7 @@
     const delObjs = (list, record = true) => { const ids = new Set(list.map((o) => o.id)); W.objs = W.objs.filter((o) => !ids.has(o.id)); for (const i of ids) W.sel.delete(i); if (record) { W.undo.push({ type: 'del', objs: list }); W.redo = []; } redraw(); return post({ op: 'del', ids: [...ids] }); };
     const undo = () => { const a = W.undo.pop(); if (!a) return; W.redo.push(a); if (a.type === 'add') delObjs(a.objs, false); else if (a.type === 'del') addObjs(a.objs.map((o) => ({ ...o })), false); else updObjs(a.after, a.before, false); };
     const redo = () => { const a = W.redo.pop(); if (!a) return; W.undo.push(a); if (a.type === 'add') addObjs(a.objs.map((o) => ({ ...o })), false); else if (a.type === 'del') delObjs(a.objs, false); else updObjs(a.before, a.after, false); };
-    async function reload() { try { const d = await LC.api('/api/collab?chan=' + encodeURIComponent(chan)); W.objs = d.board || []; W.loaded = true; if (!W.fitted && cw > 1) fit(true); redraw(); } catch (e) { stage.replaceChildren(el('p', { class: 'err pad', text: e.message })); } }
+    async function reload() { try { const d = await LC.api('/api/collab?chan=' + encodeURIComponent(chan)); W.objs = d.board || []; W.loaded = true; if (!W.fitted && cw > 1) fit(true); redraw(); } catch (e) { A.put(stage, el('p', { class: 'err pad', text: e.message })); } }
 
     // ----- live -----
     const api = {
@@ -306,9 +306,9 @@
       drawBar();
     }
     function drawBar() {
-      if (!can()) { bar.replaceChildren(tb('select', 'cursor', t('ap_wbSelect')), tb('pan', 'hand_left', t('ap_wbPan')), el('span', { class: 'muted small ap-wbro', text: t('ap_wbReadonly') }), el('span', { class: 'grow' }), exportBtn()); return; }
+      if (!can()) { A.put(bar, tb('select', 'cursor', t('ap_wbSelect')), tb('pan', 'hand_left', t('ap_wbPan')), el('span', { class: 'muted small ap-wbro', text: t('ap_wbReadonly') }), el('span', { class: 'grow' }), exportBtn()); return; }
       const shapeIcon = (SHAPES.find((s) => s[0] === W.shape) || SHAPES[0])[1];
-      bar.replaceChildren(
+      A.put(bar, 
         el('div', { class: 'ap-wbgrp' }, tb('select', 'cursor', t('ap_wbSelect') + ' (V)'), tb('pan', 'hand_left', t('ap_wbPan') + ' (H)')),
         el('div', { class: 'ap-wbgrp' }, tb('pen', 'pen', t('ap_wbPen') + ' (P)'), tb('hl', 'highlight', t('ap_wbHl')), tb('eraser', 'eraser', t('ap_wbEraser') + ' (E)')),
         el('div', { class: 'ap-wbgrp ap-wbcolors' }, ...COLORS.map((c) => el('button', { type: 'button', class: 'swatch' + (W.color === c ? ' on' : ''), style: { background: c }, 'aria-pressed': String(W.color === c), 'aria-label': t('ap_wbColor', { c }), title: t('ap_wbColor', { c }), onclick: () => applyColor(c) })),
@@ -329,7 +329,7 @@
     const exportBtn = () => LC.ibtn('arrow_download', t('ap_wbExport') + '…', (e) => LC.menu(e.currentTarget, [{ icon: 'image', label: t('ap_wbPng'), fn: () => exportAs('png') }, { icon: 'document_pdf', label: t('ap_wbPdf'), fn: () => exportAs('pdf') }]), { menu: true });
     function drawSelBar() {
       const sel = W.objs.filter((o) => W.sel.has(o.id));
-      selBar.replaceChildren(...(sel.length && can() ? [LC.ibtn('copy_select', t('ap_wbDup'), () => { const copies = sel.map((o) => ({ ...moved(o, 24, 24), id: nid(), by: S.me.id })); addObjs(copies); W.sel = new Set(copies.map((o) => o.id)); drawSelBar(); redraw(); }),
+      A.put(selBar, ...(sel.length && can() ? [LC.ibtn('copy_select', t('ap_wbDup'), () => { const copies = sel.map((o) => ({ ...moved(o, 24, 24), id: nid(), by: S.me.id })); addObjs(copies); W.sel = new Set(copies.map((o) => o.id)); drawSelBar(); redraw(); }),
         LC.ibtn('arrow_up', t('ap_wbFront'), () => { const ids = sel.map((o) => o.id); W.objs = [...W.objs.filter((o) => !W.sel.has(o.id)), ...sel]; redraw(); post({ op: 'front', ids }); }),
         LC.ibtn('arrow_down', t('ap_wbBack'), () => { const ids = sel.map((o) => o.id); W.objs = [...sel, ...W.objs.filter((o) => !W.sel.has(o.id))]; redraw(); post({ op: 'back', ids }); }),
         LC.ibtn('delete', t('ap_wbDelSel'), () => { delObjs(sel); drawSelBar(); })] : []));

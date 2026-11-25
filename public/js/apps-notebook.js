@@ -65,7 +65,7 @@
     const ed = el('div', { class: 'ap-nbedit', contenteditable: 'false', role: 'textbox', 'aria-multiline': 'true', 'aria-label': t('ap_pageBody'), spellcheck: 'true' });
     const pageBox = el('div', { class: 'ap-nbpage' }, title, meta, ed), main = el('div', { class: 'ap-nbmain' }, bar, banner, el('div', { class: 'ap-nbscroll' }, pageBox), el('div', { class: 'ap-nbfoot' }, status));
     const root = el('div', { class: 'ap-fillbox ap-nb' }, compact, el('div', { class: 'ap-nbbody' }, side, main));
-    host.replaceChildren(root); host._apLeave = () => flush();
+    A.put(host, root); host._apLeave = () => flush();
     const curSec = () => N.tree.find((s) => s.id === N.sec), allPages = () => N.tree.flatMap((s) => s.pages.map((p) => ({ ...p, sec: s.id })));
     const nb = (op, body) => A.call('/api/ap/nb', { chan, op, ...body }).then((r) => { if (r && r.tree) { N.tree = r.tree; drawSide(); } return r; });
 
@@ -75,13 +75,13 @@
         w ? LC.ibtn('more_horizontal', t('ap_sectionMenu', { name: s.name }), (e) => secMenu(e.currentTarget, s, i), { cls: 'icon ap-nbkebab', menu: true }) : null);
       const pageRow = (p, i) => el('div', { class: 'ap-nbprow' + (p.id === N.page ? ' on' : '') }, el('button', { type: 'button', class: 'ap-nbpbtn', 'aria-current': p.id === N.page ? 'true' : null, onclick: () => openPage(p.id) }, el('span', { class: 'ap-nbptitle', text: p.title || t('ap_untitled') }), el('span', { class: 'muted small', text: A.fmtDay(p.ts) })),
         w ? LC.ibtn('more_horizontal', t('ap_pageMenu', { name: p.title || t('ap_untitled') }), (e) => pageMenu(e.currentTarget, p, i), { cls: 'icon ap-nbkebab', menu: true }) : null);
-      side.replaceChildren(
+      A.put(side, 
         el('div', { class: 'ap-nbcol' }, el('div', { class: 'ap-nbhead' }, el('h3', { text: t('ap_sections') }), w ? LC.ibtn('add', t('ap_addSection'), addSection) : null), el('div', { class: 'ap-nblist' }, ...N.tree.map(secRow))),
         el('div', { class: 'ap-nbcol' }, el('div', { class: 'ap-nbhead' }, el('h3', { text: sec ? sec.name : t('ap_pages') }), w && sec ? LC.ibtn('add', t('ap_addPage'), addPage) : null), el('div', { class: 'ap-nblist' }, ...(sec ? sec.pages.map(pageRow) : []))));
-      compact.replaceChildren(A.select(N.tree.map((s) => [s.id, s.name]), N.sec || '', (v) => openSection(v), t('ap_sections')), A.select((sec ? sec.pages : []).map((p) => [p.id, p.title || t('ap_untitled')]), N.page || '', (v) => openPage(v), t('ap_pages')), w ? LC.ibtn('add', t('ap_addPage'), addPage, { disabled: !sec }) : null, w ? LC.ibtn('more_horizontal', t('ap_more'), (e) => LC.menu(e.currentTarget, [{ icon: 'add', label: t('ap_addSection'), fn: addSection }, sec ? { icon: 'edit', label: t('ap_rename') + ': ' + sec.name, fn: () => renameSection(sec) } : null]), { menu: true }) : null);
+      A.put(compact, A.select(N.tree.map((s) => [s.id, s.name]), N.sec || '', (v) => openSection(v), t('ap_sections')), A.select((sec ? sec.pages : []).map((p) => [p.id, p.title || t('ap_untitled')]), N.page || '', (v) => openPage(v), t('ap_pages')), w ? LC.ibtn('add', t('ap_addPage'), addPage, { disabled: !sec }) : null, w ? LC.ibtn('more_horizontal', t('ap_more'), (e) => LC.menu(e.currentTarget, [{ icon: 'add', label: t('ap_addSection'), fn: addSection }, sec ? { icon: 'edit', label: t('ap_rename') + ': ' + sec.name, fn: () => renameSection(sec) } : null]), { menu: true }) : null);
       if (!N.tree.length) main.classList.add('ap-nbnone'); else main.classList.remove('ap-nbnone');
-      if (!N.tree.length) pageBox.replaceChildren(A.empty('notebook', t('ap_nbEmpty'), t('ap_nbEmptyHelp'), w ? el('button', { class: 'primary', text: t('ap_nbStart'), onclick: async () => { const r = await nb('addsec', { name: t('ap_newSection') + ' 1' }); if (r) { await nb('addpage', { sec: r.id, title: '' }); openSection(r.id); } } }) : null));
-      else if (!pageBox.contains(ed)) pageBox.replaceChildren(title, meta, ed);
+      if (!N.tree.length) A.put(pageBox, A.empty('notebook', t('ap_nbEmpty'), t('ap_nbEmptyHelp'), w ? el('button', { class: 'primary', text: t('ap_nbStart'), onclick: async () => { const r = await nb('addsec', { name: t('ap_newSection') + ' 1' }); if (r) { await nb('addpage', { sec: r.id, title: '' }); openSection(r.id); } } }) : null));
+      else if (!pageBox.contains(ed)) A.put(pageBox, title, meta, ed);
     }
     const renameSection = async (s) => { const n = await LC.prompt(t('ap_rename'), { value: s.name, max: 60 }); if (n && n.trim()) nb('rensec', { id: s.id, name: n }); };
     function secMenu(anchor, s, i) {
@@ -125,7 +125,7 @@
     const flush = () => (N.dirty && N.cur && !N.theirs ? save() : Promise.resolve());
     function conflict(theirs) {
       N.theirs = theirs; status.textContent = '';
-      banner.replaceChildren(LC.icon('warning'), el('span', { class: 'grow', text: t('ap_conflict', { name: LC.uname(theirs.by) }) }),
+      A.put(banner, LC.icon('warning'), el('span', { class: 'grow', text: t('ap_conflict', { name: LC.uname(theirs.by) }) }),
         el('button', { class: 'primary sm', text: t('ap_merge'), onclick: () => { const merged = merge3(N.base, html(), cleanHtml(theirs.html)); ed.innerHTML = merged || '<p><br></p>'; showImages(ed); N.cur.v = theirs.v; N.base = cleanHtml(theirs.html); N.theirs = null; banner.classList.add('hidden'); N.dirty = true; save(); LC.toast(t('ap_merged')); } }),
         el('button', { class: 'secondary sm', text: t('ap_useTheirs'), onclick: () => { N.cur.v = theirs.v; N.cur.by = theirs.by; N.cur.ts = theirs.ts; setContent(theirs.html); if (theirs.title !== undefined) title.value = theirs.title; N.dirty = false; N.theirs = null; banner.classList.add('hidden'); setMeta(); } }),
         el('button', { class: 'secondary sm', text: t('ap_keepMine'), onclick: () => { N.cur.v = theirs.v; N.theirs = null; banner.classList.add('hidden'); N.dirty = true; save(); } }));
@@ -197,10 +197,10 @@
     async function link() { const sel = getSelection(), range = sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null; const u = await LC.prompt(t('ap_linkPrompt'), { value: 'https://', max: 1000 }); if (!u || !/^(https?:\/\/|mailto:)\S+/i.test(u.trim())) return; ed.focus(); if (range) { sel.removeAllRanges(); sel.addRange(range); } if (range && range.collapsed) document.execCommand('insertHTML', false, `<a href="${escA(u.trim())}">${escT(u.trim())}</a>`); else document.execCommand('createLink', false, u.trim()); changed(); }
     const B = (icon, label, fn, key) => { const b = el('button', { type: 'button', class: 'ap-fbtn', title: label, 'aria-label': label, 'data-k': key || null, onmousedown: (e) => e.preventDefault(), onclick: fn }, LC.icon(icon)); return b; };
     function drawBar() {
-      if (!can() || !N.cur) { bar.replaceChildren(); bar.classList.add('hidden'); return; } bar.classList.remove('hidden');
+      if (!can() || !N.cur) { A.put(bar); bar.classList.add('hidden'); return; } bar.classList.remove('hidden');
       const style = A.select([['p', t('ap_fNormal')], ['h1', t('ap_fH1')], ['h2', t('ap_fH2')], ['h3', t('ap_fH3')], ['blockquote', t('ap_fQuote')]], 'p', (v) => exec('formatBlock', v), t('ap_fStyle')); style.classList.add('ap-fstyle');
       const tbl = inTable();
-      bar.replaceChildren(style, el('span', { class: 'ap-fsep' }),
+      A.put(bar, style, el('span', { class: 'ap-fsep' }),
         B('text_bold', t('ap_fBold'), () => exec('bold'), 'bold'), B('text_italic', t('ap_fItalic'), () => exec('italic'), 'italic'), B('text_underline', t('ap_fUnderline'), () => exec('underline'), 'underline'), B('text_strikethrough', t('ap_fStrike'), () => exec('strikeThrough'), 'strikeThrough'),
         B('highlight', t('ap_fHighlight'), () => exec('hiliteColor', '#fff100')), el('span', { class: 'ap-fsep' }),
         B('text_bullet_list_ltr', t('ap_fBullets'), () => exec('insertUnorderedList'), 'insertUnorderedList'), B('text_number_list_ltr', t('ap_fNumbers'), () => exec('insertOrderedList'), 'insertOrderedList'), B('checkbox_checked', t('ap_fTodo'), toggleTodo), el('span', { class: 'ap-fsep' }),
@@ -221,7 +221,7 @@
       N.tree = r.tree; drawSide();
       const want = allPages().find((p) => p.id === N.page) || (curSec() && curSec().pages[0]) || allPages()[0];
       if (want) openPage(want.id); else { N.sec = N.tree[0] ? N.tree[0].id : null; drawSide(); drawBar(); }
-    }).catch((e) => pageBox.replaceChildren(el('p', { class: 'err pad', text: e.message })));
+    }).catch((e) => A.put(pageBox, el('p', { class: 'err pad', text: e.message })));
   }
   A.tab({ key: 'ap_notebook', icon: 'notebook', label: () => t('ap_nb'), desc: () => t('ap_nbDesc'), order: 22, optIn: true, render: (host, chan) => mount(host, chan) });
   A.app({ key: 'ap_nbapp', icon: 'notebook', color: '#7719aa', name: () => t('ap_nb'), desc: () => t('ap_nbDesc'), tab: 'ap_notebook' });

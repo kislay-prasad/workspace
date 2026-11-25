@@ -22,7 +22,7 @@
     let tpl = 'blank'; const name = el('input', { maxlength: 80, placeholder: t('ap_listName'), 'aria-label': t('ap_listName') }), desc = el('input', { maxlength: 500, placeholder: t('ap_description'), 'aria-label': t('ap_description') });
     const where = A.select([['', t('ap_personal')], ...A.allChats().map((c) => [c.id, c.label])], chan || '', null, t('ap_where'));
     const grid = el('div', { class: 'ap-tplgrid', role: 'radiogroup', 'aria-label': t('ap_template') });
-    const draw = () => grid.replaceChildren(...TPL.map((k) => el('button', { type: 'button', role: 'radio', 'aria-checked': String(tpl === k), class: 'ap-tpl' + (tpl === k ? ' on' : ''), onclick: () => { tpl = k; if (!name.value || TPL.some((x) => t('ap_tpl_' + x) === name.value)) name.value = k === 'blank' ? '' : t('ap_tpl_' + k); draw(); } }, el('span', { class: 'ap-tplic', 'aria-hidden': 'true' }, LC.icon(TPLICON[k])), el('b', { text: t('ap_tpl_' + k) }), el('span', { class: 'muted small', text: t('ap_tplD_' + k) }))));
+    const draw = () => A.put(grid, ...TPL.map((k) => el('button', { type: 'button', role: 'radio', 'aria-checked': String(tpl === k), class: 'ap-tpl' + (tpl === k ? ' on' : ''), onclick: () => { tpl = k; if (!name.value || TPL.some((x) => t('ap_tpl_' + x) === name.value)) name.value = k === 'blank' ? '' : t('ap_tpl_' + k); draw(); } }, el('span', { class: 'ap-tplic', 'aria-hidden': 'true' }, LC.icon(TPLICON[k])), el('b', { text: t('ap_tpl_' + k) }), el('span', { class: 'muted small', text: t('ap_tplD_' + k) }))));
     draw();
     A.modal(t('ap_newList'), 'apps_list_detail', [el('h3', { text: t('ap_template') }), grid, A.field(t('ap_listName'), name), A.field(t('ap_description'), desc), A.field(t('ap_where'), where)],
       [el('button', { class: 'secondary', text: t('ap_cancel'), onclick: LC.closeModal }), el('button', { class: 'primary', text: t('ap_newList'), onclick: async () => { if (!name.value.trim()) return name.focus(); const r = await A.call('/api/ap/list/new', { chan: where.value || undefined, name: name.value, desc: desc.value, template: tpl }); if (r) { LC.closeModal(); after && after(r.id, where.value); } } })]);
@@ -32,7 +32,7 @@
   // ---------- value display and editors ----------
   const show = (l, c, v) => {
     if (v === undefined || v === null || v === '') return el('span', { class: 'ap-lempty' });
-    if (c.type === 'choice') { const o = (c.choices || []).find((x) => x.id === v); return o ? el('span', { class: 'ap-lchoice', style: { '--cc': o.c }, text: o.t }) : el('span'); }
+    if (c.type === 'choice') { const o = (c.choices || []).find((x) => x.id === v); return o ? el('span', { class: 'ap-lchoice', style: '--cc:' + o.c, text: o.t }) : el('span'); }
     if (c.type === 'person') return el('span', { class: 'ap-lperson' }, LC.avatar(S.users.get(v), 'xs'), el('span', { text: LC.uname(v) }));
     if (c.type === 'bool') return v ? el('span', { class: 'ap-lbool' }, LC.icon('checkmark', { label: t('ap_yes') })) : el('span', { class: 'muted', text: t('ap_no') });
     if (c.type === 'link') return el('a', { href: v, target: '_blank', rel: 'noopener noreferrer', text: v.replace(/^https?:\/\//, '').slice(0, 60) });
@@ -54,13 +54,13 @@
   // ---------- one list ----------
   function listView(host, id, back) {
     const V = { l: null, q: '', sort: null, dir: 1, group: '', filter: {} };
-    const root = el('div', { class: 'ap-page ap-lview' }); host.replaceChildren(root);
+    const root = el('div', { class: 'ap-page ap-lview' }); A.put(host, root);
     const call = (path, body) => A.call(path, { id, ...body });
     const can = () => V.l && (!V.l.chan || A.writable(V.l.chan));
-    async function load() { try { V.l = (await LC.api('/api/ap/list?id=' + id)).list; draw(); } catch (e) { root.replaceChildren(el('p', { class: 'err', text: e.message }), back ? el('button', { class: 'secondary', text: t('ap_back'), onclick: back }) : null); } }
+    async function load() { try { V.l = (await LC.api('/api/ap/list?id=' + id)).list; draw(); } catch (e) { A.put(root, el('p', { class: 'err', text: e.message }), back ? el('button', { class: 'secondary', text: t('ap_back'), onclick: back }) : null); } }
     A.on('ap_list', (e) => {
       if (e.id !== id || !V.l) return;
-      if (e.op === 'deleted') { LC.toast(t('ap_delList') + ': ' + V.l.name); return back ? back() : root.replaceChildren(); }
+      if (e.op === 'deleted') { LC.toast(t('ap_delList') + ': ' + V.l.name); return back ? back() : A.put(root); }
       if (e.op === 'row') { const i = V.l.rows.findIndex((r) => r.id === e.row.id); if (i >= 0) V.l.rows[i] = e.row; else V.l.rows.push(e.row); }
       else if (e.op === 'delrows') { const ids = new Set(e.rows); V.l.rows = V.l.rows.filter((r) => !ids.has(r.id)); }
       else if (e.op === 'cols') { V.l.cols = e.cols; if (e.rows) V.l.rows = e.rows; }
@@ -85,7 +85,7 @@
     function colDialog(c) {
       const name = el('input', { value: c ? c.name : '', maxlength: 80, 'aria-label': t('ap_colName') }), type = A.select(TYPES.map((x) => [x, t('ap_c_' + x)]), c ? c.type : 'text', () => drawExtra(), t('ap_colType')); type.disabled = !!c;
       let choices = c && c.choices ? c.choices.map((o) => ({ ...o })) : [{ t: '' }, { t: '' }], long = !!(c && c.long); const extra = el('div');
-      const drawExtra = () => extra.replaceChildren(...(type.value === 'choice' ? [el('b', { class: 'small', text: t('ap_choices') }), ...choices.map((o, i) => el('div', { class: 'ap-optrow' }, el('input', { type: 'color', value: o.c || CHOICE_COLORS[i % 8], 'aria-label': t('ap_listColor'), onchange: (e) => { o.c = e.target.value; } }), (() => { const n = el('input', { value: o.t, maxlength: 80, 'aria-label': t('ap_option', { n: i + 1 }) }); n.addEventListener('input', () => { o.t = n.value; }); return n; })(), LC.ibtn('dismiss', t('ap_remove'), () => { choices.splice(i, 1); drawExtra(); }))), el('button', { type: 'button', class: 'link', text: t('ap_addChoice'), onclick: () => { choices.push({ t: '' }); drawExtra(); } })] : type.value === 'text' ? [el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: long, onchange: (e) => { long = e.target.checked; } }), t('ap_longAnswer'))] : []));
+      const drawExtra = () => A.put(extra, ...(type.value === 'choice' ? [el('b', { class: 'small', text: t('ap_choices') }), ...choices.map((o, i) => el('div', { class: 'ap-optrow' }, el('input', { type: 'color', value: o.c || CHOICE_COLORS[i % 8], 'aria-label': t('ap_listColor'), onchange: (e) => { o.c = e.target.value; } }), (() => { const n = el('input', { value: o.t, maxlength: 80, 'aria-label': t('ap_option', { n: i + 1 }) }); n.addEventListener('input', () => { o.t = n.value; }); return n; })(), LC.ibtn('dismiss', t('ap_remove'), () => { choices.splice(i, 1); drawExtra(); }))), el('button', { type: 'button', class: 'link', text: t('ap_addChoice'), onclick: () => { choices.push({ t: '' }); drawExtra(); } })] : type.value === 'text' ? [el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: long, onchange: (e) => { long = e.target.checked; } }), t('ap_longAnswer'))] : []));
       drawExtra();
       A.modal(c ? t('ap_editColumn') : t('ap_addColumn'), CICON[c ? c.type : 'text'], [A.field(t('ap_colName'), name), A.field(t('ap_colType'), type), extra], [el('button', { class: 'secondary', text: t('ap_cancel'), onclick: LC.closeModal }), el('button', { class: 'primary', text: t('ap_save'), onclick: async () => {
         const def = { name: name.value, type: type.value, long, choices: choices.filter((o) => o.t.trim()) };
@@ -107,7 +107,7 @@
       if (!can()) { td.append(show(V.l, c, v)); return td; }
       if (c.type === 'bool') { td.append(el('input', { type: 'checkbox', checked: !!v, 'aria-label': c.name, onchange: (e) => setCell(r, c, e.target.checked) })); return td; }
       const b = el('button', { type: 'button', class: 'ap-lcellbtn', 'aria-label': c.name + ': ' + (textOf(V.l, c, v) || t('ap_empty')) }, show(V.l, c, v));
-      b.addEventListener('click', () => { const ed = editor(V.l, c, v, (nv) => { setCell(r, c, nv).then(() => draw()); }); td.replaceChildren(ed); ed.focus(); ed.addEventListener('blur', () => setTimeout(() => { if (td.contains(ed)) draw(); }, 150)); ed.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); draw(); } else if (e.key === 'Enter' && ed.tagName !== 'TEXTAREA') ed.blur(); }); });
+      b.addEventListener('click', () => { const ed = editor(V.l, c, v, (nv) => { setCell(r, c, nv).then(() => draw()); }); A.put(td, ed); ed.focus(); ed.addEventListener('blur', () => setTimeout(() => { if (td.contains(ed)) draw(); }, 150)); ed.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); draw(); } else if (e.key === 'Enter' && ed.tagName !== 'TEXTAREA') ed.blur(); }); });
       td.append(b); return td;
     }
     function draw() {
@@ -119,14 +119,14 @@
       if (gc) { const keys = [...new Set(rows.map((r) => (r.v[gc.id] === undefined ? '' : String(r.v[gc.id]))))]; for (const k of keys) { const rs = rows.filter((r) => (r.v[gc.id] === undefined ? '' : String(r.v[gc.id])) === k); body.append(el('tr', { class: 'ap-grow' }, el('th', { colspan: l.cols.length + 1, scope: 'colgroup' }, k ? textOf(l, gc, gc.type === 'bool' ? k === 'true' : k) : t('ap_empty'), el('span', { class: 'ap-count', text: String(rs.length) }))), ...rs.map(rowEl)); } }
       else body.append(...rows.map(rowEl));
       const search = el('input', { type: 'search', value: V.q, placeholder: t('ap_searchList'), 'aria-label': t('ap_searchList'), oninput: LC.debounce((e) => { V.q = e.target.value; draw(); const s = root.querySelector('input[type=search]'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }, 250) });
-      root.replaceChildren(
+      A.put(root, 
         el('div', { class: 'ap-lhead' }, back ? LC.ibtn('arrow_left', t('ap_back'), back) : null, el('span', { class: 'ap-navic', style: { background: l.color }, 'aria-hidden': 'true' }, LC.icon('apps_list_detail')), el('div', { class: 'grow' }, el('h2', { text: l.name }), l.desc ? el('div', { class: 'muted small', text: l.desc }) : null), el('span', { class: 'muted small', text: t('ap_itemsN', { n: l.rows.length }) + (l.chan ? ' · ' + A.chatTitle(l.chan) : ' · ' + t('ap_personal')) })),
         el('div', { class: 'ap-tbar' }, ok ? el('button', { class: 'primary sm withicon', onclick: () => itemDialog(null) }, LC.icon('add'), el('span', { text: t('ap_newItem') })) : null, ok ? el('button', { class: 'secondary sm withicon', onclick: () => colDialog(null) }, LC.icon('column_triple_edit'), el('span', { text: t('ap_addColumn') })) : null, el('span', { class: 'grow' }), search,
           el('label', { class: 'ap-inline' }, el('span', { class: 'small muted', text: t('ap_groupBy') }), A.select([['', t('ap_noGroup')], ...l.cols.filter((c) => ['choice', 'person', 'bool', 'date'].includes(c.type)).map((c) => [c.id, c.name])], V.group, (v) => { V.group = v; draw(); }, t('ap_groupBy'))),
           Object.keys(V.filter).length ? el('button', { class: 'secondary sm', text: t('ap_clearFilter'), onclick: () => { V.filter = {}; draw(); } }) : null,
           LC.ibtn('more_horizontal', t('ap_more'), (e) => LC.menu(e.currentTarget, [{ icon: 'arrow_download', label: t('ap_exportCsv'), fn: () => A.saveCsv([l.cols.map((c) => c.name), ...rows.map((r) => l.cols.map((c) => textOf(l, c, r.v[c.id])))], l.name) },
             { icon: 'edit', label: t('ap_listInfo'), disabled: !ok, fn: async () => { const n = await LC.prompt(t('ap_listName'), { value: l.name, max: 80 }); if (n === null) return; const d = await LC.prompt(t('ap_description'), { value: l.desc, max: 500 }); await call('/api/ap/list/meta', { name: n, desc: d === null ? l.desc : d }); load(); } },
-            l.canDelete ? { icon: 'delete', label: t('ap_delList'), danger: true, fn: async () => { if (await LC.confirm(t('ap_confirmDelList', { name: l.name }), { danger: true, ok: t('ap_delete') })) { if (await call('/api/ap/list/delete', {})) back ? back() : root.replaceChildren(); } } } : null]), { menu: true })),
+            l.canDelete ? { icon: 'delete', label: t('ap_delList'), danger: true, fn: async () => { if (await LC.confirm(t('ap_confirmDelList', { name: l.name }), { danger: true, ok: t('ap_delete') })) { if (await call('/api/ap/list/delete', {})) back ? back() : A.put(root); } } } : null]), { menu: true })),
         el('div', { class: 'tablewrap ap-ltable' }, el('table', { class: 'table ap-lgrid', 'aria-label': l.name }, el('thead', {}, head), body)),
         !l.rows.length ? el('p', { class: 'muted pad', text: t('ap_noItems') }) : null);
     }
@@ -139,11 +139,11 @@
     const load = async () => {
       try {
         const d = await LC.api('/api/ap/lists' + (chan ? '?chan=' + encodeURIComponent(chan) : ''));
-        box.replaceChildren(...(d.lists.length ? d.lists.map((l) => el('button', { type: 'button', class: 'ap-lcard', onclick: () => open(l.id) }, el('span', { class: 'ap-navic', style: { background: l.color }, 'aria-hidden': 'true' }, LC.icon('apps_list_detail')), el('span', { class: 'grow' }, el('b', { text: l.name }), el('span', { class: 'muted small', text: t('ap_itemsN', { n: l.n }) + ' · ' + (l.chan ? A.chatTitle(l.chan) : t('ap_personal')) + ' · ' + A.fmtDay(l.updated) })))) : [A.empty('apps_list_detail', t('ap_noLists'), t('ap_noListsHelp'))]));
-      } catch (e) { box.replaceChildren(el('p', { class: 'err', text: e.message })); }
+        A.put(box, ...(d.lists.length ? d.lists.map((l) => el('button', { type: 'button', class: 'ap-lcard', onclick: () => open(l.id) }, el('span', { class: 'ap-navic', style: { background: l.color }, 'aria-hidden': 'true' }, LC.icon('apps_list_detail')), el('span', { class: 'grow' }, el('b', { text: l.name }), el('span', { class: 'muted small', text: t('ap_itemsN', { n: l.n }) + ' · ' + (l.chan ? A.chatTitle(l.chan) : t('ap_personal')) + ' · ' + A.fmtDay(l.updated) })))) : [A.empty('apps_list_detail', t('ap_noLists'), t('ap_noListsHelp'))]));
+      } catch (e) { A.put(box, el('p', { class: 'err', text: e.message })); }
     };
     const can = !chan || A.writable(chan);
-    host.replaceChildren(el('div', { class: 'ap-page' }, A.head('apps_list_detail', chan ? t('ap_lists') : t('ap_allLists'), can ? el('button', { class: 'primary sm withicon', onclick: () => A.newList(chan, (id) => open(id)) }, LC.icon('add'), el('span', { text: t('ap_newList') })) : null), box));
+    A.put(host, el('div', { class: 'ap-page' }, A.head('apps_list_detail', chan ? t('ap_lists') : t('ap_allLists'), can ? el('button', { class: 'primary sm withicon', onclick: () => A.newList(chan, (id) => open(id)) }, LC.icon('add'), el('span', { text: t('ap_newList') })) : null), box));
     A.on('ap_list', (e) => { if (!chan || e.chan === chan) load(); }, box); load();
   }
   A.tab({ key: 'ap_lists', icon: 'apps_list_detail', label: () => t('ap_lists'), desc: () => t('ap_listsDesc'), order: 62, optIn: true,
@@ -152,7 +152,7 @@
   A.app({ key: 'ap_lists', icon: 'apps_list_detail', color: '#c239b3', name: () => t('ap_lists'), desc: () => t('ap_listsDesc'), tab: 'ap_lists', order: 76,
     pane: {
       async render(nav) {
-        nav.replaceChildren(el('button', { class: 'ap-navitem' + (!P.list ? ' on' : ''), onclick: () => { P.list = null; LC.openApp('ap_lists'); LC.renderNav(); } }, LC.icon('apps_list_detail'), el('span', { class: 'grow', text: t('ap_allLists') })), el('div', { class: 'ap-navsec', text: t('ap_myLists') }));
+        A.put(nav, el('button', { class: 'ap-navitem' + (!P.list ? ' on' : ''), onclick: () => { P.list = null; LC.openApp('ap_lists'); LC.renderNav(); } }, LC.icon('apps_list_detail'), el('span', { class: 'grow', text: t('ap_allLists') })), el('div', { class: 'ap-navsec', text: t('ap_myLists') }));
         try { const d = await LC.api('/api/ap/lists'); nav.append(...d.lists.slice(0, 50).map((l) => el('button', { class: 'ap-navitem' + (P.list === l.id ? ' on' : ''), onclick: () => { P.list = l.id; LC.openApp('ap_lists'); LC.renderNav(); } }, el('i', { class: 'ap-ldot', style: { background: l.color } }), el('span', { class: 'grow', text: l.name })))); } catch {}
       },
       main(host) { const open = (id) => { P.list = id; listView(host, id, () => { P.list = null; home(host, '', open); LC.renderNav(); }); }; if (P.list) open(P.list); else home(host, '', open); },

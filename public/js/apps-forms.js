@@ -45,7 +45,7 @@
         LC.ibtn('arrow_up', t('ap_up'), () => { F.qs.splice(i, 1); F.qs.splice(i - 1, 0, q); draw(); }, { disabled: i === 0 }), LC.ibtn('arrow_down', t('ap_down'), () => { F.qs.splice(i, 1); F.qs.splice(i + 1, 0, q); draw(); }, { disabled: i === F.qs.length - 1 }),
         LC.ibtn('delete', t('ap_delQ'), () => { F.qs.splice(i, 1); draw(); }, { disabled: F.qs.length <= 1 })), text, ...extra);
     }
-    const draw = () => box.replaceChildren(...F.qs.map(qCard));
+    const draw = () => A.put(box, ...F.qs.map(qCard));
     const adders = el('div', { class: 'ap-qadd' }, el('span', { class: 'small muted', text: t('ap_addQ') }), ...TYPES.map((ty) => el('button', { type: 'button', class: 'secondary sm withicon', onclick: () => { if (F.qs.length >= 50) return; F.qs.push(newQ(ty)); draw(); setTimeout(() => { const all = box.querySelectorAll('.ap-qtext'); all[all.length - 1].focus(); }, 0); } }, LC.icon(TICON[ty]), el('span', { text: t('ap_q_' + ty) }))));
     const opt = (key, label) => el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: !!F[key], onchange: (e) => { F[key] = e.target.checked; } }), label);
     const save = async (share) => {
@@ -69,13 +69,13 @@
     if (q.type === 'date') { const i = el('input', { type: 'date', value: cur || '', 'aria-label': q.text }); i.addEventListener('change', () => set(i.value)); return i; }
     if (q.type === 'rating') {
       const g = el('div', { class: 'ap-rating' + (q.stars === false ? ' nums' : ''), role: 'radiogroup', 'aria-label': q.text });
-      const draw = (v) => g.replaceChildren(...Array.from({ length: q.max }, (_, i) => el('button', { type: 'button', role: 'radio', 'aria-checked': String(v === i + 1), 'aria-label': `${i + 1} / ${q.max}`, class: v >= i + 1 ? 'on' : '', onclick: () => { set(i + 1); draw(i + 1); } }, q.stars === false ? String(i + 1) : LC.icon('star', { filled: v >= i + 1 }))));
+      const draw = (v) => A.put(g, ...Array.from({ length: q.max }, (_, i) => el('button', { type: 'button', role: 'radio', 'aria-checked': String(v === i + 1), 'aria-label': `${i + 1} / ${q.max}`, class: v >= i + 1 ? 'on' : '', onclick: () => { set(i + 1); draw(i + 1); } }, q.stars === false ? String(i + 1) : LC.icon('star', { filled: v >= i + 1 }))));
       draw(cur || 0); return g;
     }
     if (q.type === 'likert') { const v = { ...(cur || {}) }; return el('div', { class: 'tablewrap' }, el('table', { class: 'table ap-likert' }, el('thead', {}, el('tr', {}, el('th', { text: '' }), ...q.cols.map((c) => el('th', { text: c.t })))), el('tbody', {}, ...q.rows.map((r) => { const nm = name + r.id; return el('tr', {}, el('th', { scope: 'row', text: r.t }), ...q.cols.map((c) => el('td', {}, el('input', { type: 'radio', name: nm, checked: v[r.id] === c.id, 'aria-label': `${r.t}: ${c.t}`, onchange: () => { v[r.id] = c.id; set({ ...v }); } })))); })))); }
     if (q.type === 'ranking') {
       let order = Array.isArray(cur) && cur.length === q.opts.length ? [...cur] : q.opts.map((o) => o.id); const box = el('ol', { class: 'ap-rank' });
-      const draw = () => box.replaceChildren(...order.map((id, i) => el('li', {}, el('span', { class: 'grow', text: (q.opts.find((o) => o.id === id) || {}).t }), LC.ibtn('arrow_up', t('ap_up'), () => { order.splice(i, 1); order.splice(i - 1, 0, id); set([...order]); draw(); box.querySelectorAll('button')[Math.max(0, (i - 1) * 2)].focus(); }, { disabled: i === 0 }), LC.ibtn('arrow_down', t('ap_down'), () => { order.splice(i, 1); order.splice(i + 1, 0, id); set([...order]); draw(); }, { disabled: i === order.length - 1 }))));
+      const draw = () => A.put(box, ...order.map((id, i) => el('li', {}, el('span', { class: 'grow', text: (q.opts.find((o) => o.id === id) || {}).t }), LC.ibtn('arrow_up', t('ap_up'), () => { order.splice(i, 1); order.splice(i - 1, 0, id); set([...order]); draw(); box.querySelectorAll('button')[Math.max(0, (i - 1) * 2)].focus(); }, { disabled: i === 0 }), LC.ibtn('arrow_down', t('ap_down'), () => { order.splice(i, 1); order.splice(i + 1, 0, id); set([...order]); draw(); }, { disabled: i === order.length - 1 }))));
       draw(); set([...order]); return el('div', {}, el('p', { class: 'muted small', text: t('ap_rankHelp') }), box);
     }
     return null;
@@ -158,17 +158,17 @@
   A.tab({ key: 'ap_forms', icon: 'form', label: () => t('ap_forms'), desc: () => t('ap_formsDesc'), order: 60, optIn: true,
     async render(host, chan) {
       const box = el('div', { class: 'ap-flist' });
-      const load = async () => { try { const d = await LC.api('/api/ap/forms?chan=' + encodeURIComponent(chan)); box.replaceChildren(...(d.forms.length ? d.forms.map(formRow) : [A.empty('form', t('ap_noForms'), t('ap_noFormsHelp'))])); } catch (e) { box.replaceChildren(el('p', { class: 'err', text: e.message })); } };
-      host.replaceChildren(el('div', { class: 'ap-page' }, A.head('form', t('ap_forms'), A.writable(chan) ? el('button', { class: 'primary sm withicon', onclick: () => A.editForm(null, chan) }, LC.icon('add'), el('span', { text: t('ap_newForm') })) : null), box));
+      const load = async () => { try { const d = await LC.api('/api/ap/forms?chan=' + encodeURIComponent(chan)); A.put(box, ...(d.forms.length ? d.forms.map(formRow) : [A.empty('form', t('ap_noForms'), t('ap_noFormsHelp'))])); } catch (e) { A.put(box, el('p', { class: 'err', text: e.message })); } };
+      A.put(host, el('div', { class: 'ap-page' }, A.head('form', t('ap_forms'), A.writable(chan) ? el('button', { class: 'primary sm withicon', onclick: () => A.editForm(null, chan) }, LC.icon('add'), el('span', { text: t('ap_newForm') })) : null), box));
       A.on('ap:forms', load, box); A.on('update', (m) => { if (m.chan === chan && m.apCard && m.apCard.kind === 'form') load(); }, box); load();
     } });
   A.app({ key: 'ap_forms', icon: 'form', color: '#038387', name: () => t('ap_forms'), desc: () => t('ap_formsDesc'), tab: 'ap_forms', order: 72,
     pane: {
-      render(nav) { nav.replaceChildren(el('button', { class: 'ap-navitem on', 'aria-current': 'page', onclick: () => LC.openApp('ap_forms') }, LC.icon('form'), el('span', { class: 'grow', text: t('ap_forms') })), el('div', { class: 'pad' }, el('button', { class: 'primary sm withicon', onclick: () => A.editForm(null, null) }, LC.icon('add'), el('span', { text: t('ap_newForm') })))); },
+      render(nav) { A.put(nav, el('button', { class: 'ap-navitem on', 'aria-current': 'page', onclick: () => LC.openApp('ap_forms') }, LC.icon('form'), el('span', { class: 'grow', text: t('ap_forms') })), el('div', { class: 'pad' }, el('button', { class: 'primary sm withicon', onclick: () => A.editForm(null, null) }, LC.icon('add'), el('span', { text: t('ap_newForm') })))); },
       async main(host) {
         const mine = el('div', { class: 'ap-flist' }), shared = el('div', { class: 'ap-flist' });
-        const load = async () => { try { const d = await LC.api('/api/ap/forms'); const a = d.forms.filter((f) => f.mine), b = d.forms.filter((f) => !f.mine); mine.replaceChildren(...(a.length ? a.map(formRow) : [el('p', { class: 'muted', text: t('ap_noFormsHelp') })])); shared.replaceChildren(...(b.length ? b.map(formRow) : [el('p', { class: 'muted', text: '—' })])); } catch (e) { mine.replaceChildren(el('p', { class: 'err', text: e.message })); } };
-        host.replaceChildren(el('div', { class: 'ap-page' }, el('div', { class: 'ap-row' }, el('button', { class: 'primary sm withicon', onclick: () => A.editForm(null, null) }, LC.icon('add'), el('span', { text: t('ap_newForm') }))), el('h3', { text: t('ap_myForms') }), mine, el('h3', { text: t('ap_sharedForms') }), shared));
+        const load = async () => { try { const d = await LC.api('/api/ap/forms'); const a = d.forms.filter((f) => f.mine), b = d.forms.filter((f) => !f.mine); A.put(mine, ...(a.length ? a.map(formRow) : [el('p', { class: 'muted', text: t('ap_noFormsHelp') })])); A.put(shared, ...(b.length ? b.map(formRow) : [el('p', { class: 'muted', text: '—' })])); } catch (e) { A.put(mine, el('p', { class: 'err', text: e.message })); } };
+        A.put(host, el('div', { class: 'ap-page' }, el('div', { class: 'ap-row' }, el('button', { class: 'primary sm withicon', onclick: () => A.editForm(null, null) }, LC.icon('add'), el('span', { text: t('ap_newForm') }))), el('h3', { text: t('ap_myForms') }), mine, el('h3', { text: t('ap_sharedForms') }), shared));
         A.on('ap:forms', load, mine); load();
       },
     } });

@@ -23,7 +23,7 @@
     let file = null; const title = el('input', { maxlength: 200, placeholder: t('ap_apprTitle'), 'aria-label': t('ap_apprTitle') }), details = el('textarea', { rows: 4, maxlength: 4000, placeholder: t('ap_apprDetails'), 'aria-label': t('ap_apprDetails') });
     const where = A.select([['', t('ap_noChat')], ...A.allChats().map((c) => [c.id, c.label])], chan || '', () => { who.set([]); drawWho(); }, t('ap_postIn'));
     const whoBox = el('div'); let who;
-    const drawWho = () => { who = A.peoplePick({ people: (where.value ? A.members(where.value) : A.everyone()), label: t('ap_approvers'), placeholder: t('ap_approvers') }); whoBox.replaceChildren(who); };
+    const drawWho = () => { who = A.peoplePick({ people: (where.value ? A.members(where.value) : A.everyone()), label: t('ap_approvers'), placeholder: t('ap_approvers') }); A.put(whoBox, who); };
     drawWho();
     const mode = el('div', { class: 'ap-achoices', role: 'radiogroup', 'aria-label': t('ap_apprMode') }, el('label', { class: 'check' }, el('input', { type: 'radio', name: 'ap-mode', value: 'all', checked: true }), t('ap_modeAll')), el('label', { class: 'check' }, el('input', { type: 'radio', name: 'ap-mode', value: 'first' }), t('ap_modeFirst')));
     const fileName = el('span', { class: 'muted small' }), fileIn = el('input', { type: 'file', class: 'hidden', onchange: async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; fileName.textContent = t('ap_loading'); try { file = await LC.upload(f, f.name).promise; fileName.textContent = file.name + ' · ' + LC.fmtSize(file.size); } catch (er) { fileName.textContent = ''; A.fail(er); } } });
@@ -76,8 +76,8 @@
   }
   A.tab({ key: 'ap_approvals', icon: 'clipboard_task', label: () => t('ap_approvals'), desc: () => t('ap_apprDesc'), order: 64, optIn: true,
     async render(host, chan) {
-      const list = el('div', { class: 'ap-alist' }), load = async () => { try { const d = await LC.api('/api/ap/approvals?chan=' + encodeURIComponent(chan)); V.box = 'received'; list.replaceChildren(...(d.approvals.length ? d.approvals.map(row) : [A.empty('clipboard_task', t('ap_noAppr'), t('ap_noApprHelp'))])); } catch (e) { list.replaceChildren(el('p', { class: 'err', text: e.message })); } };
-      host.replaceChildren(el('div', { class: 'ap-page' }, A.head('clipboard_task', t('ap_approvals'), A.writable(chan) ? el('button', { class: 'primary sm withicon', onclick: () => A.newApproval(chan) }, LC.icon('add'), el('span', { text: t('ap_newAppr') })) : null), list));
+      const list = el('div', { class: 'ap-alist' }), load = async () => { try { const d = await LC.api('/api/ap/approvals?chan=' + encodeURIComponent(chan)); V.box = 'received'; A.put(list, ...(d.approvals.length ? d.approvals.map(row) : [A.empty('clipboard_task', t('ap_noAppr'), t('ap_noApprHelp'))])); } catch (e) { A.put(list, el('p', { class: 'err', text: e.message })); } };
+      A.put(host, el('div', { class: 'ap-page' }, A.head('clipboard_task', t('ap_approvals'), A.writable(chan) ? el('button', { class: 'primary sm withicon', onclick: () => A.newApproval(chan) }, LC.icon('add'), el('span', { text: t('ap_newAppr') })) : null), list));
       A.on('ap:approvals', load, list); A.on('update', (m) => { if (m.chan === chan && m.apCard && m.apCard.kind === 'approval') load(); }, list); load();
     } });
   A.app({ key: 'ap_approvals', icon: 'clipboard_task', color: '#0078d4', name: () => t('ap_approvals'), desc: () => t('ap_apprDesc'), tab: 'ap_approvals', order: 74,
@@ -85,14 +85,14 @@
       badge: () => pending,
       render(nav) {
         const item = (k, icon, n) => el('button', { class: 'ap-navitem' + (V.box === k ? ' on' : ''), 'aria-current': V.box === k ? 'page' : null, onclick: () => { V.box = k; LC.openApp('ap_approvals'); LC.renderNav(); } }, LC.icon(icon), el('span', { class: 'grow', text: t('ap_' + k) }), n ? el('span', { class: 'ap-count', text: String(n) }) : null);
-        nav.replaceChildren(item('received', 'mail_inbox', pending), item('sent', 'send'), el('div', { class: 'pad' }, el('button', { class: 'primary sm withicon', onclick: () => A.newApproval(S.chan || '') }, LC.icon('add'), el('span', { text: t('ap_newAppr') }))));
+        A.put(nav, item('received', 'mail_inbox', pending), item('sent', 'send'), el('div', { class: 'pad' }, el('button', { class: 'primary sm withicon', onclick: () => A.newApproval(S.chan || '') }, LC.icon('add'), el('span', { text: t('ap_newAppr') }))));
       },
       async main(host) {
         const list = el('div', { class: 'ap-alist' });
         const load = async () => {
-          try { const d = await LC.api('/api/ap/approvals?box=' + V.box); pending = d.pending; const rows = d.approvals.filter((x) => !V.status || x.status === V.status); list.replaceChildren(...(rows.length ? rows.map(row) : [A.empty('clipboard_task', t('ap_noAppr'), t('ap_noApprHelp'))])); LC.renderRail && LC.renderRail(); } catch (e) { list.replaceChildren(el('p', { class: 'err', text: e.message })); }
+          try { const d = await LC.api('/api/ap/approvals?box=' + V.box); pending = d.pending; const rows = d.approvals.filter((x) => !V.status || x.status === V.status); A.put(list, ...(rows.length ? rows.map(row) : [A.empty('clipboard_task', t('ap_noAppr'), t('ap_noApprHelp'))])); LC.renderRail && LC.renderRail(); } catch (e) { A.put(list, el('p', { class: 'err', text: e.message })); }
         };
-        const draw = () => host.replaceChildren(el('div', { class: 'ap-page' }, el('div', { class: 'ap-tbar' }, A.seg([['received', t('ap_received'), 'mail_inbox'], ['sent', t('ap_sent'), 'send']], V.box, (v) => { V.box = v; draw(); LC.renderNav(); }, t('ap_approvals')), el('span', { class: 'grow' }),
+        const draw = () => A.put(host, el('div', { class: 'ap-page' }, el('div', { class: 'ap-tbar' }, A.seg([['received', t('ap_received'), 'mail_inbox'], ['sent', t('ap_sent'), 'send']], V.box, (v) => { V.box = v; draw(); LC.renderNav(); }, t('ap_approvals')), el('span', { class: 'grow' }),
           el('label', { class: 'ap-inline' }, el('span', { class: 'small muted', text: t('ap_status') }), A.select([['', t('ap_all')], ...['pending', 'approved', 'rejected', 'canceled'].map((s) => [s, t('ap_s_' + s)])], V.status, (v) => { V.status = v; load(); }, t('ap_status'))),
           el('button', { class: 'primary sm withicon', onclick: () => A.newApproval(S.chan || '') }, LC.icon('add'), el('span', { text: t('ap_newAppr') }))), list));
         draw(); A.on('ap:approvals', load, list); A.on('update', (m) => { if (m.apCard && m.apCard.kind === 'approval') load(); }, list); load();

@@ -28,6 +28,8 @@
 
   // ---------- helpers ----------
   A.t = t;
+  // replaceChildren() would print null / false as text: the apps build children with optional parts
+  A.put = (node, ...kids) => { node.replaceChildren(...kids.flat(Infinity).filter((k) => k !== null && k !== undefined && k !== false)); return node; };
   A.fail = (e) => LC.toast((e && e.message) || String(e));
   A.call = async (path, body) => { try { return await LC.api(path, body); } catch (e) { A.fail(e); return null; } };
   A.lbl = (x) => (typeof x === 'function' ? x() : x);
@@ -83,10 +85,10 @@
   A.peoplePick = (o) => {
     let value = [...(o.value || [])];
     const b = el('button', { type: 'button', class: 'ap-pick secondary sm', 'aria-haspopup': 'dialog', 'aria-label': (o.label || t('ap_assign')) + (value.length ? ': ' + value.map(LC.uname).join(', ') : ''), disabled: !!o.disabled });
-    const draw = () => { b.replaceChildren(...(value.length ? [A.avatars(value, 4), value.length === 1 ? el('span', { text: LC.uname(value[0]) }) : null] : [LC.icon('person_add'), el('span', { text: o.placeholder || t('ap_assign') })])); b.setAttribute('aria-label', (o.label || t('ap_assign')) + (value.length ? ': ' + value.map(LC.uname).join(', ') : '')); };
+    const draw = () => { A.put(b, ...(value.length ? [A.avatars(value, 4), value.length === 1 ? el('span', { text: LC.uname(value[0]) }) : null] : [LC.icon('person_add'), el('span', { text: o.placeholder || t('ap_assign') })])); b.setAttribute('aria-label', (o.label || t('ap_assign')) + (value.length ? ': ' + value.map(LC.uname).join(', ') : '')); };
     b.onclick = () => {
       const q = el('input', { type: 'search', placeholder: t('ap_search'), 'aria-label': t('ap_search') }), list = el('div', { class: 'ap-plist', role: 'group', 'aria-label': o.label || t('ap_people') });
-      const rows = () => list.replaceChildren(...(o.people || A.everyone()).filter((u) => LC.uname(u.id).toLowerCase().includes(q.value.toLowerCase())).map((u) => el('label', { class: 'ap-prow' }, el('input', { type: o.multi === false ? 'radio' : 'checkbox', name: 'ap-pp', checked: value.includes(u.id), onchange: (e) => { if (o.multi === false) value = e.target.checked ? [u.id] : []; else value = e.target.checked ? [...value, u.id] : value.filter((x) => x !== u.id); draw(); o.onChange && o.onChange(value); if (o.multi === false) A.closePop(); } }), LC.avatar(u, 'sm', true), el('span', { text: LC.uname(u.id) }))));
+      const rows = () => A.put(list, ...(o.people || A.everyone()).filter((u) => LC.uname(u.id).toLowerCase().includes(q.value.toLowerCase())).map((u) => el('label', { class: 'ap-prow' }, el('input', { type: o.multi === false ? 'radio' : 'checkbox', name: 'ap-pp', checked: value.includes(u.id), onchange: (e) => { if (o.multi === false) value = e.target.checked ? [u.id] : []; else value = e.target.checked ? [...value, u.id] : value.filter((x) => x !== u.id); draw(); o.onChange && o.onChange(value); if (o.multi === false) A.closePop(); } }), LC.avatar(u, 'sm', true), el('span', { text: LC.uname(u.id) }))));
       q.addEventListener('input', rows); rows();
       A.pop(b, [q, list, o.multi === false && value.length ? el('button', { class: 'link', text: t('ap_unassigned'), onclick: () => { value = []; draw(); o.onChange && o.onChange(value); A.closePop(); } }) : null], { label: o.label || t('ap_people') });
     };
@@ -155,7 +157,7 @@
   A.redrawTabs = () => {
     if (!S.chan || S.app) return; const tabs = LC.tabsFor(S.chan);
     if (S.tab !== 'chat' && !tabs.some((x) => x.key === S.tab)) return LC.setTab('chat');
-    $('#tabs').replaceChildren(...tabs.map(({ key: k, icon: ic, label }) => el('button', { class: 'tab' + (S.tab === k ? ' on' : ''), role: 'tab', 'aria-selected': String(S.tab === k), 'data-tab': k, onclick: () => LC.setTab(k) }, LC.icon(ic, { filled: S.tab === k }), el('span', { text: label }))));
+    A.put($('#tabs'), ...tabs.map(({ key: k, icon: ic, label }) => el('button', { class: 'tab' + (S.tab === k ? ' on' : ''), role: 'tab', 'aria-selected': String(S.tab === k), 'data-tab': k, onclick: () => LC.setTab(k) }, LC.icon(ic, { filled: S.tab === k }), el('span', { text: label }))));
   };
   const tabOp = async (chan, body) => { const r = await A.call('/api/ap/tabs', { chan, ...body }); if (r && r.cfg) { A.tabCfg[chan] = r.cfg; if (chan === S.chan) A.redrawTabs(); } return r; };
   A.addTab = async (chan, type, extra = {}) => { const r = await tabOp(chan, { op: 'add', type, ...extra }); if (r && chan === S.chan) LC.setTab(r.key); return r; };
@@ -211,12 +213,12 @@
     };
     const drawGrid = () => {
       const f = q.value.trim().toLowerCase(), list = types().filter((x) => !f || (x.label + ' ' + x.desc).toLowerCase().includes(f));
-      grid.replaceChildren(...(list.length ? list.map((x) => el('div', { class: 'ap-gcard' }, el('div', { class: 'ap-gicon', 'aria-hidden': 'true' }, LC.icon(x.icon)), el('div', { class: 'ap-gtext' }, el('b', { text: x.label }), el('span', { class: 'muted small', text: x.desc })),
+      A.put(grid, ...(list.length ? list.map((x) => el('div', { class: 'ap-gcard' }, el('div', { class: 'ap-gicon', 'aria-hidden': 'true' }, LC.icon(x.icon)), el('div', { class: 'ap-gtext' }, el('b', { text: x.label }), el('span', { class: 'muted small', text: x.desc })),
         x.on ? el('span', { class: 'ap-gon' }, LC.icon('checkmark'), t('ap_added')) : el('button', { class: 'primary sm', text: t('ap_add'), disabled: !can, 'aria-label': t('ap_add') + ': ' + x.label, onclick: async () => { if (x.multi) return x.key === 'ap_web' ? websiteDialog(chan) : null; LC.closeModal(); await A.addTab(chan, x.key); } }))) : [el('p', { class: 'muted', text: t('ap_noApps') })]));
     };
     const drawManage = () => {
       const tabs = LC.tabsFor(chan).filter((x) => x.key !== 'ap_add'), mgr = A.isManager(chan);
-      manage.replaceChildren(...tabs.map((x, i) => { const inst = A.inst(chan, x.key), change = can && x.key !== 'chat' && (mgr || (inst && inst.by === S.me.id));
+      A.put(manage, ...tabs.map((x, i) => { const inst = A.inst(chan, x.key), change = can && x.key !== 'chat' && (mgr || (inst && inst.by === S.me.id));
         return el('div', { class: 'ap-trow' }, LC.icon(x.icon), el('span', { class: 'grow', text: x.label }),
           x.key === 'chat' ? el('span', { class: 'muted small', text: t('ap_chat') }) : [
             LC.ibtn('edit', t('ap_rename') + ': ' + x.label, () => renameTab(chan, x.key).then(drawAll), { disabled: !change }),
@@ -243,17 +245,17 @@
   }
   A.tab({ key: 'ap_web', icon: 'globe', label: () => t('ap_website'), desc: () => t('ap_desc_web'), order: 400, multi: true, when: () => false,
     render(host, chan, inst) {
-      if (!inst) return host.replaceChildren(el('p', { class: 'err pad', text: t('ap_webNoFrame') }));
+      if (!inst) return A.put(host, el('p', { class: 'err pad', text: t('ap_webNoFrame') }));
       let u; try { u = new URL(inst.url); } catch { u = null; }
       const note = el('div', { class: 'ap-webnote hidden', role: 'status' }), frameBox = el('div', { class: 'ap-webframe' }), open = el('a', { class: 'secondary sm withicon', href: inst.url, target: '_blank', rel: 'noopener noreferrer' }, LC.icon('open'), el('span', { text: t('ap_openBrowser') }));
-      const say = (text, warn) => { note.replaceChildren(LC.icon(warn ? 'warning' : 'info'), el('span', { text }), open.cloneNode(true)); note.classList.remove('hidden'); note.classList.toggle('warn', !!warn); };
+      const say = (text, warn) => { A.put(note, LC.icon(warn ? 'warning' : 'info'), el('span', { text }), open.cloneNode(true)); note.classList.remove('hidden'); note.classList.toggle('warn', !!warn); };
       const frame = () => {
         const same = u && u.origin === location.origin;
         const f = el('iframe', { class: 'ap-web', src: inst.url, title: inst.name || inst.url, referrerpolicy: 'no-referrer', sandbox: 'allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals' + (same ? '' : ' allow-same-origin'), allow: 'fullscreen; clipboard-write' });
         let loaded = false; f.addEventListener('load', () => { loaded = true; }); setTimeout(() => { if (!loaded && f.isConnected) say(t('ap_webSlow')); }, 8000);
-        frameBox.replaceChildren(f);
+        A.put(frameBox, f);
       };
-      host.replaceChildren(el('div', { class: 'ap-fillbox ap-webtab' }, el('div', { class: 'ap-webbar' }, LC.icon('globe'), el('span', { class: 'ap-weburl', text: inst.url, title: inst.url }), LC.ibtn('arrow_sync', t('ap_reload'), () => frame()), open, A.writable(chan) ? LC.ibtn('more_horizontal', t('ap_tabOptions'), (e) => tabMenu(e.currentTarget, chan, inst.type + ':' + inst.id), { menu: true }) : null), note, frameBox));
+      A.put(host, el('div', { class: 'ap-fillbox ap-webtab' }, el('div', { class: 'ap-webbar' }, LC.icon('globe'), el('span', { class: 'ap-weburl', text: inst.url, title: inst.url }), LC.ibtn('arrow_sync', t('ap_reload'), () => frame()), open, A.writable(chan) ? LC.ibtn('more_horizontal', t('ap_tabOptions'), (e) => tabMenu(e.currentTarget, chan, inst.type + ':' + inst.id), { menu: true }) : null), note, frameBox));
       if (!u) return say(t('ap_webNoFrame'), true);
       if (u.origin === location.origin) return say(t('ap_webSame'), true);
       if (location.protocol === 'https:' && u.protocol === 'http:') return say(t('ap_webMixed'), true);
@@ -291,7 +293,7 @@
   LC.ext.panes.ap_store = { icon: 'apps', label: () => t('ap_apps'), order: 880, bottom: true, title: () => t('ap_apps'), render: (nav) => renderStoreNav(nav), main: (host) => renderStore(host) };
   let storeFilter = '';
   function renderStoreNav(nav) {
-    nav.replaceChildren(el('div', { class: 'ap-navsec', text: t('ap_inAppBar') }), ...A.catalog.filter((x) => x.pane).map((x) => el('button', { class: 'ap-navitem', onclick: () => A.openApp(x.key) }, el('span', { class: 'ap-navic', style: { background: x.color }, 'aria-hidden': 'true' }, LC.icon(x.icon)), el('span', { class: 'grow', text: A.lbl(x.name) }), A.isPinned(x.key) ? LC.icon('pin', { cls: 'ap-pinned', label: t('ap_pin') }) : null)),
+    A.put(nav, el('div', { class: 'ap-navsec', text: t('ap_inAppBar') }), ...A.catalog.filter((x) => x.pane).map((x) => el('button', { class: 'ap-navitem', onclick: () => A.openApp(x.key) }, el('span', { class: 'ap-navic', style: { background: x.color }, 'aria-hidden': 'true' }, LC.icon(x.icon)), el('span', { class: 'grow', text: A.lbl(x.name) }), A.isPinned(x.key) ? LC.icon('pin', { cls: 'ap-pinned', label: t('ap_pin') }) : null)),
       el('div', { class: 'ap-navsec', text: t('ap_asTab') }), ...A.catalog.filter((x) => x.tab && !x.pane).map((x) => el('button', { class: 'ap-navitem', onclick: () => storeDetails(x) }, el('span', { class: 'ap-navic', style: { background: x.color }, 'aria-hidden': 'true' }, LC.icon(x.icon)), el('span', { class: 'grow', text: A.lbl(x.name) }))));
   }
   function addToChatDialog(app) {
@@ -312,14 +314,14 @@
       storeFilter = q.value; const f = q.value.trim().toLowerCase();
       const others = Object.entries(LC.ext.panes).filter(([k, p]) => !k.startsWith('ap_') && !p.bottom && !p.action && (!p.hidden || !p.hidden())).map(([k, p]) => ({ key: k, icon: p.icon, name: p.label, desc: p.desc || (LC.t('ap_pd_' + k) !== 'ap_pd_' + k ? LC.t('ap_pd_' + k) : ''), color: '#69797e', other: true }));
       const list = [...A.catalog, ...others].filter((x) => !f || (A.lbl(x.name) + ' ' + A.lbl(x.desc)).toLowerCase().includes(f));
-      grid.replaceChildren(...(list.length ? list.map((x) => el('div', { class: 'ap-scard' },
+      A.put(grid, ...(list.length ? list.map((x) => el('div', { class: 'ap-scard' },
         el('button', { class: 'ap-shead', onclick: () => (x.other ? LC.setPane(x.key) : storeDetails(x)), 'aria-label': A.lbl(x.name) }, el('span', { class: 'ap-sicon', style: { background: x.color }, 'aria-hidden': 'true' }, LC.icon(x.icon)), el('span', { class: 'ap-sname', text: A.lbl(x.name) })),
         el('p', { class: 'muted small', text: A.lbl(x.desc) || (x.other ? t('ap_otherApps') : '') }),
         el('div', { class: 'ap-sacts' }, x.pane || x.other ? el('button', { class: 'primary sm', text: t('ap_open'), onclick: () => (x.other ? LC.setPane(x.key) : A.openApp(x.key)) }) : null, x.tab ? el('button', { class: 'secondary sm', text: t('ap_addToChat'), onclick: () => addToChatDialog(x) }) : null,
           x.pane ? LC.ibtn(A.isPinned(x.key) ? 'pin_off' : 'pin', (A.isPinned(x.key) ? t('ap_unpin') : t('ap_pin')) + ': ' + A.lbl(x.name), () => A.setPin(x.key, !A.isPinned(x.key)).then(draw), { pressed: A.isPinned(x.key) }) : null))) : [el('p', { class: 'muted', text: t('ap_noApps') })]));
     };
     q.addEventListener('input', draw); draw();
-    host.replaceChildren(el('div', { class: 'ap-page' }, el('p', { class: 'muted', text: t('ap_appsIntro') }), q, grid));
+    A.put(host, el('div', { class: 'ap-page' }, el('p', { class: 'muted', text: t('ap_appsIntro') }), q, grid));
   }
   A.app({ key: 'ap_webapp', icon: 'globe', color: '#0078d4', name: () => t('ap_website'), desc: () => t('ap_desc_web'), tab: 'ap_web' });
 })();
