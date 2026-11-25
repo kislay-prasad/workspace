@@ -1,0 +1,33 @@
+# Files and Calendar area (docs/features-files.md)
+folder filled
+folder_add
+folder_open
+folder_arrow_right
+document_text
+document_table
+document_dismiss
+code
+arrow_upload
+arrow_sort_up
+arrow_sort_down
+rename
+link_add
+link_dismiss
+text_bullet_list
+text_wrap
+calendar_add
+calendar_day
+calendar_work_week
+calendar_month
+calendar_today
+calendar_person
+calendar_checkmark
+calendar_cancel
+calendar_question_mark
+arrow_repeat_all
+location
+arrow_import
+arrow_export
+globe_clock
+tag
+color

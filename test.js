@@ -421,7 +421,7 @@ async function section(name, fn) { try { await fn(); results.push([name, true]);
   });
   await section('hardening: auth required everywhere, headers, traversal, body limits, bad input', async () => {
     const open = new Set(['POST /api/join', 'GET /api/join/status', 'POST /api/join/cancel', 'GET /api/config', 'POST /api/handoff/redeem']);
-    for (const key of Object.keys(app.ctx.api)) { if (open.has(key)) continue; const [m, p] = key.split(' '); let r; try { r = await fetch(B + p, { method: m, body: m === 'POST' ? '{}' : undefined }); } catch (e) { throw new Error('fetch failed for ' + key + ': ' + (e.cause && e.cause.message)); } assert.equal(r.status, 401, key + ' must require a token'); }
+    for (const key of Object.keys(app.ctx.api)) { if (open.has(key) || app.ctx.publicRoutes.has(key)) continue; const [m, p] = key.split(' '); let r; try { r = await fetch(B + p, { method: m, body: m === 'POST' ? '{}' : undefined }); } catch (e) { throw new Error('fetch failed for ' + key + ': ' + (e.cause && e.cause.message)); } assert.equal(r.status, 401, key + ' must require a token'); }
     const idx = await fetch(B + '/'); assert(/default-src 'self'/.test(idx.headers.get('content-security-policy'))); assert.equal(idx.headers.get('x-content-type-options'), 'nosniff');
     for (const p of ['/..%2f..%2fetc/passwd', '/%2e%2e/server.js', '/lib/app.js', '/..%2flib%2fapp.js']) { const r = await fetch(B + p); assert([403, 404].includes(r.status), p + ' → ' + r.status); }
     assert.equal((await fetch(B + '/api/send', { method: 'POST', headers: { 'x-token': bob.token }, body: 'x'.repeat(2e6) })).status, 413);

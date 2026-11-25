@@ -58,6 +58,7 @@
   function attachments(m) {
     const wrap = el('div', { class: 'att' });
     for (const f of m.files || []) {
+      const own = LC.fileCard && LC.fileCard(f, m); if (own) { wrap.append(own); continue; } // files area: its own card for documents (preview, versions, actions)
       const x = LC.extOf(f.name), url = LC.fileUrl(f, true);
       if (LC.isImage(f.name)) wrap.append(el('button', { class: 'imgbtn', 'aria-label': t('viewImage') + ' ' + f.name, onclick: () => { const g = LC.galleryImages(); LC.openLightbox(g, Math.max(0, g.findIndex((i) => i.id === f.id)), f); } }, el('img', { src: url, alt: f.name, loading: 'lazy' })));
       else if (['mp4', 'webm', 'mov'].includes(x) && !/^voice-/.test(f.name)) wrap.append(el('video', { src: url, controls: true, preload: 'metadata', 'aria-label': f.name }));
