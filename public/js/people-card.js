@@ -244,6 +244,9 @@
     drawMain(true); fillNav(); if (host) host.scrollTop = 0; const f = host && host.querySelector(id ? '.pp-page h2' : '.pp-search input'); if (f && id) { f.setAttribute('tabindex', '-1'); f.focus({ preventScroll: true }); }
   };
   LC.ext.panes.people = { icon: 'people', label: () => t('pp_people'), order: 45, render: renderNav, main: (h) => { host = h; h.classList.add('pp-host'); h.replaceChildren(); drawMain(true); }, actions: () => [LC.ibtn('people_community', t('pp_newGroup'), () => PP.newGroup())], subtitle: () => t('pp_directoryHelp') };
+  // leaving the People pane for a list pane (Activity, Chat…) brings the conversation back into the big area
+  const setPane0 = LC.setPane;
+  LC.setPane = (pane) => { const was = S.app; const r = setPane0(pane); if (was === 'people' && !S.app && S.chan && LC.ext.panes[pane] && !LC.ext.panes[pane].action) LC.openChat(S.chan); return r; };
   const live2 = () => { if (S.app === 'people') drawMain(); if (S.pane === 'people') fillNav(); };
   LC.on('user', live2); LC.on('me', () => { if (S.pane === 'people') LC.renderNav(); live2(); });
 })();

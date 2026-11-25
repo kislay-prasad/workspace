@@ -104,11 +104,12 @@
   }
 
   // ---------- activity types (other areas add theirs) ----------
-  const openMsg = (a) => (a.chan && a.msg ? LC.jumpToMessage(a.chan, a.msg) : a.chan ? LC.openChat(a.chan) : null);
+  const showChat = async (chan) => { if (S.app || S.chan !== chan || S.tab !== 'chat' || $('#chatView').classList.contains('hidden')) await LC.openChat(chan); };
+  const openMsg = async (a) => { if (!a.chan) return; await showChat(a.chan); if (a.msg) return LC.jumpToMessage(a.chan, a.msg); };
   const openGeneric = async (a) => {
     if (a.app && LC.apps && typeof LC.apps.open === 'function') return LC.apps.open(a.app, a);
     if (a.meeting && LC.meetings && typeof LC.meetings.open === 'function') return LC.meetings.open(a.meeting);
-    if (a.chan) { if (a.msg) return LC.jumpToMessage(a.chan, a.msg); await LC.openChat(a.chan); if (a.tab && LC.setTab) LC.setTab(a.tab); return; }
+    if (a.chan) { await showChat(a.chan); if (a.msg) return LC.jumpToMessage(a.chan, a.msg); if (a.tab && LC.setTab) LC.setTab(a.tab); return; }
     if (a.team) { if (LC.teams && typeof LC.teams.open === 'function') return LC.teams.open(a.team); location.hash = '#team=' + encodeURIComponent(a.team); return; }
     if (a.pane && LC.ext.panes[a.pane]) LC.setPane(a.pane);
   };
