@@ -193,7 +193,7 @@ H.suite('Built-in apps', async (t) => {
     r = await P('/api/ap/book/move', { id: pg.id, bid: bk.id, start: slot + 3600000 }, dave); t.eq(r.s, 200, r.d);
     t.eq((await P('/api/ap/book/cancel', { id: pg.id, bid: bk.id }, carol)).s, 200);
     // weekday hours in the page's time zone
-    const wd = new Date(slot).getUTCDay(), only = { [wd]: [[600, 720]] };
+    const wd = s.ctx.apps.wall('Asia/Kolkata', slot).wd, only = { [wd]: [[600, 720]] };
     r = await P('/api/ap/booking/save', { id: pg.id, name: 'Haircuts', tz: 'Asia/Kolkata', services: [{ id: svc, name: 'Cut', dur: 30 }], staff: [{ uid: carol.id, hours: only }] }, bob); t.eq(r.s, 200, r.d);
     const A = s.ctx.apps, w = A.wall('Asia/Kolkata', slot), ok = A.fromWall('Asia/Kolkata', w.y, w.m, w.d, 600);
     t.eq(A.wall('Asia/Kolkata', ok).min, 600);
@@ -205,7 +205,7 @@ H.suite('Built-in apps', async (t) => {
     const now = new Date(), hhmm = String(now.getUTCHours()).padStart(2, '0') + ':' + String(now.getUTCMinutes()).padStart(2, '0');
     let r = await P('/api/ap/checkin', { chan: grp, op: 'add', title: 'Standup', qs: ['Yesterday?', 'Today?', 'Blockers?'], days: [0, 1, 2, 3, 4, 5, 6], time: hhmm, tz: 'UTC' }, bob); t.eq(r.s, 200, r.d);
     const id = r.d.id, c = s.ctx.apps.peek('ap_checkins', grp).list[0]; c.since = 0; // pretend it was made yesterday
-    s.tick(Date.now()); const act = await ev.waitFor('activity', (a) => a.ref && a.ref.app === 'checkins'); t.eq(act.type, 'form');
+    s.tick(Date.now()); const act = await ev.waitFor('activity', (a) => a.ref && a.ref.app === 'checkins'); t.eq(act.type, 'checkin'); t.eq(act.app, 'checkins');
     const day = act.ref.day, run = c.runs[day]; t.ok(run && run.msg, 'card posted'); t.eq(s.ctx.msgById.get(run.msg).apCard.kind, 'checkin');
     s.tick(Date.now()); t.eq(Object.keys(c.runs).length, 1, 'once a day');
     t.eq((await P('/api/ap/checkin/answer', { chan: grp, id, day, a: ['x'] }, dave)).s, 404);
