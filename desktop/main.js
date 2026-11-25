@@ -117,12 +117,11 @@ function onServerEvent(s, name, p) {
 
 // ---------- window ----------
 function createWindow() {
-  win = new BrowserWindow({ width: 1180, height: 780, minWidth: 380, minHeight: 500, title: 'LANChat ' + app.getVersion(), icon: appIcon(), backgroundColor: '#f5f5f5', show: false, webPreferences: { contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.js') } });
+  win = new BrowserWindow({ width: 1180, height: 780, minWidth: 380, minHeight: 500, title: 'LANChat ' + app.getVersion(), icon: appIcon(), backgroundColor: '#f5f5f5', show: false, webPreferences: { contextIsolation: true, sandbox: true, spellcheck: true, preload: path.join(__dirname, 'preload.js') } });
   win.once('ready-to-show', () => { if (!hiddenStart) win.show(); });
   for (const f of ext.onWindow) { try { f(win); } catch (e) { console.error('ext window hook', e.message); } }
   win.setTitle('LANChat ' + app.getVersion()); win.on('page-title-updated', (e, title) => { e.preventDefault(); win.setTitle(`${title} — LANChat ${app.getVersion()}`); });
-  win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
-  win.webContents.on('will-navigate', (e, url) => { let same = false; try { same = new URL(url).origin === new URL(win.webContents.getURL()).origin; } catch {} if (!same) { e.preventDefault(); if (/^https?:/.test(url)) shell.openExternal(url); } });
+  decorate(win); win.webContents.on('did-navigate', () => { mainReady = false; }); // links, zoom, right-click menu (see "shell" below)
   win.webContents.on('did-fail-load', (_e, code, desc, url, isMain) => { if (!isMain || code === -3 || url === 'about:blank') return; dialog.showMessageBox(win, { type: 'error', title: 'Could not connect', message: 'Could not reach the session.', detail: `${url}\n\n${desc}\n\nCheck you are on the same Wi-Fi as the host, that the host has LANChat open, and that the address is right.`, buttons: ['Choose another session'] }).then(() => showSessions()); });
   win.on('focus', () => win && win.flashFrame(false));
   win.on('close', (e) => {
@@ -136,7 +135,7 @@ const friendsOnline = () => [...running.values()].reduce((a, r) => a + Math.max(
 const confirmQuit = () => dialog.showMessageBox(win || undefined, { type: 'question', buttons: ['Keep chatting', 'Quit'], defaultId: 0, cancelId: 0, title: 'Quit LANChat?', message: 'Friends are connected.', detail: 'If you quit, every session you host goes offline and everybody is disconnected. Tip: close the window to keep running in the tray.' }).then((r) => r.response === 1);
 function doQuit() { quitting = true; for (const id of [...running.keys()]) { stopTunnel(id); try { running.get(id).app.stop(); } catch {} } app.quit(); }
 function showMain() { if (!win) return openMain(activeUrl || 'about:blank'); if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
-function openMain(url) { if (!win) createWindow(); activeUrl = url; win.loadURL(url); win.show(); win.focus(); buildMenu(); }
+function openMain(url) { if (!win) createWindow(); activeUrl = url; mainReady = false; closePopouts(); win.loadURL(url); win.show(); win.focus(); buildMenu(); }
 
 async function openSession(id) {
   const s = cfg.sessions.find((x) => x.id === id); if (!s) return;
@@ -248,6 +247,301 @@ ipcMain.on('badge', (e, b) => {
 });
 ipcMain.on('open-diag', (e) => { if (win && e.sender === win.webContents) showDiag(); });
 
+// ---------- shell: zoom, pop-out windows, links, downloads, right-click menu, spelling, jump list, lanchat:// links,
+// "Send to", files dropped on the app, updates from the host (docs/features-shell.md). Every IPC message is checked:
+// it must come from one of our own windows and every value is validated here, never trusted.
+const popouts = new Map();  // "chat:<id>" | "app:<key>" -> BrowserWindow
+const appWins = () => [win, ...popouts.values()].filter((w) => w && !w.isDestroyed());
+const fromMainWin = (e) => !!win && !win.isDestroyed() && e.sender === win.webContents;
+const fromAppWin = (e) => appWins().some((w) => w.webContents === e.sender);
+const packaged = () => ROOT === __dirname; // the app folder layout (resources/app) — updates are only installed there
+const activeSession = () => cfg.sessions.find((x) => x.id === cfg.active) || null;
+let mainReady = false; const actionQ = []; // actions for the page (new chat, status, deep link, shared files) wait until it is signed in
+function queueAction(a, show = true) {
+  if (win && !win.isDestroyed() && mainReady) win.webContents.send('shell:action', a); else { actionQ.push(a); if (actionQ.length > 20) actionQ.shift(); }
+  if (show && win) showMain();
+}
+ipcMain.on('shell:ready', (e) => { if (!fromMainWin(e)) return; mainReady = true; while (actionQ.length) win.webContents.send('shell:action', actionQ.shift()); });
+
+// zoom: one level for every LANChat window, remembered; Ctrl+= / Ctrl+- / Ctrl+0 and Ctrl+mouse wheel
+const ZOOMS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
+const zoomOf = () => { const z = Number(cfg.zoom); return z >= 0.5 && z <= 2 ? z : 1; };
+function setZoom(f) { f = Math.round(Math.max(0.5, Math.min(2, Number(f) || 1)) * 100) / 100; cfg.zoom = f; save(); for (const w of appWins()) { try { w.webContents.setZoomFactor(f); } catch {} } return f; }
+let lastWheelZoom = 0;
+function stepZoom(d, wc) {
+  const z = zoomOf(), f = d === 0 ? 1 : d > 0 ? (ZOOMS.find((s) => s > z + 0.001) || 2) : ([...ZOOMS].reverse().find((s) => s < z - 0.001) || 0.5);
+  setZoom(f); if (wc && !wc.isDestroyed()) wc.send('shell:action', { type: 'zoom', zoom: f, toast: true });
+}
+const zoomKeys = (wc) => (e, i) => {
+  if (i.type !== 'keyDown' || !(i.control || i.meta) || i.alt) return;
+  const d = i.key === '=' || i.key === '+' || i.code === 'NumpadAdd' ? 1 : i.key === '-' || i.key === '_' || i.code === 'NumpadSubtract' ? -1 : i.key === '0' || i.code === 'Numpad0' ? 0 : null;
+  if (d !== null) { e.preventDefault(); stepZoom(d, wc); }
+};
+
+// links: same-origin deep links open in place; other web links open in the browser, or in a LANChat window if chosen
+const DEEP = /^#(m|c|meet|team)=[\w:.\-/%]{1,200}$/;
+let linksSes = null;
+function linkWindow(url) {
+  if (!linksSes) { linksSes = session.fromPartition('lanchat-links'); linksSes.setPermissionRequestHandler((_wc, _p, cb) => cb(false)); linksSes.setPermissionCheckHandler(() => false); }
+  const w = new BrowserWindow({ width: 1100, height: 800, title: 'LANChat', icon: appIcon(), autoHideMenuBar: true, webPreferences: { session: linksSes, sandbox: true, contextIsolation: true, nodeIntegration: false, spellcheck: false } }); // a plain web page: no preload, its own storage
+  w.webContents.setWindowOpenHandler(({ url: u }) => { if (/^https?:/i.test(u)) w.loadURL(u); return { action: 'deny' }; });
+  w.webContents.on('will-navigate', (e, u) => { if (!/^https?:/i.test(u)) e.preventDefault(); });
+  w.loadURL(url);
+}
+function openLink(url, wc) {
+  url = String(url || ''); if (!/^https?:\/\//i.test(url)) return;
+  let u, page; try { u = new URL(url); page = new URL(wc.getURL()); } catch { return; }
+  if (u.origin === page.origin) { if (DEEP.test(u.hash)) wc.send('shell:action', { type: 'deeplink', hash: u.hash }); return; }
+  if (cfg.links === 'app') linkWindow(url); else shell.openExternal(url);
+}
+
+// right-click menu: spelling, cut/copy/paste, images and links
+let saveAsAt = 0;
+function contextTemplate(wc, p) {
+  const T = [], sep = () => { if (T.length && T[T.length - 1].type !== 'separator') T.push({ type: 'separator' }); };
+  if (p.misspelledWord) {
+    const sug = (p.dictionarySuggestions || []).slice(0, 5); for (const s of sug) T.push({ label: s, click: () => wc.replaceMisspelling(s) });
+    if (!sug.length) T.push({ label: 'No spelling suggestions', enabled: false });
+    T.push({ label: 'Add to dictionary', click: () => wc.session.addWordToSpellCheckerDictionary(p.misspelledWord) }); sep();
+  }
+  const link = /^https?:\/\//i.test(p.linkURL || '') ? p.linkURL : '';
+  if (link) { T.push({ label: 'Open link in browser', click: () => shell.openExternal(link) }, { label: 'Copy link', click: () => clipboard.writeText(link) }); sep(); }
+  if (p.mediaType === 'image' && /^(https?|blob|data):/i.test(p.srcURL || '')) { T.push({ label: 'Save image as…', click: () => { saveAsAt = Date.now(); wc.downloadURL(p.srcURL); } }, { label: 'Copy image', click: () => wc.copyImageAt(p.x, p.y) }); sep(); }
+  const f = p.editFlags || {};
+  if (p.isEditable) T.push({ label: 'Cut', role: 'cut', enabled: !!f.canCut }, { label: 'Copy', role: 'copy', enabled: !!f.canCopy }, { label: 'Paste', role: 'paste', enabled: !!f.canPaste }, { type: 'separator' }, { label: 'Select all', role: 'selectAll', enabled: f.canSelectAll !== false });
+  else if (String(p.selectionText || '').trim()) T.push({ label: 'Copy', role: 'copy', enabled: !!f.canCopy }, { label: 'Select all', role: 'selectAll' });
+  while (T.length && T[T.length - 1].type === 'separator') T.pop();
+  return T;
+}
+function contextMenu(wc, p) { const T = contextTemplate(wc, p); if (T.length) Menu.buildFromTemplate(T).popup({ window: BrowserWindow.fromWebContents(wc) || undefined }); }
+
+// every LANChat window (main + pop-outs) gets the same link rules, zoom, right-click menu and mouse back/forward
+function decorate(w) {
+  const wc = w.webContents;
+  wc.setWindowOpenHandler(({ url }) => { openLink(url, wc); return { action: 'deny' }; });
+  wc.on('will-navigate', (e, url) => { let same = false; try { same = new URL(url).origin === new URL(wc.getURL()).origin; } catch {} if (!same) { e.preventDefault(); openLink(url, wc); } });
+  wc.on('context-menu', (_e, p) => { try { contextMenu(wc, p); } catch (err) { console.error('context menu', err.message); } });
+  wc.on('before-input-event', zoomKeys(wc));
+  wc.on('zoom-changed', (_e, dir) => { const now = Date.now(); if (now - lastWheelZoom < 150) return; lastWheelZoom = now; stepZoom(dir === 'in' ? 1 : -1, wc); });
+  wc.on('did-finish-load', () => { try { wc.setZoomFactor(zoomOf()); } catch {} });
+  w.on('app-command', (_e, cmd) => { if (cmd === 'browser-backward' || cmd === 'browser-forward') wc.send('shell:action', { type: 'nav', dir: cmd === 'browser-backward' ? -1 : 1 }); });
+}
+
+// pop-out windows: one chat or one app in its own window, on the same session
+function closePopouts() { for (const w of popouts.values()) { try { w.destroy(); } catch {} } popouts.clear(); }
+ipcMain.handle('shell:popout', (e, o) => {
+  if (!fromMainWin(e) || !o) return false;
+  const kind = String(o.kind || ''), id = String(o.id || '');
+  if (!['chat', 'app'].includes(kind) || !/^[\w:.-]{1,100}$/.test(id)) return false;
+  let origin; try { origin = new URL(win.webContents.getURL()).origin; } catch { return false; }
+  if (!trusted(origin)) return false;
+  const key = kind + ':' + id, have = popouts.get(key);
+  if (have && !have.isDestroyed()) { have.show(); have.focus(); return true; }
+  const b = win.getBounds(), w = new BrowserWindow({ x: b.x + 40, y: b.y + 40, width: 940, height: Math.min(760, b.height), minWidth: 360, minHeight: 400, title: 'LANChat', icon: appIcon(), backgroundColor: '#f5f5f5', autoHideMenuBar: true, webPreferences: { contextIsolation: true, sandbox: true, spellcheck: true, preload: path.join(__dirname, 'preload.js') } });
+  w.setMenu(null); decorate(w); popouts.set(key, w);
+  w.on('page-title-updated', (ev, title) => { ev.preventDefault(); w.setTitle(title); });
+  w.on('closed', () => { if (popouts.get(key) === w) popouts.delete(key); });
+  w.loadURL(origin + '/?popout=' + encodeURIComponent(key));
+  return true;
+});
+
+// downloads: into the chosen folder (default: Downloads), or ask every time; "Save image as…" always asks
+const downloads = new Map(); // id -> saved path, for "Show in folder"
+const cleanFile = (n) => String(n || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').replace(/^[.\s]+/, '').slice(0, 150) || 'download';
+const validDir = (d) => { try { return typeof d === 'string' && path.isAbsolute(d) && fs.statSync(d).isDirectory() ? d : ''; } catch { return ''; } };
+function uniquePath(dir, name) {
+  const ext = path.extname(name), base = name.slice(0, name.length - ext.length); let p = path.join(dir, name);
+  for (let i = 1; fs.existsSync(p) && i < 1000; i++) p = path.join(dir, `${base} (${i})${ext}`);
+  return p;
+}
+function setupDownloads() {
+  session.defaultSession.on('will-download', (_e, item, wc) => {
+    const d = cfg.downloads || {}, dir = validDir(d.dir) || app.getPath('downloads'), name = cleanFile(item.getFilename());
+    const ask = d.mode === 'ask' || Date.now() - saveAsAt < 15000; saveAsAt = 0;
+    if (ask) item.setSaveDialogOptions({ title: 'Save file', defaultPath: path.join(dir, name) });
+    else { try { fs.mkdirSync(dir, { recursive: true }); } catch {} item.setSavePath(uniquePath(dir, name)); }
+    item.once('done', (_ev, state) => {
+      if (state !== 'completed' || !wc || wc.isDestroyed()) return;
+      const id = rid(6), p = item.getSavePath(); downloads.set(id, p); if (downloads.size > 100) downloads.delete(downloads.keys().next().value);
+      wc.send('shell:action', { type: 'downloaded', id, name: path.basename(p) });
+    });
+  });
+}
+ipcMain.on('shell:showDownload', (e, id) => { if (!fromAppWin(e)) return; const p = downloads.get(String(id)); if (p && fs.existsSync(p)) shell.showItemInFolder(p); });
+ipcMain.handle('shell:chooseDownloads', async (e) => {
+  if (!fromMainWin(e)) return null;
+  const r = await dialog.showOpenDialog(win, { title: 'Choose where LANChat saves downloads', defaultPath: validDir((cfg.downloads || {}).dir) || app.getPath('downloads'), properties: ['openDirectory', 'createDirectory'] });
+  if (r.canceled || !validDir(r.filePaths[0])) return null; cfg.downloads = { ...(cfg.downloads || {}), dir: r.filePaths[0], mode: 'folder' }; save(); return r.filePaths[0];
+});
+
+// cache: size, and "Clear cache" (keeps sign-ins: local storage is not touched)
+async function dirSize(p, budget = { n: 0 }) {
+  let total = 0, ents; try { ents = await fs.promises.readdir(p, { withFileTypes: true }); } catch { return 0; }
+  for (const d of ents) { if (++budget.n > 20000) break; const q = path.join(p, d.name); if (d.isDirectory()) total += await dirSize(q, budget); else if (d.isFile()) { try { total += (await fs.promises.stat(q)).size; } catch {} } }
+  return total;
+}
+ipcMain.handle('shell:cacheInfo', async (e) => {
+  if (!fromAppWin(e)) return null; const ses = session.defaultSession, sp = ses.storagePath || '';
+  return { cache: await ses.getCacheSize().catch(() => 0), storage: sp ? await dirSize(sp) : 0 };
+});
+ipcMain.handle('shell:clearCache', async (e) => {
+  if (!fromMainWin(e)) return false; const ses = session.defaultSession;
+  await ses.clearCache().catch(() => {}); await ses.clearStorageData({ storages: ['shadercache', 'cachestorage', 'serviceworkers'] }).catch(() => {}); await ses.clearCodeCaches({}).catch(() => {});
+  return true;
+});
+
+// spelling: English plus the language the app is shown in (Windows/Linux download the dictionary once; macOS uses its own)
+function setupSpelling() { try { session.defaultSession.setSpellCheckerEnabled(cfg.spellcheck !== false); } catch {} }
+ipcMain.on('shell:lang', (e, code) => {
+  if (!fromAppWin(e) || process.platform === 'darwin') return; code = String(code || '').toLowerCase(); if (!/^[a-z]{2,3}$/.test(code)) return;
+  const ses = session.defaultSession, avail = ses.availableSpellCheckerLanguages || [], pick = (c) => avail.find((a) => a.toLowerCase() === c) || avail.find((a) => a.toLowerCase().startsWith(c + '-'));
+  const langs = [...new Set([pick('en-us') || pick('en'), code !== 'en' ? pick(code) : null].filter(Boolean))];
+  try { if (langs.length) ses.setSpellCheckerLanguages(langs); } catch {}
+});
+
+// what the page needs to know, and the settings it may change (each one checked)
+ipcMain.handle('shell:info', (e) => {
+  if (!fromAppWin(e)) return null; const s = activeSession(), d = cfg.downloads || {};
+  return { version: app.getVersion(), platform: process.platform, packaged: packaged(), canUpdate: packaged() && !!s && s.kind === 'join', zoom: zoomOf(), links: cfg.links === 'app' ? 'app' : 'browser',
+    downloads: { mode: d.mode === 'ask' ? 'ask' : 'folder', dir: validDir(d.dir) || app.getPath('downloads') }, sendTo: process.platform === 'win32' && packaged() && !process.defaultApp ? fs.existsSync(sendToPath()) : null,
+    closeToTray: !!cfg.closeToTray, startWithWindows: !!cfg.startWithWindows, spellcheck: cfg.spellcheck !== false, session: s ? { kind: s.kind, name: s.name } : null };
+});
+ipcMain.handle('shell:pref', (e, k, v) => {
+  if (!fromMainWin(e)) return false;
+  switch (String(k)) {
+    case 'links': cfg.links = v === 'app' ? 'app' : 'browser'; break;
+    case 'downloadMode': cfg.downloads = { ...(cfg.downloads || {}), mode: v === 'ask' ? 'ask' : 'folder' }; break;
+    case 'closeToTray': cfg.closeToTray = !!v; break;
+    case 'startWithWindows': cfg.startWithWindows = !!v; try { app.setLoginItemSettings({ openAtLogin: !!v, args: v ? ['--hidden'] : [] }); } catch {} break;
+    case 'spellcheck': cfg.spellcheck = !!v; setupSpelling(); break;
+    case 'sendTo': return setSendTo(!!v);
+    default: return false;
+  }
+  save(); buildMenu(); return true;
+});
+ipcMain.handle('shell:zoom', (e, f) => (fromAppWin(e) ? setZoom(f) : null));
+ipcMain.handle('shell:sessions', (e) => (fromMainWin(e) ? cfg.sessions.map((s) => ({ id: s.id, name: s.name, kind: s.kind, current: s.id === cfg.active, running: s.kind === 'host' ? running.has(s.id) : undefined })) : []));
+ipcMain.handle('shell:switch', (e, id) => { if (!fromMainWin(e)) return false; const s = cfg.sessions.find((x) => x.id === String(id)); if (!s) return false; if (s.id !== cfg.active) openSession(s.id); return true; });
+ipcMain.on('shell:manage', (e) => { if (fromMainWin(e)) showSessions(); });
+ipcMain.on('shell:updateFolder', (e) => { if (fromMainWin(e)) updateFromFolder(); });
+
+// Windows taskbar jump list: New chat and Set status (the page does it once it is signed in)
+const STATES = new Set(['online', 'busy', 'dnd', 'brb', 'away', 'offline']);
+function setJumpList() {
+  if (process.platform !== 'win32') return;
+  const pre = process.defaultApp && process.argv[1] ? `"${path.resolve(process.argv[1])}" ` : '';
+  const task = (title, args) => ({ program: process.execPath, arguments: pre + args, iconPath: process.execPath, iconIndex: 0, title, description: title });
+  try { app.setUserTasks([task('New chat', '--lc-new-chat'), task('Set status: Available', '--lc-status=online'), task('Set status: Busy', '--lc-status=busy'), task('Set status: Do not disturb', '--lc-status=dnd'), task('Set status: Be right back', '--lc-status=brb'), task('Set status: Away', '--lc-status=away'), task('Set status: Appear offline', '--lc-status=offline')]); } catch {}
+}
+
+// lanchat:// links -> the in-app deep links (#m=<chan>/<msgId>, #c=<chan>, #meet=<id>, #team=<id>)
+//   lanchat://<host:port>/#m=general/abc   (the same link as http://<host:port>/#m=… in a browser)
+//   lanchat://m/<chan>/<msgId>   lanchat://c/<chan>   lanchat://meet/<id>   lanchat://team/<id>   (the session that is open)
+const sessionHosts = (s) => {
+  if (s.kind === 'join') { try { return [new URL(s.url).host.toLowerCase()]; } catch { return []; } }
+  const r = running.get(s.id); if (!r) return [];
+  return ['localhost:' + r.port, '127.0.0.1:' + r.port, ...r.app.lanAddresses().map((a) => a.ip + ':' + r.port)];
+};
+function openLanchatLink(raw) {
+  let u; try { u = new URL(String(raw).slice(0, 2000)); } catch { return; } if (u.protocol !== 'lanchat:') return;
+  let hash = u.hash, host = u.host.toLowerCase(); const short = { m: 'm', message: 'm', c: 'c', chat: 'c', meet: 'meet', meeting: 'meet', team: 'team' }[u.hostname.toLowerCase()];
+  if (short && !u.port) {
+    let parts = []; try { parts = u.pathname.split('/').filter(Boolean).map(decodeURIComponent); } catch { return; }
+    hash = short === 'm' ? (parts.length >= 2 ? `#m=${parts.slice(0, -1).join('/')}/${parts[parts.length - 1]}` : '') : parts[0] ? `#${short}=${parts[0]}` : ''; host = '';
+  }
+  if (!DEEP.test(hash)) return;
+  const target = host ? cfg.sessions.find((s) => sessionHosts(s).includes(host)) : null;
+  if (target && target.id !== cfg.active) { mainReady = false; queueAction({ type: 'deeplink', hash }, false); openSession(target.id); return; }
+  if (!activeSession()) { showSessions(); return; }
+  queueAction({ type: 'deeplink', hash });
+}
+function registerProtocol() { if (process.defaultApp || process.env.LANCHAT_NO_PROTOCOL) return; try { app.setAsDefaultProtocolClient('lanchat'); } catch {} } // only the installed app registers itself
+const earlyUrls = []; app.on('open-url', (e, url) => { e.preventDefault(); if (app.isReady()) openLanchatLink(url); else earlyUrls.push(url); }); // macOS
+
+// files given to LANChat (Send To, dropped on LANChat.exe or its shortcut): the page shows "Share to LANChat"
+const shares = new Map(); // id -> { path, name, size, at }; the page can only read files listed here, by id
+function handleArgs(argv) {
+  const files = [];
+  for (const a of (argv || []).slice(1)) {
+    const s = String(a || '');
+    if (s === '--lc-new-chat') queueAction({ type: 'newChat' });
+    else if (s.startsWith('--lc-status=')) { const st = s.slice(12); if (STATES.has(st)) queueAction({ type: 'status', state: st }, false); }
+    else if (/^lanchat:/i.test(s)) openLanchatLink(s);
+    else if (!s.startsWith('-') && path.isAbsolute(s) && files.length < 10) { try { const st = fs.statSync(s); if (st.isFile() && path.resolve(s) !== path.resolve(process.execPath)) files.push({ path: s, size: st.size }); } catch {} }
+  }
+  if (files.length) {
+    const now = Date.now(); for (const [k, v] of shares) if (now - v.at > 3600000) shares.delete(k);
+    queueAction({ type: 'share', files: files.map((f) => { const id = rid(8), name = path.basename(f.path).slice(0, 150); shares.set(id, { path: f.path, name, size: f.size, at: now }); return { id, name, size: f.size }; }) });
+  }
+}
+ipcMain.handle('shell:shareRead', async (e, id) => {
+  if (!fromMainWin(e)) return null; const s = shares.get(String(id)); shares.delete(String(id)); if (!s) return null;
+  if (s.size > 1024 * 1048576) return { error: 'too big', name: s.name };
+  try { const b = await fs.promises.readFile(s.path); return { name: s.name, data: new Uint8Array(b.buffer, b.byteOffset, b.length) }; } catch { return { error: 'unreadable', name: s.name }; }
+});
+const sendToPath = () => (process.platform === 'win32' ? path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'SendTo', 'LANChat.lnk') : '');
+function setSendTo(on) {
+  const p = sendToPath(); if (!p || !packaged() || process.defaultApp) return false;
+  try { if (on) return shell.writeShortcutLink(p, 'create', { target: process.execPath, args: '--lc-share', description: 'Share in a LANChat chat', icon: process.execPath, iconIndex: 0, appUserModelId: 'LANChat' }); fs.rmSync(p, { force: true }); return true; } catch { return false; }
+}
+
+// updates from the host: a friend's session offers its newer app; we ask first, download over the LAN, check it and install
+const offered = new Set(); let updating = false;
+function fetchToFile(url, headers, dest, max) {
+  return new Promise((resolve, reject) => {
+    const lib = url.startsWith('https:') ? https : http;
+    const req = lib.get(url, { headers, timeout: 30000 }, (res) => {
+      if (res.statusCode !== 200) { res.resume(); return reject(new Error(`Your friend’s LANChat refused the download (HTTP ${res.statusCode}).`)); }
+      const h = crypto.createHash('sha256'), out = fs.createWriteStream(dest); let n = 0;
+      res.on('data', (c) => { n += c.length; if (n > max) { req.destroy(new Error('The download is bigger than announced.')); return; } h.update(c); if (win && !win.isDestroyed()) win.setProgressBar(Math.min(1, n / max)); });
+      res.pipe(out); out.on('finish', () => resolve({ size: n, sha256: h.digest('hex') })); out.on('error', reject); res.on('error', reject);
+    });
+    req.on('timeout', () => req.destroy(new Error('The download timed out.'))); req.on('error', reject);
+  });
+}
+async function installFromHost(origin, token, version, sha, size) {
+  const dir = path.join(USER, 'updates'), zip = path.join(dir, 'app.zip'), stage = path.join(dir, 'stage');
+  fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(stage, { recursive: true });
+  try {
+    const got = await fetchToFile(origin + '/api/update/app.zip', { 'x-token': token }, zip, size);
+    if (got.size !== size || got.sha256 !== sha) throw new Error('The download did not match what your friend’s LANChat announced, so it was thrown away.');
+    const { readZipIndex, extractEntry } = require(path.join(ROOT, 'lib', 'zip'));
+    const entries = readZipIndex(zip); let total = 0;
+    if (!entries.length || entries.length > 5000) throw new Error('The update looks broken.');
+    for (const en of entries) {
+      const n = en.name; total += en.usize;
+      if (!n || n.length > 300 || n.includes('\\') || n.startsWith('/') || /^[a-z]:/i.test(n) || n.split('/').some((p) => p === '' || p === '.' || p === '..')) throw new Error('The update contains unsafe file names.');
+      if (total > 400 * 1048576) throw new Error('The update is too big.');
+    }
+    for (const need of ['package.json', 'main.js', 'preload.js', 'lib/app.js', 'public/index.html']) if (!entries.some((x) => x.name === need)) throw new Error(`The update is incomplete (${need} is missing).`);
+    for (const en of entries) { const dest = path.join(stage, ...en.name.split('/')); if (!dest.startsWith(stage + path.sep)) throw new Error('The update contains unsafe file names.'); fs.mkdirSync(path.dirname(dest), { recursive: true }); await extractEntry(zip, en, dest); }
+    const pkg = JSON.parse(fs.readFileSync(path.join(stage, 'package.json'), 'utf8'));
+    if (pkg.name !== 'lanchat-desktop' || pkg.version !== version || !newer(pkg.version, app.getVersion())) throw new Error('That is not a newer LANChat app.');
+    fs.cpSync(stage, ROOT, { recursive: true, force: true });
+  } finally { if (win && !win.isDestroyed()) win.setProgressBar(-1); }
+  try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+  relaunchNow();
+}
+ipcMain.handle('shell:update', async (e, o) => {
+  if (!fromMainWin(e) || !o || typeof o !== 'object') return { error: 'bad request' };
+  const version = String(o.version || ''), sha = String(o.sha256 || ''), size = Number(o.size), token = String(o.token || ''), manual = o.manual === true, host = String(o.host || '').replace(/[\u0000-\u001f]/g, '').slice(0, 60);
+  if (!/^\d{1,4}\.\d{1,4}\.\d{1,4}$/.test(version) || !/^[a-f0-9]{64}$/.test(sha) || !(size > 1000 && size < 300 * 1048576) || !/^[a-f0-9]{16,200}$/.test(token)) return { error: 'The update information from the host is not valid.' };
+  if (!newer(version, app.getVersion())) return { result: 'current' }; // never downgrade
+  if (!packaged()) return { error: 'This copy of LANChat runs from its source folder, so it cannot update itself.' };
+  const s = activeSession(); let origin = ''; try { origin = new URL(win.webContents.getURL()).origin; } catch {}
+  let sOrigin = ''; try { sOrigin = s && s.kind === 'join' ? new URL(s.url).origin : ''; } catch {}
+  if (!origin || origin !== sOrigin) return { error: 'Updates only come from a friend’s session you joined.' };
+  if (!manual && (cfg.skipUpdate === version || offered.has(version))) return { result: 'skipped' };
+  if (updating) return { result: 'busy' }; updating = true; offered.add(version);
+  try {
+    const r = await dialog.showMessageBox(win, { type: 'question', title: 'Update LANChat', message: `Update LANChat to v${version} from ${host || s.name}?`, detail: `${host || s.name} has a newer LANChat (you have ${app.getVersion()}). The update (${(size / 1048576).toFixed(1)} MB) comes straight from their computer over your network and is checked before it is installed.\n\nOnly update if you trust them: the update runs as part of LANChat. Your chats and settings are kept, and LANChat restarts.`, buttons: ['Update and restart', 'Not now', 'Skip this version'], defaultId: 0, cancelId: 1, noLink: true });
+    if (r.response === 2) { cfg.skipUpdate = version; save(); return { result: 'skipped' }; }
+    if (r.response !== 0) return { result: 'later' };
+    await installFromHost(origin, token, version, sha, size); return { result: 'installing' };
+  } catch (err) { dialog.showErrorBox('Update failed', String(err.message || err)); return { error: String(err.message || err) }; }
+  finally { updating = false; }
+});
+
 // ---------- diagnostics ----------
 function probe(url) { return new Promise((resolve) => { const req = http.get(url + '/api/config', { timeout: 2500 }, (res) => { res.resume(); resolve(res.statusCode === 200); }); req.on('error', () => resolve(false)); req.on('timeout', () => { req.destroy(); resolve(false); }); }); }
 function showDiag() { if (diagWin) return diagWin.focus(); diagWin = new BrowserWindow({ width: 620, height: 640, title: 'Connection help', icon: appIcon(), autoHideMenuBar: true, webPreferences: { nodeIntegration: true, contextIsolation: false } }); diagWin.setMenu(null); diagWin.loadFile(path.join(__dirname, 'diag.html')); diagWin.on('closed', () => { diagWin = null; }); }
@@ -314,8 +608,10 @@ async function updateFromFolder() {
   if (!newer(their.version, app.getVersion())) return void dialog.showMessageBox(win || undefined, { type: 'info', message: `You already have version ${app.getVersion()}.`, detail: `The folder you chose is version ${their.version}.` });
   const r = await dialog.showMessageBox(win || undefined, { type: 'question', title: 'Update LANChat', message: `Update ${app.getVersion()} → ${their.version}?`, detail: 'Only choose a folder you got from someone you trust: the update runs as part of LANChat. Your chats and settings are kept. LANChat will restart.', buttons: ['Cancel', 'Update and restart'], defaultId: 0, cancelId: 0 });
   if (r.response !== 1) return;
-  try { fs.cpSync(cand, ROOT, { recursive: true, force: true, filter: (src) => !/node_modules|\.git/.test(src) }); quitting = true; app.relaunch(); app.exit(0); } catch (e) { dialog.showErrorBox('Update failed', String(e.message || e)); }
+  try { fs.cpSync(cand, ROOT, { recursive: true, force: true, filter: (src) => !/node_modules|\.git/.test(src) }); relaunchNow(); } catch (e) { dialog.showErrorBox('Update failed', String(e.message || e)); }
 }
+// save every hosted session to disk, then start the (updated) app again
+function relaunchNow() { quitting = true; for (const r of running.values()) { try { r.app.flush(); } catch {} } app.relaunch(); app.exit(0); }
 
 // ---------- tray + menu ----------
 function createTray() {
@@ -342,8 +638,9 @@ function buildMenu() {
       { label: 'Check for update from a folder…', click: updateFromFolder }, { type: 'separator' }, ...ext.menu, ...(ext.menu.length ? [{ type: 'separator' }] : []),
       { label: 'Quit', accelerator: 'CmdOrCtrl+Q', click: async () => { if (friendsOnline() > 0 && !(await confirmQuit())) return; doQuit(); } },
     ] },
-    { label: 'View', submenu: [{ role: 'reload' }, { role: 'togglefullscreen' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'resetZoom' }] },
-    { label: 'Help', submenu: [{ label: 'Keyboard shortcuts', click: panel('shortcuts') }, { label: 'Connection help…', click: showDiag }, { type: 'separator' }, { label: `LANChat ${app.getVersion()}`, enabled: false }] },
+    { label: 'View', submenu: [{ role: 'reload' }, { role: 'togglefullscreen' }, { type: 'separator' }, // zoom keys are handled in decorate() (also Ctrl+= and the number pad)
+      { label: 'Zoom in', accelerator: 'CmdOrCtrl+=', registerAccelerator: false, click: () => stepZoom(1, win && win.webContents) }, { label: 'Zoom out', accelerator: 'CmdOrCtrl+-', registerAccelerator: false, click: () => stepZoom(-1, win && win.webContents) }, { label: 'Actual size', accelerator: 'CmdOrCtrl+0', registerAccelerator: false, click: () => stepZoom(0, win && win.webContents) }] },
+    { label: 'Help', submenu: [{ label: 'Help topics', click: panel('sh:help') }, { label: 'Keyboard shortcuts', click: panel('shortcuts') }, { label: 'What’s new', click: panel('sh:whatsnew') }, { label: 'Take the tour', click: panel('sh:tour') }, { type: 'separator' }, { label: 'Connection help…', click: showDiag }, { type: 'separator' }, { label: 'About LANChat', click: panel('sh:about') }, { label: `LANChat ${app.getVersion()}`, enabled: false }] },
   ]));
 }
 
@@ -376,7 +673,8 @@ const LOCK = { app: 'lanchat', version: app.getVersion() };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 app.on('second-instance', (_e, _argv, _cwd, data) => {
   if (data && data.app === 'lanchat' && newer(String(data.version || ''), app.getVersion())) return stepAside();
-  showMain(); for (const f of ext.onArgs) { try { f(_argv, false); } catch {} }
+  if (!(_argv || []).some((a) => String(a).startsWith('--lc-status='))) showMain(); // a status change from the jump list stays in the background
+  handleArgs(_argv); for (const f of ext.onArgs) { try { f(_argv, false); } catch {} }
 });
 function stepAside() { quitting = true; for (const id of [...running.keys()]) { stopTunnel(id); try { running.get(id).app.stop(); } catch {} } app.exit(0); }
 const verAt = (exe) => { for (const d of [path.join(path.dirname(exe), 'resources', 'app'), path.join(path.dirname(exe), '..', 'Resources', 'app')]) { try { return String(JSON.parse(fs.readFileSync(path.join(d, 'package.json'), 'utf8')).version || ''); } catch {} } return ''; };
@@ -423,9 +721,13 @@ const firstLock = app.requestSingleInstanceLock(LOCK);
 app.whenReady().then(async () => {
   if (!firstLock && !(await takeOver())) return app.quit();
   writeInstance();
-  setupSecurity(); loadExtensions(); createTray(); buildMenu();
+  setupSecurity(); setupDownloads(); setupSpelling(); loadExtensions(); createTray(); buildMenu(); setJumpList(); registerProtocol();
   try { if (cfg.startWithWindows) app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] }); } catch {}
   for (const s of cfg.sessions.filter((x) => x.kind === 'host' && x.autoStart !== false)) { try { await startSession(s); } catch (e) { console.error('autostart failed', e.message); } }
   const active = cfg.sessions.find((x) => x.id === cfg.active);
   if (active) await openSession(active.id); else showSessions();
+  handleArgs(process.argv); for (const u of earlyUrls.splice(0)) openLanchatLink(u); // jump list, lanchat:// link or files this copy was started with
 });
+
+// for tests (tests/electron-shell.js drives the main process over the inspector)
+module.exports = { contextTemplate, handleArgs, openLanchatLink, zoomOf, packaged, popouts };

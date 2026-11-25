@@ -11,10 +11,10 @@
   const fail = (e) => LC.toast(e.message || String(e));
 
   function tabbed(title, tabs, start, o = {}) {
-    const body = el('div', { class: 'tabbody' }), bar = el('div', { class: 'tabsbar', role: 'tablist' }); let cur = null;
+    const body = el('div', { class: 'tabbody' }), bar = el('div', { class: 'tabsbar', role: 'tablist', 'aria-orientation': o.vertical ? 'vertical' : null }); let cur = null;
     const show = async (k) => { cur = k; [...bar.children].forEach((b) => { b.classList.toggle('on', b.dataset.k === k); b.setAttribute('aria-selected', b.dataset.k === k); }); body.replaceChildren(el('p', { class: 'muted', text: t('loading') })); try { const c = await tabs.find((x) => x.key === k).render(), extra = []; for (const sec of (o.sections || []).filter((x) => x.tab === k).sort((a, b) => (a.order ?? 50) - (b.order ?? 50))) { try { const n = await sec.render(); if (n) extra.push(n); } catch (e) { console.error('settings section', e); } } if (cur === k) body.replaceChildren(c, ...extra); } catch (e) { body.replaceChildren(el('p', { class: 'err', text: e.message })); } };
     for (const tb of tabs) bar.append(el('button', { 'data-k': tb.key, role: 'tab', class: 'tabbtn', onclick: () => show(tb.key) }, tb.icon ? (LC.hasIcon(tb.icon) ? LC.icon(tb.icon) : tb.icon + ' ') : '', el('span', { text: tb.label })));
-    LC.modal([el('div', { class: 'row-between' }, el('h2', { style: { margin: 0 } }, o.icon ? LC.icon(o.icon) : null, o.icon ? ' ' : '', title), LC.ibtn('dismiss', t('close'), LC.closeModal)), bar, body], { wide: true, label: title, onClose: o.onClose });
+    LC.modal([el('div', { class: 'row-between' }, el('h2', { style: { margin: 0 } }, o.icon ? LC.icon(o.icon) : null, o.icon ? ' ' : '', title), LC.ibtn('dismiss', t('close'), LC.closeModal)), o.vertical ? el('div', { class: 'sh-setgrid' }, bar, body) : [bar, body]], { wide: true, label: title, onClose: o.onClose });
     show(tabs.some((x) => x.key === start) ? start : tabs[0].key); return { show, current: () => cur };
   }
 
@@ -66,9 +66,17 @@
     else { const k = Math.min(1, size / Math.max(w, h)); c.width = Math.round(w * k); c.height = Math.round(h * k); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); }
     return new Promise((r) => c.toBlob(r, type, quality));
   }
+  // Teams-style Settings: General, Profile, Appearance and accessibility, Privacy, Notifications, Devices, Calls, Files and links,
+  // Friends, Custom emoji, About. Other areas add tabs (LC.ext.settingsTabs: the same key replaces a tab here) and sections
+  // (LC.ext.settingsSections). Devices and Calls only appear when an area fills them. Shell parts come from shell-settings.js.
+  LC.formKit = { field, row, toggle, select };
   LC.settingsPanel = (start = 'profile') => {
+    const X = LC.shellSettings || {}, part = (k, ...a) => { try { return X[k] ? X[k](...a) : null; } catch (e) { console.error('settings part', k, e); return null; } };
+    const wanted = (k) => LC.ext.settingsSections.some((x) => x.tab === k) || LC.ext.settingsTabs.some((x) => x.key === k);
+    const setLang = (v) => Promise.resolve(LC.shell && LC.shell.setLang ? LC.shell.setLang(v) : LC.setUi({ lang: v })).then(() => LC.settingsPanel('appearance'));
     const tabs = [
-      { key: 'profile', icon: 'person', label: t('tabProfile'), render: () => {
+      { key: 'general', icon: 'settings', label: t('sh_tabGeneral'), order: 5, render: () => part('general') || el('div') },
+      { key: 'profile', icon: 'person', label: t('tabProfile'), order: 10, render: () => {
         const me = S.me, name = el('input', { value: me.name, maxlength: 24 }), st = el('input', { value: me.statusText, maxlength: 80, placeholder: t('statusPlaceholder') }), se = el('input', { value: me.statusEmoji, maxlength: 4, class: 'emo', placeholder: '🙂', 'aria-label': t('statusEmoji') });
         const av = el('div', { class: 'avline' }, LC.avatar(me, 'lg', false), el('button', { class: 'secondary sm', text: t('uploadPhoto'), onclick: () => file.click() }), me.avatar ? el('button', { class: 'secondary sm', text: t('removePhoto'), onclick: () => LC.api('/api/profile', { avatar: null }).then(() => LC.settingsPanel('profile')).catch(fail) }) : null);
         const file = el('input', { type: 'file', accept: 'image/*', class: 'hidden', onchange: async (e) => { const f = e.target.files[0]; if (!f) return; try { const b = await resizeToBlob(f, 256, 'image/jpeg', 0.85, true), up = await LC.upload(b, 'avatar.jpg').promise; await LC.api('/api/profile', { avatar: up.id }); LC.settingsPanel('profile'); } catch (x) { fail(x); } } });
@@ -77,33 +85,37 @@
           field(t('presence'), select([['auto', t('online')], ['away', t('away')], ['dnd', t('dnd')], ['invisible', t('invisible')]], me.presence, (v) => LC.api('/api/presence', { state: v }).catch(fail), t('presence')), t('presenceHelp')),
           el('div', { class: 'acts' }, el('button', { class: 'primary', text: t('save'), onclick: async () => { try { await LC.api('/api/profile', { name: name.value, statusText: st.value, statusEmoji: se.value }); LC.toast(t('saved'), { ms: 1500 }); LC.settingsPanel('profile'); } catch (e) { fail(e); } } })));
       } },
-      { key: 'appearance', icon: 'paint_brush', label: t('tabAppearance'), render: () => {
+      { key: 'appearance', icon: 'paint_brush', label: t('sh_tabAppearance'), order: 20, render: () => {
         const u = LC.ui, acc = el('div', { class: 'swatches' }, swatches.map((c) => el('button', { class: 'swatch' + (u.accent === c ? ' on' : ''), style: { background: c }, 'aria-label': c, onclick: () => { LC.setUi({ accent: c }); LC.settingsPanel('appearance'); } })), el('input', { type: 'color', value: u.accent, 'aria-label': t('customColor'), onchange: (e) => LC.setUi({ accent: e.target.value }) }));
-        return el('div', {}, field(t('theme'), select([['auto', t('themeAuto')], ['light', t('themeLight')], ['dark', t('themeDark')], ['hc', t('themeHC')]], u.theme, (v) => LC.setUi({ theme: v }), t('theme'))), field(t('accent'), acc),
+        return el('div', {}, el('h3', { text: t('sh_secTheme') }), field(t('theme'), select([['auto', t('themeAuto')], ['light', t('themeLight')], ['dark', t('themeDark')], ['hc', t('themeHC')]], u.theme, (v) => LC.setUi({ theme: v }), t('theme'))), field(t('accent'), acc),
+          el('h3', { text: t('sh_secLayout') }), part('density') || toggle(t('compactLayout'), u.compact, (v) => LC.setUi({ compact: v })), part('zoom'),
           field(t('fontSize') + ` (${u.font}%)`, el('input', { type: 'range', min: 80, max: 150, step: 5, value: u.font, 'aria-label': t('fontSize'), oninput: (e) => LC.setUi({ font: Number(e.target.value) }), onchange: () => LC.settingsPanel('appearance') })),
-          toggle(t('compactLayout'), u.compact, (v) => LC.setUi({ compact: v })), toggle(t('reduceMotion'), u.reduceMotion, (v) => LC.setUi({ reduceMotion: v })),
           field(t('wallpaper'), select([['none', t('wallNone')], ['dots', t('wallDots')], ['waves', t('wallWaves')], ['sunset', t('wallSunset')], ['forest', t('wallForest')], ['night', t('wallNight')]], u.wall, (v) => LC.setUi({ wall: v }), t('wallpaper'))),
-          field(t('language'), select([['auto', t('langAuto')], ...Object.entries(LC.languages).map(([k, v]) => [k, v])], u.lang, (v) => { LC.setUi({ lang: v }); LC.settingsPanel('appearance'); }, t('language')), t('langNote')));
+          el('h3', { text: t('sh_secAccess') }), toggle(t('reduceMotion'), u.reduceMotion, (v) => LC.setUi({ reduceMotion: v })), part('readAloud'), part('signers'),
+          el('h3', { text: t('language') }), field(t('language'), select([['auto', t('langAuto')], ...Object.entries(LC.languages).map(([k, v]) => [k, v])], u.lang, setLang, t('language')), t('langNote')), part('language'));
       } },
-      { key: 'notifications', icon: 'alert', label: t('tabNotifications'), render: () => {
+      { key: 'privacy', icon: 'shield_lock', label: t('privacy'), order: 30, render: () => el('div', {}, el('h3', { text: t('sh_secReceipts') }), toggle(t('readReceipts'), LC.prefs().readReceipts !== false, (v) => LC.setPrefs({ readReceipts: v }), t('readReceiptsHint'))) },
+      { key: 'notifications', icon: 'alert', label: t('tabNotifications'), order: 40, render: () => {
         const np = LC.prefs().notif || {}, q = LC.prefs().quiet || { on: false, from: '22:00', to: '07:00' }, setN = (k, v) => LC.setPrefs({ notif: { previews: np.previews !== false, sound: np.sound !== false, desktop: np.desktop !== false, mentionsOnly: !!np.mentionsOnly, ...{ [k]: v } } });
         const setQ = (patch) => LC.setPrefs({ quiet: { ...q, ...patch } }), custom = el('input', { type: 'file', accept: 'audio/*', class: 'hidden', onchange: (e) => { const f = e.target.files[0]; if (!f) return; if (f.size > 300000) return LC.toast(t('soundTooBig')); const r = new FileReader(); r.onload = () => { LC.setUi({ customSound: r.result, sound: 'custom' }); LC.playSound('custom'); LC.settingsPanel('notifications'); }; r.readAsDataURL(f); } });
         return el('div', {}, toggle(t('notifSound'), np.sound !== false, (v) => setN('sound', v)),
           row(field(t('soundChoice'), select([['chime', t('soundChime')], ['ping', t('soundPing')], ['pop', t('soundPop')], ['none', t('soundNone')], ...(LC.ui.customSound ? [['custom', t('soundCustom')]] : [])], LC.ui.sound, (v) => { LC.setUi({ sound: v }); LC.playSound(v); }, t('soundChoice'))), el('button', { class: 'secondary sm withicon', onclick: () => LC.playSound() }, LC.icon('play'), t('test')), el('button', { class: 'secondary sm', text: t('uploadSound'), onclick: () => custom.click() })), custom,
           toggle(t('notifDesktop'), np.desktop !== false, (v) => { setN('desktop', v); if (v && !LC.native && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission(); }, LC.native ? '' : window.isSecureContext ? '' : t('notifInsecure')),
           toggle(t('notifPreviews'), np.previews !== false, (v) => setN('previews', v)), toggle(t('notifMentionsOnly'), np.mentionsOnly, (v) => setN('mentionsOnly', v)),
-          el('h3', { text: t('quietHours') }), toggle(t('quietOn'), q.on, (v) => setQ({ on: v })), row(field(t('from'), el('input', { type: 'time', value: q.from, onchange: (e) => setQ({ from: e.target.value }) })), field(t('to'), el('input', { type: 'time', value: q.to, onchange: (e) => setQ({ to: e.target.value }) }))),
-          el('h3', { text: t('privacy') }), toggle(t('readReceipts'), LC.prefs().readReceipts !== false, (v) => LC.setPrefs({ readReceipts: v }), t('readReceiptsHint')));
+          el('h3', { text: t('quietHours') }), toggle(t('quietOn'), q.on, (v) => setQ({ on: v })), row(field(t('from'), el('input', { type: 'time', value: q.from, onchange: (e) => setQ({ from: e.target.value }) })), field(t('to'), el('input', { type: 'time', value: q.to, onchange: (e) => setQ({ to: e.target.value }) }))));
       } },
-      { key: 'people', icon: 'star', label: t('tabFriends'), render: () => {
+      wanted('devices') ? { key: 'devices', icon: 'mic', label: t('sh_tabDevices'), order: 50, render: () => el('div') } : null,
+      wanted('calls') ? { key: 'calls', icon: 'call', label: t('railCalls'), order: 60, render: () => el('div') } : null,
+      { key: 'files', icon: 'folder', label: t('sh_tabFiles'), order: 70, render: () => part('files') || el('div') },
+      { key: 'people', icon: 'star', label: t('tabFriends'), order: 80, render: () => {
         const nn = LC.prefs().nicknames || {}, favs = new Set(LC.prefs().favorites || []), users = [...S.users.values()].filter((u) => u.id !== S.me.id && !u.removed);
         return el('div', {}, el('p', { class: 'muted small', text: t('nickHelp') }), ...users.map((u) => { const inp = el('input', { value: nn[u.id] || '', maxlength: 24, placeholder: u.name, 'aria-label': t('nicknameFor', { name: u.name }), onchange: (e) => { const n = { ...(LC.prefs().nicknames || {}) }; if (e.target.value.trim()) n[u.id] = e.target.value.trim(); else delete n[u.id]; LC.setPrefs({ nicknames: n }); } }); return row(LC.avatar(u, 'sm', true), el('span', { class: 'grow', text: u.name }), inp, el('button', { class: 'icon', 'aria-label': t('favorite'), title: t('favorite'), 'aria-pressed': String(favs.has(u.id)), onclick: (e) => { LC.toggleFavorite(u.id); const b = e.currentTarget, on = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', String(on)); b.replaceChildren(LC.icon('star', { filled: on })); } }, LC.icon('star', { filled: favs.has(u.id) }))); }));
       } },
-      { key: 'emoji', icon: 'emoji', label: t('customEmoji'), render: () => emojiPane() },
-      { key: 'about', icon: 'info', label: t('tabAbout'), render: () => el('div', {}, el('p', {}, el('b', { text: S.chatName }), ' · LANChat' + (S.appVersion ? ' ' + S.appVersion : '')), el('p', { class: 'muted', text: t('aboutText') }), el('p', { class: 'muted small', text: t('yourRole', { role: t('role_' + S.me.role) }) }), el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('shortcuts'), onclick: () => LC.shortcutsHelp() }), el('button', { class: 'secondary', text: t('signOut'), onclick: async () => { if (await LC.confirm(t('confirmSignOut'))) LC.signOut('manual'); } })), el('h3', { text: t('myAccount') }), LC.isOwner() ? el('p', { class: 'muted small', text: t('ownerCantDelete') }) : el('div', {}, el('p', { class: 'muted small', text: t('deleteMyAccountHelp') }), el('div', { class: 'acts' }, el('button', { class: 'secondary danger', text: t('deleteMyAccount'), onclick: async () => { if (!(await LC.confirm(t('confirmDeleteAccount'), { danger: true, ok: t('delete') }))) return; const purge = await LC.confirm(t('confirmDeleteAccountMsgs'), { ok: t('alsoDeleteMsgs'), cancel: t('keepMsgs') }); LC.api('/api/account/delete', { purge }).then(() => LC.signOut('deleted')).catch(fail); } })))) },
-    ];
+      { key: 'emoji', icon: 'emoji', label: t('customEmoji'), order: 85, render: () => emojiPane() },
+      { key: 'about', icon: 'info', label: t('tabAbout'), order: 99, render: () => el('div', {}, part('about'), el('p', {}, el('b', { text: S.chatName }), ' · LANChat' + (S.appVersion ? ' ' + S.appVersion : '')), el('p', { class: 'muted', text: t('aboutText') }), el('p', { class: 'muted small', text: t('yourRole', { role: t('role_' + S.me.role) }) }), el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('shortcuts'), onclick: () => LC.shortcutsHelp() }), el('button', { class: 'secondary', text: t('signOut'), onclick: async () => { if (await LC.confirm(t('confirmSignOut'))) LC.signOut('manual'); } })), el('h3', { text: t('myAccount') }), LC.isOwner() ? el('p', { class: 'muted small', text: t('ownerCantDelete') }) : el('div', {}, el('p', { class: 'muted small', text: t('deleteMyAccountHelp') }), el('div', { class: 'acts' }, el('button', { class: 'secondary danger', text: t('deleteMyAccount'), onclick: async () => { if (!(await LC.confirm(t('confirmDeleteAccount'), { danger: true, ok: t('delete') }))) return; const purge = await LC.confirm(t('confirmDeleteAccountMsgs'), { ok: t('alsoDeleteMsgs'), cancel: t('keepMsgs') }); LC.api('/api/account/delete', { purge }).then(() => LC.signOut('deleted')).catch(fail); } })))) },
+    ].filter(Boolean);
     const extTabs = LC.ext.settingsTabs.map((x) => ({ ...x, label: typeof x.label === 'function' ? x.label() : x.label })), ek = new Set(extTabs.map((x) => x.key));
-    tabbed(t('settings'), [...tabs.filter((x) => !ek.has(x.key)), ...extTabs].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)), start, { icon: 'settings', sections: LC.ext.settingsSections });
+    tabbed(t('settings'), [...tabs.filter((x) => !ek.has(x.key)), ...extTabs].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)), start, { icon: 'settings', sections: LC.ext.settingsSections, vertical: true });
   };
 
   // ---------- custom emoji ----------
