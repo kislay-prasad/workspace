@@ -340,7 +340,7 @@
   // ---------- incoming call ----------
   function stopRing() { clearInterval(ringTimer); ringTimer = null; if (ringBox) { ringBox.remove(); ringBox = null; } }
   LC.on('callring', (r) => {
-    if (call || S.me.presence === 'dnd' || LC.isMuted(r.chan)) return; stopRing();
+    if (call || (LC.ringAllowed ? !LC.ringAllowed(r) : S.me.presence === 'dnd') || LC.isMuted(r.chan)) return; stopRing();
     const u = S.users.get(r.from), video = r.call.mode === 'video', i = LC.chanInfo(r.chan);
     const accept = (mode) => async () => { stopRing(); await LC.openChat(r.chan); LC.joinCall(r.chan, mode); };
     ringBox = el('div', { class: 'ringbox', 'data-chan': r.chan, role: 'alertdialog', 'aria-label': t('incomingCallTitle') },

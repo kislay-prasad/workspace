@@ -70,7 +70,7 @@
   }
   function navItem(e, o = {}) {
     const id = e.id, un = S.unread[id] || 0, mn = S.mentions[id] || 0, muted = LC.isMuted(id), last = S.last[id];
-    const name = e.kind === 'dm' ? LC.uname(e.u.id) : e.c.name, prev = previewOf(id) || (e.kind === 'dm' ? (e.u.statusText ? (e.u.statusEmoji || '') + ' ' + e.u.statusText : t(e.u.presence)) : e.kind === 'channel' ? e.c.topic || '' : '');
+    const name = e.kind === 'dm' ? LC.uname(e.u.id) : e.c.name, prev = previewOf(id) || (e.kind === 'dm' ? (e.u.statusText ? (e.u.statusEmoji || '') + ' ' + e.u.statusText : LC.presenceLabel(e.u.presence)) : e.kind === 'channel' ? e.c.topic || '' : '');
     const main = el('button', { class: 'itemmain', 'aria-current': S.chan === id ? 'page' : null, onclick: () => LC.openChat(id) },
       LC.chatLead(id),
       el('span', { class: 'itext' },
@@ -130,7 +130,7 @@
     const head = (label) => el('div', { class: 'sec' }, el('span', { class: 'sectitle', text: label }));
     nav.replaceChildren(head(t('activeCalls')), ...(live.length ? live.map(([chan, c]) => el('div', { class: 'callrow' }, el('span', { class: 'livecall' }, LC.icon(c.mode === 'video' ? 'video' : 'call', { filled: true })), el('span', { class: 'itext' }, el('b', { class: 'name', text: LC.chanInfo(chan).title }), el('span', { class: 'prev', text: c.participants.map(LC.uname).join(', ') })),
       LC.inCall() && LC.callChan() === chan ? el('button', { class: 'secondary sm', text: t('openCall'), onclick: () => LC.showCall() }) : el('button', { class: 'primary sm', text: t('joinCall'), onclick: async () => { await LC.openChat(chan); LC.joinCall(chan); } }))) : [el('p', { class: 'muted small pad', text: t('noActiveCalls') })]),
-    head(t('people')), ...people.map((u) => { const dm = LC.dmId(S.me.id, u.id); return el('div', { class: 'callrow' }, LC.avatar(u, '', true), el('span', { class: 'itext' }, el('b', { class: 'name', text: LC.uname(u.id) }), el('span', { class: 'prev', text: t(u.presence) })), LC.ibtn('video', t('videoCallWith', { name: LC.uname(u.id) }), async () => { await LC.openChat(dm); LC.startCall(dm, 'video'); }), LC.ibtn('call', t('voiceCallWith', { name: LC.uname(u.id) }), async () => { await LC.openChat(dm); LC.startCall(dm, 'voice'); })); }),
+    head(t('people')), ...people.map((u) => { const dm = LC.dmId(S.me.id, u.id); return el('div', { class: 'callrow' }, LC.avatar(u, '', true), el('span', { class: 'itext' }, el('b', { class: 'name', text: LC.uname(u.id) }), el('span', { class: 'prev', text: LC.presenceLabel(u.presence) })), LC.ibtn('video', t('videoCallWith', { name: LC.uname(u.id) }), async () => { await LC.openChat(dm); LC.startCall(dm, 'video'); }), LC.ibtn('call', t('voiceCallWith', { name: LC.uname(u.id) }), async () => { await LC.openChat(dm); LC.startCall(dm, 'voice'); })); }),
     ...(people.length ? [] : [el('div', { class: 'empty small', text: t('nobodyYet') })]));
   }
   async function renderSaved(nav) {
@@ -155,7 +155,7 @@
   LC.renderChats = renderChats; LC.chatEntries = chatEntries; LC.navItem = navItem; LC.navSection = section; LC.emptyState = emptyState;
   function renderMe() {
     const box = $('#meBox'); if (!box || !S.me) return; const m = S.me;
-    box.replaceChildren(el('button', { class: 'meb', onclick: (e) => LC.profileMenu(e.currentTarget), 'aria-label': t('myStatus') + ': ' + m.name, title: m.name + ' · ' + (m.statusText || t(m.presence === 'invisible' ? 'invisible' : m.presence)), 'aria-haspopup': 'menu' }, LC.avatar(m, '', true)));
+    box.replaceChildren(el('button', { class: 'meb', onclick: (e) => LC.profileMenu(e.currentTarget), 'aria-label': t('myStatus') + ': ' + m.name, title: m.name + ' · ' + (m.statusText || LC.presenceLabel(m.presence)), 'aria-haspopup': 'menu' }, LC.avatar(m, '', true)));
   }
   function presenceMenu(anchor) {
     const set = (state) => LC.api('/api/presence', { state }).catch((e) => LC.toast(e.message)), cur = S.me.presence;
@@ -201,7 +201,7 @@
   function renderHeader() {
     const i = LC.chanInfo(S.chan); if (!S.chan || S.app) return;
     $('#title').textContent = i.title; $('#headAvatar').replaceChildren(LC.chatLead(S.chan)); const topic = $('#topic');
-    if (i.kind === 'dm') { const u = i.peer; topic.replaceChildren(u ? (u.presence !== 'offline' ? t(u.presence) : u.lastSeen ? t('lastSeen', { when: LC.fmtDateTime(u.lastSeen) }) : t('offline')) + (u.statusText ? ' · ' + (u.statusEmoji || '') + ' ' + u.statusText : '') : ''); }
+    if (i.kind === 'dm') { const u = i.peer; topic.replaceChildren(u ? (u.presence !== 'offline' ? LC.presenceLabel(u.presence) : u.lastSeen ? t('lastSeen', { when: LC.fmtDateTime(u.lastSeen) }) : t('offline')) + (u.statusText ? ' · ' + (u.statusEmoji || '') + ' ' + u.statusText : '') : ''); }
     else if (i.c && i.c.members) topic.replaceChildren(t('peopleCount', { n: i.c.members.length }) + ' · ' + i.c.members.map(LC.uname).join(', '));
     else { const bits = []; if (i.topic) bits.push(i.topic); if (i.c && i.c.readonly) bits.push(el('span', { class: 'tbit' }, LC.icon('megaphone'), t('announcements'))); if (i.c && i.c.slow) bits.push(el('span', { class: 'tbit' }, LC.icon('animal_turtle'), t('slowMode', { n: i.c.slow }))); if (i.c && i.c.ttl) bits.push(el('span', { class: 'tbit' }, LC.icon('timer'), LC.ttlLabel(i.c.ttl))); topic.replaceChildren(...bits.flatMap((b, k) => (k ? [' · ', b] : [b]))); }
     const acts = $('#headActions'), live = S.calls[S.chan];
