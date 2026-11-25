@@ -102,13 +102,22 @@
   LC.on('call:left', closePop);
 
   // ---------- notes: agenda + the meeting chat's shared note (stored by the apps area: /api/collab, /api/note) ----------
-  function notesView(id, chan) {
-    let agenda = [], note = { text: '', v: 0 }, dirty = false, saving = false;
+  // the agenda (also in the meeting chat's Details tab); live through mt_agenda
+  function agendaView(id) {
+    let agenda = [];
     const alist = el('div', { class: 'mt-agenda' }), aText = el('input', { maxlength: 200, placeholder: t('mt_addAgenda'), 'aria-label': t('mt_addAgenda') }), aMin = el('input', { type: 'number', min: 0, max: 480, placeholder: t('mt_mins'), 'aria-label': t('mt_mins'), class: 'mt-num' });
-    const ta = el('textarea', { class: 'mt-notearea', rows: 8, placeholder: t('mt_notesPh'), 'aria-label': t('mt_sharedNotes') }), status = el('span', { class: 'muted small' });
     const op = (b) => LC.api('/api/meetings/agenda', { id, ...b }).then((r) => { agenda = r.agenda; drawA(); }).catch(fail);
     const drawA = () => alist.replaceChildren(...(agenda.length ? agenda.map((a, i) => el('div', { class: 'mt-aitem' + (a.done ? ' done' : '') }, el('input', { type: 'checkbox', checked: a.done, 'aria-label': a.text, onchange: () => op({ op: 'toggle', aid: a.id }) }), el('span', { class: 'grow', text: a.text }), a.mins ? el('span', { class: 'pill', text: a.mins + ' ' + t('mt_mins') }) : null,
       i > 0 ? LC.ibtn('arrow_up', t('mt_moveUp'), () => op({ op: 'move', aid: a.id, by: -1 })) : null, i < agenda.length - 1 ? LC.ibtn('arrow_down', t('mt_moveDown'), () => op({ op: 'move', aid: a.id, by: 1 })) : null, LC.ibtn('delete', t('delete'), () => op({ op: 'del', aid: a.id })))) : [el('p', { class: 'muted small', text: t('mt_noAgenda') })]));
+    const root = el('div', { class: 'mt-agendabox', 'data-meeting': id }, el('h3', {}, LC.icon('text_bullet_list_ltr'), ' ' + t('mt_agenda')), alist, el('form', { class: 'mt-aform', onsubmit: (e) => { e.preventDefault(); if (!aText.value.trim()) return; op({ op: 'add', text: aText.value, mins: Number(aMin.value) || 0 }); aText.value = ''; aMin.value = ''; } }, aText, aMin, el('button', { type: 'submit', class: 'secondary sm', text: t('add') })));
+    root.setAgenda = (a) => { agenda = a; drawA(); };
+    LC.api('/api/meetings/agenda?id=' + id).then((r) => { agenda = r.agenda; drawA(); }).catch(() => drawA());
+    return root;
+  }
+  MT.agendaView = agendaView;
+  function notesView(id, chan) {
+    let note = { text: '', v: 0 }, dirty = false, saving = false;
+    const ta = el('textarea', { class: 'mt-notearea', rows: 8, placeholder: t('mt_notesPh'), 'aria-label': t('mt_sharedNotes') }), status = el('span', { class: 'muted small' }), agenda = agendaView(id);
     const setStatus = () => { status.textContent = note.v ? t('mt_savedBy', { name: LC.uname(note.by) }) : ''; };
     const save = LC.debounce(async () => {
       if (saving) return save(); saving = true; status.textContent = t('mt_saving');
@@ -117,15 +126,13 @@
       saving = false;
     }, 900);
     ta.addEventListener('input', () => { dirty = true; status.textContent = t('typing'); save(); });
-    const root = el('div', { class: 'mt-notes' }, el('h3', {}, LC.icon('text_bullet_list_ltr'), ' ' + t('mt_agenda')), alist, el('form', { class: 'mt-aform', onsubmit: (e) => { e.preventDefault(); if (!aText.value.trim()) return; op({ op: 'add', text: aText.value, mins: Number(aMin.value) || 0 }); aText.value = ''; aMin.value = ''; } }, aText, aMin, el('button', { type: 'submit', class: 'secondary sm', text: t('add') })),
-      el('div', { class: 'row-between' }, el('h3', {}, LC.icon('note'), ' ' + t('mt_sharedNotes')), status), ta);
-    root.setAgenda = (a) => { agenda = a; drawA(); }; root.onNote = (n) => { if (n.chan !== chan) return; if (!dirty) { note = n.note; ta.value = note.text; setStatus(); } };
-    LC.api('/api/meetings/agenda?id=' + id).then((r) => { agenda = r.agenda; drawA(); }).catch(() => drawA());
+    const root = el('div', { class: 'mt-notes' }, agenda, el('div', { class: 'row-between' }, el('h3', {}, LC.icon('note'), ' ' + t('mt_sharedNotes')), status), ta);
+    root.setAgenda = (a) => agenda.setAgenda(a); root.onNote = (n) => { if (n.chan !== chan) return; if (!dirty) { note = n.note; ta.value = note.text; setStatus(); } };
     LC.api('/api/collab?chan=' + encodeURIComponent(chan)).then((r) => { note = r.note || note; if (!dirty) ta.value = note.text || ''; setStatus(); }).catch(() => {});
     return root;
   }
   LC.ext.callPanels.push({ key: 'mtnotes', icon: 'note_edit', label: t('mt_notes'), short: t('mt_notes'), order: 24, when: () => !!mid(), render: (host) => mount(host, persistent('mtnotes', () => notesView(mid(), LC.callChan()))) });
-  LC.on('mt_agenda', (e) => { const d = LC.inCall() && store(); if (d && d.mtnotes && mid() === e.meeting) d.mtnotes.setAgenda(e.agenda); });
+  LC.on('mt_agenda', (e) => { const d = LC.inCall() && store(); if (d && d.mtnotes && mid() === e.meeting) d.mtnotes.setAgenda(e.agenda); for (const n of document.querySelectorAll('#tabView .mt-agendabox')) if (n.dataset.meeting === e.meeting) n.setAgenda(e.agenda); });
   LC.on('note', (n) => { const d = LC.inCall() && store(); if (d && d.mtnotes) d.mtnotes.onNote(n); });
 
   // ---------- breakout rooms ----------

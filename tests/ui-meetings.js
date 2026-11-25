@@ -49,7 +49,7 @@ const SHOTS = '/tmp/meetings-shots', sleep = (ms) => new Promise((r) => setTimeo
     await H.click(`.mt-row:has-text("Review: launch plan") .mt-rowmain`); await H.waitForSelector('.modal .mt-dhead'); await H.waitForSelector('.modal .mt-person:has-text("Bob") .pill:has-text("Accepted")');
     await H.waitForSelector('.modal .mt-code'); await shot(H, 'details-light'); await audit(H, 'meeting details'); await H.keyboard.press('Escape');
   });
-  await step('meeting chat tabs: Details and Recap', async () => { await P.click('.tab[data-tab="mtdetails"]'); await P.waitForSelector('#tabView .mt-joininfo'); await P.click('.tab[data-tab="mtrecap"]'); await P.waitForSelector('#tabView .mt-recap'); await P.click('.tab[data-tab="chat"]'); });
+  await step('meeting chat tabs: Details (with the agenda) and Recap', async () => { await P.click('.tab[data-tab="mtdetails"]'); await P.waitForSelector('#tabView .mt-joininfo'); await P.fill('#tabView .mt-aform input:not([type=number])', 'Welcome'); await P.click('#tabView .mt-aform button'); await P.waitForSelector('#tabView .mt-aitem:has-text("Welcome")'); await P.click('.tab[data-tab="mtrecap"]'); await P.waitForSelector('#tabView .mt-recap'); await P.click('.tab[data-tab="chat"]'); });
   await step('before you join: camera preview, mic meter, devices, then the organizer starts the meeting', async () => {
     await H.evaluate((i) => { LC.meetings.join(i); }, mid); await H.waitForSelector('.mt-prejoin'); await H.waitForFunction(() => { const v = document.querySelector('.mt-pv'); return v && v.videoWidth > 0; });
     if ((await H.$$eval('.mt-prejoin select', (s) => s.length)) < 2) throw new Error('device pickers missing');
