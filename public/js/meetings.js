@@ -84,6 +84,9 @@
   MT.myRole = () => { const c = MT.call(); return (c && c.roles && c.roles[S.me.id]) || 'attendee'; };
   MT.isOrgOf = (id) => { const m = MT.cache.get(id); return !!m && m.organizer === S.me.id; };
   MT.fail = (e) => LC.toast(e.message || String(e));
+  MT.put = (node, ...kids) => node.replaceChildren(...kids.flat(Infinity).filter((k) => k != null && k !== false)); // replaceChildren() would print "null"
+  const put = MT.put;
+  MT.add = (node, ...kids) => node.append(...kids.flat(Infinity).filter((k) => k != null && k !== false));
   MT.field = (label, control, hint) => el('label', { class: 'field' }, el('span', { class: 'flabel', text: label }), control, hint ? el('span', { class: 'muted small', text: hint }) : null);
   MT.select = (opts, value, label, onchange) => { const s = el('select', { 'aria-label': label, onchange: onchange ? (e) => onchange(e.target.value) : null }, opts.map(([v, l]) => el('option', { value: v, text: l }))); s.value = String(value); return s; };
   MT.check = (label, checked, onchange) => { const i = el('input', { type: 'checkbox', checked: !!checked, onchange: onchange ? (e) => onchange(e.target.checked) : null }); return { el: el('label', { class: 'check' }, i, el('span', { text: label })), input: i }; };
@@ -261,7 +264,7 @@
       see && m.member ? el('button', { type: 'button', class: 'secondary withicon', onclick: () => { LC.closeModal(); LC.openChat(m.chan); } }, LC.icon('chat'), el('span', { text: t('mt_meetingChat') })) : null,
       m.isOrganizer ? el('button', { type: 'button', class: 'secondary withicon', onclick: () => LC.meetings.edit(m.id) }, LC.icon('edit'), el('span', { text: t('mt_edit') })) : null,
       m.isOrganizer || LC.isAdmin() && see ? el('button', { type: 'button', class: 'secondary danger withicon', onclick: () => cancelDialog(m) }, LC.icon('calendar_cancel'), el('span', { text: t('mt_cancelMeeting') })) : null));
-    const rb = !m.cancelled && MT.rsvpBar(m, () => LC.meetings.open(m.id)); if (rb) body.push(rb);
+    const rb = !m.cancelled && !m.isOrganizer && MT.rsvpBar(m, () => LC.meetings.open(m.id)); if (rb) body.push(rb);
     if (see) body.push(el('h3', {}, LC.icon('link'), ' ' + t('mt_link')), MT.joinInfo(m, link));
     if (m.details) body.push(el('h3', { text: t('mt_details2') }), el('div', { class: 'mt-detailstext' }, LC.renderText(m.details)));
     if (see) {
@@ -414,7 +417,7 @@
   MT.onLobby = [];
   const lobbyPanel = (host) => {
     const id = MT.callMeeting(), l = lobbyFor(id);
-    host.append(el('p', { class: 'muted small', text: t('mt_waitingN', { n: l.waiting.length }) }), ...l.waiting.map((w) => el('div', { class: 'prow mt-lrow' }, LC.avatar(S.users.get(w.uid) || { name: w.name, color: '#888' }, 'sm', false), el('span', { class: 'grow' }, el('span', { text: w.name }), w.guest ? el('span', { class: 'pill', text: t('mt_guestPill') }) : null, w.invited ? el('span', { class: 'pill', text: t('mt_invitedPill') }) : null),
+    MT.add(host, el('p', { class: 'muted small', text: t('mt_waitingN', { n: l.waiting.length }) }), ...l.waiting.map((w) => el('div', { class: 'prow mt-lrow' }, LC.avatar(S.users.get(w.uid) || { name: w.name, color: '#888' }, 'sm', false), el('span', { class: 'grow' }, el('span', { text: w.name }), w.guest ? el('span', { class: 'pill', text: t('mt_guestPill') }) : null, w.invited ? el('span', { class: 'pill', text: t('mt_invitedPill') }) : null),
       el('button', { type: 'button', class: 'secondary sm', text: t('mt_deny'), 'aria-label': t('mt_deny') + ' ' + w.name, onclick: () => MT.admit(id, w.uid, 'deny') }), el('button', { type: 'button', class: 'primary sm', text: t('mt_admit'), 'aria-label': t('mt_admit') + ' ' + w.name, onclick: () => MT.admit(id, w.uid) }))),
     l.waiting.length > 1 ? el('div', { class: 'acts' }, el('button', { type: 'button', class: 'primary sm', text: t('mt_admitAll'), onclick: () => MT.admit(id, '', 'admitAll') })) : null);
   };
@@ -471,7 +474,7 @@
       const rb = MT.rsvpBar(m); if (rb) acts.push(rb);
     }
     acts.push(el('button', { type: 'button', class: 'link', text: t('mt_viewDetails'), onclick: () => LC.meetings.open(m.id) }));
-    node.replaceChildren(head, node.dataset.note ? el('p', { class: 'small mt-cnote', text: node.dataset.note }) : null, m.isOrganizer && m.counts && kind !== 'cancel' ? el('div', { class: 'small muted', text: t('mt_responses', m.counts) }) : null, el('div', { class: 'mt-cacts' }, acts));
+    put(node, head, node.dataset.note ? el('p', { class: 'small mt-cnote', text: node.dataset.note }) : null, m.isOrganizer && m.counts && kind !== 'cancel' ? el('div', { class: 'small muted', text: t('mt_responses', m.counts) }) : null, el('div', { class: 'mt-cacts' }, acts));
   }
   LC.ext.msgParts.push((m) => {
     if (!m.mtCard || !m.mtCard.meeting) return null; const id = m.mtCard.meeting;
@@ -487,7 +490,7 @@
     const row = (x) => {
       const live = x.live, soon = !live && x.start - now < 15 * MIN && x.start > now, going = x.start <= now && x.end > now;
       return el('div', { class: 'mt-row' + (live ? ' live' : '') }, el('button', { type: 'button', class: 'mt-rowmain', onclick: () => LC.meetings.open(x.id) },
-        el('div', { class: 'mt-when' }, el('b', { text: x.allDay ? t('mt_allDay') : LC.fmtTime(x.start) }), el('small', { text: x.allDay ? '' : LC.fmtTime(x.end) })),
+        el('div', { class: 'mt-rtime' }, el('b', { text: x.allDay ? t('mt_allDay') : LC.fmtTime(x.start) }), el('small', { text: x.allDay ? '' : LC.fmtTime(x.end) })),
         el('span', { class: 'itext' }, el('span', { class: 'name', text: x.title }), el('span', { class: 'prev', text: (live ? t('mt_live') + ' · ' : soon ? t('mt_startsIn', { n: Math.max(1, Math.round((x.start - now) / MIN)) }) + ' · ' : '') + (x.isOrganizer ? t('mt_youOrganize') : rsvpLabel(x.rsvp)) })),
         x.repeat ? LC.icon('arrow_repeat_all', { cls: 'mt-repicon', label: t('mt_repeatSeries') }) : null),
         live || soon || going ? el('button', { type: 'button', class: 'primary sm', text: t('mt_join'), 'aria-label': t('mt_join') + ' ' + x.title, onclick: () => LC.meetings.join(x.id) }) : null);
@@ -498,7 +501,7 @@
       el('div', { class: 'sec' }, el('span', { class: 'sectitle', text: t('mt_recent') })), el('div', { class: 'mt-recent' }, el('p', { class: 'muted small pad', text: recent && !recent.length ? t('mt_noRecent') : t('loading') })));
     if (!recent || Date.now() - recentAt > 30000) { try { recent = (await LC.api('/api/meetings/recent')).recent; recentAt = Date.now(); } catch { recent = []; } }
     const box = nav.querySelector('.mt-recent'); if (!box || S.pane !== 'meet') return;
-    box.replaceChildren(...(recent.length ? recent.slice(0, 15).map((r) => el('div', { class: 'mt-row' }, el('button', { type: 'button', class: 'mt-rowmain', onclick: () => MT.recap && MT.recap(r.id, r.occ) }, el('div', { class: 'mt-when' }, el('b', { text: new Date(r.start).getDate() }), el('small', { text: new Date(r.start).toLocaleDateString(lang(), { month: 'short' }) })), el('span', { class: 'itext' }, el('span', { class: 'name', text: r.title }), el('span', { class: 'prev', text: LC.fmtTime(r.start) + (r.end ? ' · ' + MT.dur(r.end - r.start) : ' · ' + t('mt_live')) + ' · ' + t('peopleCount', { n: r.people }) })), LC.icon('clipboard_task', { cls: 'mt-repicon', label: t('mt_recap') })))) : [el('p', { class: 'muted small pad', text: t('mt_noRecent') })]));
+    box.replaceChildren(...(recent.length ? recent.slice(0, 15).map((r) => el('div', { class: 'mt-row' }, el('button', { type: 'button', class: 'mt-rowmain', onclick: () => MT.recap && MT.recap(r.id, r.occ) }, el('div', { class: 'mt-rtime' }, el('b', { text: new Date(r.start).getDate() }), el('small', { text: new Date(r.start).toLocaleDateString(lang(), { month: 'short' }) })), el('span', { class: 'itext' }, el('span', { class: 'name', text: r.title }), el('span', { class: 'prev', text: LC.fmtTime(r.start) + (r.end ? ' · ' + MT.dur(r.end - r.start) : ' · ' + t('mt_live')) + ' · ' + t('peopleCount', { n: r.people }) })), LC.icon('clipboard_task', { cls: 'mt-repicon', label: t('mt_recap') })))) : [el('p', { class: 'muted small pad', text: t('mt_noRecent') })]));
   }
   LC.ext.panes.meet = { icon: 'video_person', label: () => t('mt_rail'), order: 45, render: renderMeetPane, badge: () => MT.upcoming.filter((x) => x.live).length, live: true,
     actions: () => [LC.ibtn('number_symbol', t('mt_joinWithId'), () => LC.meetings.joinWithId()), LC.ibtn('calendar_add', t('mt_schedule'), () => LC.meetings.schedule())] };
@@ -533,7 +536,7 @@
     const id = S.channels.get(chan).meeting; host.replaceChildren(el('p', { class: 'muted', text: t('loading') }));
     let m; try { m = await MT.get(id, true); } catch (e) { return host.replaceChildren(el('p', { class: 'err', text: e.message })); }
     const link = await MT.link(id); if (S.chan !== chan) return;
-    host.replaceChildren(el('div', { class: 'tabhead' }, el('h2', {}, LC.icon('calendar_ltr'), ' ' + m.title), el('div', { class: 'acts' }, !m.cancelled ? el('button', { type: 'button', class: 'primary withicon', onclick: () => LC.meetings.join(id) }, LC.icon('video'), el('span', { text: t('mt_join') })) : el('span', { class: 'pill late', text: t('mt_cancelled') }), el('button', { type: 'button', class: 'secondary withicon', onclick: () => LC.meetings.open(id) }, LC.icon('open'), el('span', { text: t('mt_viewDetails') })), m.isOrganizer && !m.cancelled ? el('button', { type: 'button', class: 'secondary withicon', onclick: () => LC.meetings.edit(id) }, LC.icon('edit'), el('span', { text: t('mt_edit') })) : null)),
+    put(host, el('div', { class: 'tabhead' }, el('h2', {}, LC.icon('calendar_ltr'), ' ' + m.title), el('div', { class: 'acts' }, !m.cancelled ? el('button', { type: 'button', class: 'primary withicon', onclick: () => LC.meetings.join(id) }, LC.icon('video'), el('span', { text: t('mt_join') })) : el('span', { class: 'pill late', text: t('mt_cancelled') }), el('button', { type: 'button', class: 'secondary withicon', onclick: () => LC.meetings.open(id) }, LC.icon('open'), el('span', { text: t('mt_viewDetails') })), m.isOrganizer && !m.cancelled ? el('button', { type: 'button', class: 'secondary withicon', onclick: () => LC.meetings.edit(id) }, LC.icon('edit'), el('span', { text: t('mt_edit') })) : null)),
       el('p', { class: 'muted', text: MT.whenText(m) }), m.location ? el('p', { text: m.location }) : null, MT.rsvpBar(m, () => LC.renderTab && LC.renderTab('mtdetails')), el('h3', { text: t('mt_link') }), MT.joinInfo(m, link), m.details ? el('div', { class: 'mt-detailstext' }, LC.renderText(m.details)) : null);
   } });
   LC.on('mt_meeting', (e) => { if (S.tab === 'mtdetails' && S.chan && (S.channels.get(S.chan) || {}).meeting === e.id && LC.renderTab) LC.renderTab('mtdetails'); });
