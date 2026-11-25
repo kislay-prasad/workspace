@@ -20,6 +20,7 @@
     ap_saved: 'Saved', ap_saving: 'Saving…', ap_delete: 'Delete', ap_edit: 'Edit', ap_cancel: 'Cancel', ap_save: 'Save', ap_close: 'Close', ap_done: 'Done', ap_new: 'New', ap_more: 'More options', ap_search: 'Search',
     ap_today: 'Today', ap_tomorrow: 'Tomorrow', ap_none: 'None', ap_everyone: 'Everyone', ap_unassigned: 'Unassigned', ap_assign: 'Assign', ap_people: 'People', ap_filter: 'Filter', ap_clearFilter: 'Clear filters', ap_groupBy: 'Group by', ap_sort: 'Sort',
     ap_exportCsv: 'Export to CSV', ap_loading: 'Loading…', ap_readonly: 'You can look, but you can’t change things here.', ap_retry: 'Try again', ap_chat: 'Chat', ap_personal: 'Just me', ap_inChat: 'in {where}', ap_where: 'Where',
+    ap_pd_activity: 'Mentions, replies, reactions and other updates for you.', ap_pd_chat: 'Your chats, channels and people.', ap_pd_calls: 'Calls, call history and voicemail.', ap_pd_saved: 'Messages you saved for later.', ap_pd_people: 'Everyone in this session, their status and contact cards.', ap_pd_meet: 'Meetings: schedule, join and recap.', ap_pd_walkie: 'Push to talk with the people in a channel.',
     ap_live: 'Live', ap_card: 'Card', ap_by: 'by {name}', ap_justNow: 'just now', ap_n: '{n}', ap_details: 'Details', ap_title: 'Title', ap_name: 'Name', ap_description: 'Description', ap_optional: 'optional', ap_back: 'Back',
   });
   LC.addStrings('hi', { ap_addTab: 'टैब जोड़ें', ap_apps: 'ऐप्स', ap_moreApps: 'और ऐप्स', ap_open: 'खोलें', ap_add: 'जोड़ें', ap_added: 'जोड़ा गया', ap_remove: 'हटाएँ', ap_rename: 'नाम बदलें', ap_website: 'वेबसाइट', ap_openBrowser: 'ब्राउज़र में खोलें', ap_save: 'सहेजें', ap_cancel: 'रद्द करें', ap_delete: 'मिटाएँ', ap_close: 'बंद करें', ap_saved: 'सहेजा गया', ap_saving: 'सहेज रहे हैं…', ap_pin: 'ऐप बार पर पिन करें', ap_unpin: 'ऐप बार से हटाएँ', ap_addToChat: 'चैट में जोड़ें', ap_search: 'खोजें', ap_filter: 'फ़िल्टर', ap_today: 'आज', ap_assign: 'सौंपें', ap_loading: 'लोड हो रहा है…' });
@@ -113,6 +114,15 @@
     return el('div', { class: 'ap-donutw' }, s, el('ul', { class: 'ap-legend' }, ...items.map((x) => el('li', {}, el('i', { style: { background: x.color } }), el('span', { text: `${x.label}` }), el('b', { text: String(x.value) })))));
   };
 
+  // ---------- opening an app from an activity item (people area: LC.apps.open(item.app, item)) ----------
+  A.openers = {};
+  A.open = (app, item) => { const f = A.openers[app]; if (f) return f(item || {}); if (item && item.chan) return LC.openChat(item.chan); };
+  const actOpen = (a) => (a.app ? A.open(a.app, a) : a.chan ? LC.jumpToMessage && a.msg ? LC.jumpToMessage(a.chan, a.msg) : LC.openChat(a.chan) : null);
+  LC.ext.activityTypes = LC.ext.activityTypes || {};
+  LC.addStrings('en', { ap_a_task: 'assigned you a task', ap_a_approval: 'needs your approval', ap_a_form: 'sent you a form', ap_a_booking: 'Booking update', ap_a_checkin: 'Time for a check-in', ap_a_shift: 'Shift update' });
+  const actTypes = { task: ['task_list_ltr', 'task', 'ap_a_task'], approval: ['clipboard_task', 'apps', 'ap_a_approval'], form: ['form', 'apps', 'ap_a_form'], booking: ['calendar_checkmark', 'apps', 'ap_a_booking'], checkin: ['people_checkmark', 'apps', 'ap_a_checkin'], shift: ['person_clock', 'apps', 'ap_a_shift'] };
+  for (const [type, [icon, filter, key]] of Object.entries(actTypes)) LC.ext.activityTypes[type] ||= { icon, filter, text: () => t(key), open: actOpen }; // the people area already opens task/approval/form items through item.app
+
   // ---------- cards posted by the apps (m.apCard) ----------
   A.card = (kind, fn) => { A.cardKinds[kind] = fn; };
   LC.ext.msgParts.push((m, o) => { const c = m.apCard; if (!c || !A.cardKinds[c.kind]) return null; try { return A.cardKinds[c.kind](m, o); } catch (e) { console.error('apps card', e); return null; } });
@@ -137,7 +147,7 @@
     return out;
   };
   const baseSetTab = LC.setTab;
-  LC.setTab = (tab) => (tab === 'ap_add' ? A.tabGallery(S.chan) : baseSetTab(tab));
+  LC.setTab = (tab) => { if (tab === 'ap_add') return A.tabGallery(S.chan); if (tab !== S.tab) A.leaveTab(); return baseSetTab(tab); };
   // redraw just the tab strip (same markup as chat.js) when the list changes
   A.redrawTabs = () => {
     if (!S.chan || S.app) return; const tabs = LC.tabsFor(S.chan);
@@ -189,7 +199,7 @@
   A.tabGallery = (chan) => {
     if (!chan) return; const can = A.writable(chan), q = el('input', { type: 'search', placeholder: t('ap_searchApps'), 'aria-label': t('ap_searchApps') }), grid = el('div', { class: 'ap-gallery' }), manage = el('div', { class: 'ap-tablist' });
     const types = () => {
-      const shown = new Set(LC.tabsFor(chan).map((x) => x.key)), base = LC.tabsFor === null ? [] : null; void base;
+      const shown = new Set(LC.tabsFor(chan).map((x) => x.key));
       const seen = new Set(), list = [];
       const add = (key, icon, label, desc, multi) => { if (seen.has(key) || key === 'chat' || key === 'ap_add') return; seen.add(key); list.push({ key, icon, label, desc, multi, on: !multi && shown.has(key) }); };
       for (const d of [...LC.ext.tabs].sort((a, b) => (a.order ?? 100) - (b.order ?? 100))) if (!d.when || d.multi || d.optIn || d.when(chan)) add(d.key, d.icon, A.lbl(d.label), A.lbl(d.desc) || t('ap_desc_other'), !!d.multi);
@@ -215,7 +225,6 @@
     q.addEventListener('input', drawGrid); drawAll();
     A.modal(t('ap_addTab'), 'tab_add', [can ? null : el('p', { class: 'notice', text: t('ap_cantChange') }), q, grid, el('h3', { text: t('ap_tabsHere') }), manage],
       [A.isManager(chan) && can && A.tabCfg[chan] ? el('button', { class: 'secondary', text: t('ap_resetTabs'), onclick: async () => { if (await LC.confirm(t('ap_confirmReset'))) { const r = await A.call('/api/ap/tabs/reset', { chan }); if (r) { delete A.tabCfg[chan]; A.redrawTabs(); drawAll(); } } } }) : null, el('button', { class: 'primary', text: t('ap_done'), onclick: LC.closeModal })]);
-    const off = LC.on.bind(null); void off;
   };
 
   // ---------- website tabs ----------
@@ -241,8 +250,7 @@
         let loaded = false; f.addEventListener('load', () => { loaded = true; }); setTimeout(() => { if (!loaded && f.isConnected) say(t('ap_webSlow')); }, 8000);
         frameBox.replaceChildren(f);
       };
-      host.replaceChildren(el('div', { class: 'ap-webbar' }, LC.icon('globe'), el('span', { class: 'ap-weburl', text: inst.url, title: inst.url }), LC.ibtn('arrow_sync', t('ap_reload'), () => frame()), open, A.writable(chan) ? LC.ibtn('more_horizontal', t('ap_tabOptions'), (e) => tabMenu(e.currentTarget, chan, inst.type + ':' + inst.id), { menu: true }) : null), note, frameBox);
-      host.classList.add('ap-fill');
+      host.replaceChildren(el('div', { class: 'ap-fillbox ap-webtab' }, el('div', { class: 'ap-webbar' }, LC.icon('globe'), el('span', { class: 'ap-weburl', text: inst.url, title: inst.url }), LC.ibtn('arrow_sync', t('ap_reload'), () => frame()), open, A.writable(chan) ? LC.ibtn('more_horizontal', t('ap_tabOptions'), (e) => tabMenu(e.currentTarget, chan, inst.type + ':' + inst.id), { menu: true }) : null), note, frameBox));
       if (!u) return say(t('ap_webNoFrame'), true);
       if (u.origin === location.origin) return say(t('ap_webSame'), true);
       if (location.protocol === 'https:' && u.protocol === 'http:') return say(t('ap_webMixed'), true);
@@ -254,10 +262,10 @@
         frame();
       }).catch(() => { note.classList.add('hidden'); frame(); });
     } });
-  // the tab view normally scrolls; full-height apps (website, whiteboard, notebook) ask for the whole area
-  const clearFill = () => { const h = $('#tabView'); if (h) h.classList.remove('ap-fill'); };
-  const origRenderTabHook = () => { const prev = LC.renderTab; if (prev && !prev._ap) { LC.renderTab = Object.assign((tab) => { clearFill(); return prev(tab); }, { _ap: true }); } };
-  document.addEventListener('DOMContentLoaded', origRenderTabHook);
+  // full-height apps (website, whiteboard, notebook) put their content in a .ap-fillbox (CSS gives it the whole tab area);
+  // LC.renderTab (collab.js) calls host._apLeave (flush unsaved work) when another tab opens; Chat or another chat do the same here
+  A.leaveTab = () => { const h = $('#tabView'); if (h && h._apLeave) { const f = h._apLeave; h._apLeave = null; try { f(); } catch (e) { console.error(e); } } };
+  LC.on('cx:chat', (e) => { if (e && e.changed) A.leaveTab(); });
 
   // ---------- app bar: Apps store, More apps, pinned apps ----------
   // A.app({ key, icon, color, name, desc, tab?: tabKey, pane?: { render, main, ... } }) — every app in the store
@@ -299,7 +307,7 @@
     const q = el('input', { type: 'search', placeholder: t('ap_searchApps'), 'aria-label': t('ap_searchApps'), value: storeFilter }), grid = el('div', { class: 'ap-store' });
     const draw = () => {
       storeFilter = q.value; const f = q.value.trim().toLowerCase();
-      const others = Object.entries(LC.ext.panes).filter(([k, p]) => !k.startsWith('ap_') && !p.bottom && !p.action && (!p.hidden || !p.hidden())).map(([k, p]) => ({ key: k, icon: p.icon, name: p.label, desc: p.desc || '', color: '#69797e', other: true }));
+      const others = Object.entries(LC.ext.panes).filter(([k, p]) => !k.startsWith('ap_') && !p.bottom && !p.action && (!p.hidden || !p.hidden())).map(([k, p]) => ({ key: k, icon: p.icon, name: p.label, desc: p.desc || (LC.t('ap_pd_' + k) !== 'ap_pd_' + k ? LC.t('ap_pd_' + k) : ''), color: '#69797e', other: true }));
       const list = [...A.catalog, ...others].filter((x) => !f || (A.lbl(x.name) + ' ' + A.lbl(x.desc)).toLowerCase().includes(f));
       grid.replaceChildren(...(list.length ? list.map((x) => el('div', { class: 'ap-scard' },
         el('button', { class: 'ap-shead', onclick: () => (x.other ? LC.setPane(x.key) : storeDetails(x)), 'aria-label': A.lbl(x.name) }, el('span', { class: 'ap-sicon', style: { background: x.color }, 'aria-hidden': 'true' }, LC.icon(x.icon)), el('span', { class: 'ap-sname', text: A.lbl(x.name) })),
