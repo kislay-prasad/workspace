@@ -143,6 +143,7 @@
     }
     function draw() {
       if (!root.isConnected && st.loadedKey) { live.delete(v); return; }
+      if (st.dragging) { st.pending = true; return; } // never redraw under the pointer (live updates wait until the drag ends)
       const [from, to] = range(), body = st.view === 'month' ? monthView(from, to) : weekView(from, to), was = root.querySelector('.fl-wkscroll'), same = st.drawn === st.view + from.getTime();
       const keep = was && same ? was.scrollTop : null; st.drawn = st.view + from.getTime();
       root.dataset.view = st.view;
@@ -150,6 +151,7 @@
       st.error = '';
       if (st.view !== 'month') { const sc = root.querySelector('.fl-wkscroll'); if (sc) { const h = new Date().getHours(); sc.scrollTop = keep !== null ? keep : (isRangeToday(from, to) && h >= 16 ? h - 3 : 7.5) * HH; } }
     }
+    const done = () => { st.dragging = false; if (st.pending) { st.pending = false; setTimeout(draw, 0); } };
     const isRangeToday = (from, to) => Date.now() >= from.getTime() && Date.now() < to.getTime();
     // ----- new items (button, or click-and-drag on an empty slot) -----
     function newItem(p) {
@@ -199,10 +201,10 @@
         const r = col.getBoundingClientRect(), at = (y) => Math.max(0, Math.min(48, Math.floor(((y - r.top) / HH) * 2))), a = at(e.clientY); let b = a;
         const sel = el('div', { class: 'fl-sel' }); col.append(sel);
         const paint = () => { const lo = Math.min(a, b), hi = Math.max(a, b) + 1; sel.style.top = (lo * HH) / 2 + 'px'; sel.style.height = ((hi - lo) * HH) / 2 + 'px'; sel.textContent = `${fTime(d0 + lo * 30 * MIN)} – ${fTime(d0 + hi * 30 * MIN)}`; };
-        paint(); col.setPointerCapture(e.pointerId);
+        paint(); st.dragging = true;
         const mv = (ev) => { b = Math.min(47, at(ev.clientY)); paint(); };
-        const upf = (ev) => { col.removeEventListener('pointermove', mv); col.removeEventListener('pointerup', upf); const lo = Math.min(a, b), hi = Math.max(a, b) + 1; const s = new Date(d0); s.setMinutes(lo * 30); const en = new Date(d0); en.setMinutes(hi * 30); setTimeout(() => sel.remove(), 400); slotMenu({ x: ev.clientX, y: ev.clientY }, s.getTime(), en.getTime(), false); };
-        col.addEventListener('pointermove', mv); col.addEventListener('pointerup', upf);
+        const upf = (ev) => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', upf); window.removeEventListener('pointercancel', upf); done(); const lo = Math.min(a, b), hi = Math.max(a, b) + 1; const s = new Date(d0); s.setMinutes(lo * 30); const en = new Date(d0); en.setMinutes(hi * 30); setTimeout(() => sel.remove(), 400); if (ev.type === 'pointerup') slotMenu({ x: ev.clientX, y: ev.clientY }, s.getTime(), en.getTime(), false); };
+        window.addEventListener('pointermove', mv); window.addEventListener('pointerup', upf); window.addEventListener('pointercancel', upf);
       });
     }
     const colorOf = (it) => catColor(catOf(it));
@@ -225,7 +227,7 @@
         const resize = e.target.classList.contains('fl-resize'), can = it.kind === 'event' && it.canEdit && e.pointerType !== 'touch';
         const x0 = e.clientX, y0 = e.clientY; let moved = false, dMin = 0, dDay = 0;
         const cols = [...root.querySelectorAll('.fl-col')], rects = cols.map((c) => c.getBoundingClientRect()), c0 = cols.indexOf(b.parentElement), h0 = b.offsetHeight;
-        try { b.setPointerCapture(e.pointerId); } catch {}
+        st.dragging = true; if (e.pointerType !== 'touch') e.preventDefault(); // touch: let the page scroll
         const mv = (ev) => {
           const dx = ev.clientX - x0, dy = ev.clientY - y0; if (!moved && Math.abs(dx) + Math.abs(dy) < 6) return; if (!can) return;
           moved = true; b.classList.add('fl-dragging'); dMin = Math.round(((dy / HH) * 60) / 15) * 15;
@@ -233,14 +235,15 @@
           const ci = rects.findIndex((r) => ev.clientX >= r.left && ev.clientX < r.right); if (ci >= 0) dDay = ci - c0;
           b.style.transform = `translate(${rects[c0 + dDay] ? rects[c0 + dDay].left - rects[c0].left : 0}px, ${(dMin / 60) * HH}px)`;
         };
-        const upf = async () => {
-          b.removeEventListener('pointermove', mv); b.removeEventListener('pointerup', upf);
+        const upf = async (ev) => {
+          window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', upf); window.removeEventListener('pointercancel', upf); done();
+          if (ev.type !== 'pointerup') return draw();
           if (!moved) return peek(it, b);
           if (!dMin && !dDay) { b.style.transform = ''; b.classList.remove('fl-dragging'); return; }
           const s = new Date(it.start); s.setDate(s.getDate() + (resize ? 0 : dDay)); const ns = resize ? it.start : s.getTime() + dMin * MIN, ne = resize ? Math.max(it.start + 15 * MIN, it.end + dMin * MIN) : ns + (it.end - it.start);
           await moveItem(it, ns, ne); draw();
         };
-        b.addEventListener('pointermove', mv); b.addEventListener('pointerup', upf);
+        window.addEventListener('pointermove', mv); window.addEventListener('pointerup', upf); window.addEventListener('pointercancel', upf);
       });
     }
     async function moveItem(it, ns, ne) { // ns/ne: new times of this occurrence; a series moves by the same amount
@@ -344,7 +347,9 @@
 
   // ---------- new / edit event ----------
   let zones = null;
-  const zoneList = () => { if (zones) return zones; let z = []; try { z = Intl.supportedValuesOf('timeZone'); } catch {} if (!z.length) z = ['UTC', 'Europe/London', 'Europe/Berlin', 'Europe/Madrid', 'Asia/Kolkata', 'Asia/Tokyo', 'America/New_York', 'America/Chicago', 'America/Los_Angeles', 'Australia/Sydney']; zones = [...new Set([myTz(), 'UTC', ...z])].filter((x) => CC.validTz(x)).map((tz) => { const off = CC.offset(Date.now(), tz) / 60000, s = off < 0 ? '−' : '+', a = Math.abs(off); return { tz, off, label: `(UTC${s}${pad(Math.floor(a / 60))}:${pad(a % 60)}) ${tz.replace(/_/g, ' ')}` }; }).sort((a, b) => a.off - b.off || a.tz.localeCompare(b.tz)); return zones; };
+  // browsers list some zones under their old names (Asia/Calcutta): show the names people know today
+  const MODERN = { 'Asia/Calcutta': 'Asia/Kolkata', 'Asia/Katmandu': 'Asia/Kathmandu', 'Asia/Saigon': 'Asia/Ho_Chi_Minh', 'Asia/Rangoon': 'Asia/Yangon', 'Europe/Kiev': 'Europe/Kyiv', 'America/Buenos_Aires': 'America/Argentina/Buenos_Aires', 'Atlantic/Faeroe': 'Atlantic/Faroe', 'America/Godthab': 'America/Nuuk', 'Pacific/Truk': 'Pacific/Chuuk', 'Pacific/Ponape': 'Pacific/Pohnpei' };
+  const zoneList = () => { if (zones) return zones; let z = []; try { z = Intl.supportedValuesOf('timeZone').map((x) => (MODERN[x] && CC.validTz(MODERN[x]) ? MODERN[x] : x)); } catch {} if (!z.length) z = ['UTC', 'Europe/London', 'Europe/Berlin', 'Europe/Madrid', 'Asia/Kolkata', 'Asia/Tokyo', 'America/New_York', 'America/Chicago', 'America/Los_Angeles', 'Australia/Sydney']; zones = [...new Set([myTz(), 'UTC', ...z])].filter((x) => CC.validTz(x)).map((tz) => { const off = CC.offset(Date.now(), tz) / 60000, s = off < 0 ? '−' : '+', a = Math.abs(off); return { tz, off, label: `(UTC${s}${pad(Math.floor(a / 60))}:${pad(a % 60)}) ${tz.replace(/_/g, ' ')}` }; }).sort((a, b) => a.off - b.off || a.tz.localeCompare(b.tz)); return zones; };
   function writableChats() {
     const out = []; for (const c of S.channels.values()) if (canWrite(c.id)) out.push([c.id, chatTitle(c.id)]);
     const ce = LC.chatEntries ? LC.chatEntries() : null; if (ce) { if (ce.self) out.push([ce.self.id, chatTitle(ce.self.id)]); for (const e of ce.people) if (S.last[e.id]) out.push([e.id, chatTitle(e.id)]); }
