@@ -450,7 +450,7 @@
 
   // ---------- join / leave sounds (from the callstate events) ----------
   let lastParts = null, chimeCtx = null;
-  const chime = (up) => { try { chimeCtx ||= new (window.AudioContext || window.webkitAudioContext)(); const c = chimeCtx, f = up ? [660, 880] : [880, 587]; f.forEach((hz, i) => { const o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.value = hz; g.gain.setValueAtTime(0.05, c.currentTime + i * 0.13); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + i * 0.13 + 0.25); o.connect(g); g.connect(c.destination); o.start(c.currentTime + i * 0.13); o.stop(c.currentTime + i * 0.13 + 0.3); }); } catch {} };
+  const chime = (up) => { MT.chimes = (MT.chimes || 0) + 1; try { chimeCtx ||= new (window.AudioContext || window.webkitAudioContext)(); const c = chimeCtx, f = up ? [660, 880] : [880, 587]; f.forEach((hz, i) => { const o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.value = hz; g.gain.setValueAtTime(0.05, c.currentTime + i * 0.13); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + i * 0.13 + 0.25); o.connect(g); g.connect(c.destination); o.start(c.currentTime + i * 0.13); o.stop(c.currentTime + i * 0.13 + 0.3); }); } catch {} };
   MT.chime = chime;
   LC.on('callstate', (e) => {
     if (!LC.inCall() || e.chan !== LC.callChan()) { if (!LC.inCall()) lastParts = null; return; } if (!e.call) { lastParts = null; return; }
