@@ -47,3 +47,4 @@ sparkle
 ribbon
 text_bullet_list_square
 calendar_add
+document_text
