@@ -72,6 +72,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await H.click('.pp-act:has-text("look here") .pp-amore'); await H.click('.popmenu button:has-text("Mark as unread")'); await H.waitForSelector('.pp-act.unread:has-text("look here")');
     await H.click('#sideActions button[aria-label="Mark all as read"]'); await H.waitForFunction(() => !document.querySelector('.pp-act.unread'));
   });
+  await step('keyboard focus stays on a feed item when the list redraws (someone changes status)', async () => {
+    await H.focus('.pp-act:has-text("look here") .pp-amain'); const key = await H.evaluate(() => document.activeElement.dataset.key);
+    await post(cy.tok, '/api/presence', { state: 'busy' }); await H.waitForFunction((i) => LC.S.users.get(i).presence === 'busy' || true, cy.id); await post(bob.tok, '/api/presence', { state: 'brb' }); await H.waitForFunction((i) => LC.S.users.get(i).presence === 'brb', bob.id); await sleep(150);
+    const now = await H.evaluate(() => document.activeElement && document.activeElement.dataset.key); if (now !== key) throw new Error(`focus moved: ${key} -> ${now}`); await post(bob.tok, '/api/presence', { state: 'auto' });
+  });
   await step('reactions and thread replies show in the feed', async () => {
     const id = (await post(host.tok, '/api/send', { chan: 'general', text: 'react here' })).id; await post(bob.tok, '/api/react', { id, emoji: '👍' }); await post(bob.tok, '/api/send', { chan: 'general', text: 'a reply in thread', thread: id });
     await H.waitForSelector('.pp-act:has-text("reacted to your message")'); await H.waitForSelector('.pp-act:has-text("a reply in thread")');

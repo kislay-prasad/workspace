@@ -124,6 +124,14 @@
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && pop && $('#menu').classList.contains('hidden') && !$('.modal.top')) { e.stopPropagation(); e.preventDefault(); PP.closePop(true); } }, true);
   window.addEventListener('resize', () => { if (pop) PP.place(pop.box, pop.anchor, pop.o); });
 
+  // ---------- keyboard focus survives the side list being redrawn (it is redrawn on every presence change) ----------
+  let navFocus = null;
+  document.addEventListener('focusin', (e) => { const nav = $('#nav'), k = e.target && e.target.closest && e.target.closest('[data-key]'); navFocus = nav && nav.contains(e.target) && k ? k.dataset.key : null; });
+  PP.restoreNavFocus = () => {
+    if (!navFocus || (document.activeElement && document.activeElement !== document.body)) return;
+    const n = [...document.querySelectorAll('#nav [data-key]')].find((x) => x.dataset.key === navFocus); if (n) n.focus({ preventScroll: true });
+  };
+
   // ---------- the status panel under your picture ----------
   function statusPanel(anchor) {
     let showStates = false, showWork = false;

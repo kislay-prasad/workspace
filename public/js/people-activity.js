@@ -161,7 +161,7 @@
     const lead = el('span', { class: 'pp-alead' }, u ? LC.avatar(u, '', false) : el('div', { class: 'av tile pp-aicon', 'aria-hidden': 'true' }, LC.icon(ty.icon, { filled: true })), el('span', { class: 'pp-abadge t-' + a.type, 'aria-hidden': 'true' }, a.type === 'reaction' ? emojiNode(a.emoji) : LC.icon(ty.icon, { filled: true })));
     let action = ''; try { action = ty.text(a) || ''; } catch {}
     const snippet = a.gone ? t('pp_msgDeleted') : [a.subject, a.text].filter(Boolean).join(' — '), where = whereOf(a);
-    const main = el('button', { type: 'button', class: 'pp-amain', onclick: () => { if (!a.read) setRead([a.id], true); PP.openItem(a); } }, lead,
+    const main = el('button', { type: 'button', class: 'pp-amain', 'data-key': 'a:' + a.id, onclick: () => { if (!a.read) setRead([a.id], true); PP.openItem(a); } }, lead,
       el('span', { class: 'itext' }, el('span', { class: 'irow' }, el('span', { class: 'pp-aline' }, u ? el('b', { text: whoName(a) }) : null, u ? ' ' : '', action), el('time', { class: 'itime', text: LC.shortTime ? LC.shortTime(a.ts) : LC.fmtTime(a.ts), title: LC.fmtDateTime(a.ts) })),
         where ? el('span', { class: 'prev pp-awhere', text: where }) : null,
         prio ? el('span', { class: 'pp-aprio ' + prio }, LC.icon(prio === 'urgent' ? 'alert_urgent' : 'important', { filled: true }), el('span', { text: t(prio === 'urgent' ? 'pp_urgent' : 'pp_important') })) : null,
@@ -170,10 +170,11 @@
     return el('div', { class: 'pp-act' + (a.read ? '' : ' unread') + (prio ? ' prio-' + prio : ''), role: 'listitem', 'data-act': a.id }, main,
       LC.ibtn('more_horizontal', t('pp_itemMenu'), (e) => LC.menu(e.currentTarget, [a.read ? { icon: 'mail_unread', label: t('pp_markUnread'), fn: () => setRead([a.id], false) } : { icon: 'mail_read', label: t('pp_markRead'), fn: () => setRead([a.id], true) }]), { cls: 'icon pp-amore', menu: true }));
   }
+  const moreKey = (n) => { n.querySelectorAll('.pp-amore').forEach((b) => { const id = b.closest('[data-act]').dataset.act; b.dataset.key = 'am:' + id; }); return n; };
   function renderActivity(nav) {
     if (!A.loaded && !A.loading) load();
     const pick = (k) => { A.filter = A.filter === k && k !== 'all' ? 'all' : k; LC.renderNav(); requestAnimationFrame(() => { const b = document.querySelector(`.pp-chip[data-f="${k}"]`) || document.querySelector('.pp-chip.more'); if (b) b.focus(); }); };
-    const chip = ([k, key]) => el('button', { type: 'button', class: 'pp-chip' + (A.filter === k ? ' on' : ''), 'aria-pressed': String(A.filter === k), 'data-f': k, onclick: () => pick(k) }, el('span', { text: t(key) }), k === 'unread' && A.unread ? el('span', { class: 'pp-chipn', text: A.unread > 99 ? '99+' : String(A.unread) }) : null);
+    const chip = ([k, key]) => el('button', { type: 'button', class: 'pp-chip' + (A.filter === k ? ' on' : ''), 'aria-pressed': String(A.filter === k), 'data-f': k, 'data-key': 'f:' + k, onclick: () => pick(k) }, el('span', { text: t(key) }), k === 'unread' && A.unread ? el('span', { class: 'pp-chipn', text: A.unread > 99 ? '99+' : String(A.unread) }) : null);
     const main = FILTERS.slice(0, 4), extra = FILTERS.slice(4), cur = extra.find(([k]) => k === A.filter);
     const chips = el('div', { class: 'pp-chipsbar', role: 'toolbar', 'aria-label': t('pp_filterAct') }, main.map(chip), cur ? chip(cur) : null,
       el('button', { type: 'button', class: 'pp-chip more', 'aria-haspopup': 'menu', 'aria-label': t('pp_f_more'), title: t('pp_f_more'), onclick: (e) => LC.menu(e.currentTarget, extra.map(([k, key]) => ({ label: t(key), checked: A.filter === k, fn: () => pick(k) }))) }, LC.icon('filter'), el('span', { text: cur ? '' : t('pp_f_moreShort') })));
@@ -181,8 +182,8 @@
     if (A.err && !A.loaded) body.push(el('p', { class: 'err pad', text: A.err }));
     else if (!A.loaded) body.push(el('p', { class: 'muted small pad', text: t('loading') }));
     else if (!list.length) body.push(el('div', { class: 'empty' }, LC.icon('alert', { cls: 'big' }), el('p', { class: 'pp-emptyt', text: A.filter === 'all' ? t('pp_caughtUp') : t('pp_noneForFilter') }), A.filter === 'all' ? el('p', { class: 'small', text: t('pp_caughtUpHelp') }) : null));
-    else body.push(el('div', { class: 'pp-acts', role: 'list', 'aria-label': t('railActivity') }, list.map(itemEl)));
-    nav.replaceChildren(chips, ...body);
+    else body.push(moreKey(el('div', { class: 'pp-acts', role: 'list', 'aria-label': t('railActivity') }, list.map(itemEl))));
+    nav.replaceChildren(chips, ...body); PP.restoreNavFocus();
   }
   LC.ext.panes.activity = { icon: 'alert', label: () => t('railActivity'), order: 10, badge: () => A.unread, render: renderActivity,
     actions: () => [LC.ibtn('mail_read', t('pp_markAllRead'), () => { for (const a of A.items) a.read = true; recount(); redraw(); LC.api('/api/activity/read', { all: true }).catch((e) => LC.toast(e.message)); })] };
@@ -194,6 +195,7 @@
     if (!A.items.some((x) => x.id === a.id)) A.items.unshift(a); recount(); redraw();
     if (a.read || actSetting(a.type) !== 'banner' || (a.msg && alerted.has(a.msg))) return;
     if (held(a.from, a.priority === 'urgent')) return;
+    if (a.chan && ((S.chan === a.chan && S.tab === 'chat' && !S.app && LC.visible()) || (LC.isMuted(a.chan) && a.type !== 'mention' && a.priority !== 'urgent'))) return; // you're looking at it, or the chat is muted
     const ty = typeOf(a); let action = ''; try { action = ty.text(a) || ''; } catch {}
     const np = LC.prefs().notif || {}; if (np.sound !== false) LC.playSound('ping');
     const title = (a.from ? LC.uname(a.from) + ' ' : '') + action, where = whereOf(a), body = np.previews === false ? where : [where, a.type === 'reaction' ? (a.emoji || '') + ' ' + (a.text || '') : a.text].filter(Boolean).join(' · ');

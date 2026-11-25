@@ -186,7 +186,7 @@
   const subOf = (u) => [LC.presenceLabel(u.presence), roleLine(u)].filter(Boolean).join(' · ');
   function navRow(u, group) {
     const name = LC.uname(u.id), on = st.selected === u.id && S.app === 'people';
-    return el('div', { class: 'pp-prow' + (on ? ' on' : '') }, el('button', { type: 'button', class: 'pp-pmain', 'aria-current': on ? 'true' : null, onclick: () => PP.showPerson(u.id) }, LC.avatar(u, '', true), el('span', { class: 'itext' }, el('span', { class: 'name', text: name }), el('span', { class: 'prev', text: subOf(u) }))),
+    return el('div', { class: 'pp-prow' + (on ? ' on' : '') }, el('button', { type: 'button', class: 'pp-pmain', 'data-key': 'p:' + (group ? group.id + ':' : '') + u.id, 'aria-current': on ? 'true' : null, onclick: () => PP.showPerson(u.id) }, LC.avatar(u, '', true), el('span', { class: 'itext' }, el('span', { class: 'name', text: name }), el('span', { class: 'prev', text: subOf(u) }))),
       LC.ibtn('chat', t('pp_chatWith', { name }), () => LC.openChat(dmWith(u.id)), { cls: 'icon pp-rowbtn' }),
       group ? LC.ibtn('dismiss', t('pp_removeFromGroup', { name, group: group.name }), () => PP.toggleInGroup(group.id, u.id), { cls: 'icon pp-rowbtn' }) : LC.ibtn('more_horizontal', t('pp_moreActions'), (e) => PP.personMenu(e.currentTarget, u.id), { cls: 'icon pp-rowbtn', menu: true }));
   }
@@ -202,7 +202,7 @@
     }
     out.push(sec('all', t('pp_allPeople') + ` (${people.length})`));
     if (!closed.all) out.push(...(people.length ? people.map((u) => navRow(u)) : [el('div', { class: 'empty small', text: everyone().length > 1 ? t('pp_noMatch') : t('nobodyYet') })]));
-    navList.replaceChildren(...out);
+    navList.replaceChildren(...out); PP.restoreNavFocus();
   }
   function renderNav(nav) {
     const typing = navFocus === 'search' || Date.now() - navTyped < 1500, picking = navFocus === 'filter';
