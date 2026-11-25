@@ -117,6 +117,7 @@ incoming webhook) must be added with `ctx.publicRoutes.add('POST /api/hook')` an
 | `callFields` | `(call) => {...}` | extra fields on the call state everyone receives |
 | `canSeeMsg` | `(u, m) => false/undefined` | hide one message from one member (chatux: group members added without the history, 1:1 chats deleted "for me"). Core applies it to file downloads and to `message`/`update` events; routes that return messages or files should check `ctx.canSeeMsg(u, m)` |
 | `keepFile` | `(fileId) => true` | keep an uploaded file that no message references (chatux: My GIFs) from being removed by clean-up |
+| `fileRead` | `(u, rec) => true` | let someone read a file no message shares with them (files area: Files-tab uploads of chats they are in, old versions of files they can read). Core consults it in `fileCanRead` |
 
 Calls are exposed as `ctx.calls` (Map chan → call `{ id, mode, by, started, parts: Set, media, sharing, max? }`),
 `ctx.callState(chan)`, `ctx.pushCallState(chan)` and `ctx.leaveCall(chan, uid)`. A call's size limit is
@@ -211,15 +212,24 @@ Client: `LC.meetings.schedule(prefill)` opens the "New meeting" form, `LC.meetin
 `LC.meetings.join(id)` joins. The calendar app (apps area) shows these next to calendar events and uses
 `LC.meetings` when it exists, so it must also work when meetings are missing.
 
-**Files** (files area): `db.files[id] = { id, name, size, by, ts, ... }`; uploaded bytes in `P.uploads/<id>`. Messages
-reference files as `m.files = [{ id, name, size, type? }]`. Other areas upload with `LC.upload(blob, name)` (client) and
-may attach the result to a message.
+**Files** (files area): `db.files[id] = { id, name, size, by, ts, home?, homeSeq?, v?, mod?, modBy?, verOf? }`; uploaded bytes in
+`P.uploads/<id>`. Messages reference files as `m.files = [{ id, name, size, type?, v? }]` (`v` = latest version number; a
+new version keeps the file id). Files can also live in a chat's Files tab without a message (`home` = that chat); deleted
+files leave `m.filesDeleted = [{ name, by, ts }]`. Other areas upload with `LC.upload(blob, name)` (client) and may attach the
+result to a message. Client helpers: `LC.files.open(f)` (viewer: pictures, PDF, media, text/code/CSV/Markdown),
+`LC.files.details(id)`, `LC.files.share(f)`, `LC.files.openTab(chan, folder)`; `LC.fileCard(f, m)` draws document cards
+in messages (render.js asks it first). Server: `ctx.files.chatFiles(chan, viewer)`. Before deleting, renaming or replacing
+a file the files area refuses (423) when a message that holds it is kept by `hooks.keepMessage`, and asks
+`ctx.allowAnyoneLink(me, chan, fileId)` (teams area, optional) before making or serving an "anyone with the link" link.
 
-**Calendar events** (files area): per chat in `db.extras[chan].events = [{ id, by, ts, title, start, end, notes, remind,
-reminded }]` (written by `POST /api/event` in `routes-collab.js`; reminders by the tick there). The files area may extend
-the event shape (all-day, repeat, category colour, location …) and take over `POST /api/event` from `lib/routes-calendar.js`
-(re-assign the route). Keep old events readable. Per-chat notes, whiteboard and to-dos (`db.extras[chan].note/board/todos`)
-belong to the apps area.
+**Calendar events** (files area, `lib/routes-calendar.js`, which took over `POST /api/event` and the event reminders from
+`routes-collab.js`): per chat in `db.extras[chan].events = [{ id, by, ts, title, start, end, notes, remind, reminded: true,
+v: 2, allDay, tz, repeat: { freq: daily|weekdays|weekly|monthly|yearly, interval, days, until | count } | null, exdates,
+location, online, rsvp: { uid: yes|maybe|no }, remOcc }]`. All-day events are stored as UTC midnights (end exclusive);
+timed repeats keep their wall-clock time in `tz`. Old events (no `v`) keep loading. Read them with
+`GET /api/calendar?from=&to=[&chan=]` (occurrences); `LC.calcore.expand(ev, from, to)` (`public/js/files-calcore.js`,
+also usable with `require` on the server) expands repeats. Live event: `fl_events { chan }`. Per-chat notes, whiteboard
+and to-dos (`db.extras[chan].note/board/todos`) belong to the apps area.
 
 **Teams** (teams area, `db.teams`): `{ id, name, picture, description, owners: [uid], members: [uid], guests: [uid],
 code, archived, created }`; a channel belongs to a team via `c.team`.

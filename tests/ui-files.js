@@ -64,6 +64,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await A.click('.modal .fl-treerow:has-text("Designs")'); await A.click('.modal button:has-text("Move here")');
     await P.waitForSelector('.fl-table tr.fl-folder:has-text("Designs") .fl-c-size:has-text("2 items")');
   });
+  await step('drag a file onto a folder to move it', async () => {
+    await A.dragAndDrop('.fl-table tr.fl-item:has-text("server.log")', '.fl-table tr.fl-folder:has-text("Designs")');
+    const id = fileRec('server.log').id; for (let i = 0; i < 40 && !((c.db.fileTree[grp] || {}).place || {})[id]; i++) await sleep(100);
+    if (!c.db.fileTree[grp].place[id]) throw new Error('not moved'); await P.waitForSelector('.fl-table tr.fl-folder:has-text("Designs") .fl-c-size:has-text("3 items")');
+  });
   await step('rename a file: the chat message shows the new name', async () => {
     await A.click('.fl-table tr.fl-item:has-text("app.js") button[aria-haspopup="menu"]'); await A.click('.popmenu button:has-text("Rename")'); await prompt(A, 'greeter.js');
     await tab(P, 'chat'); await P.waitForSelector('.file.fl-card:has-text("greeter.js")'); await tab(P, 'files');
@@ -80,7 +85,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await step('Download all builds a zip on the server with the folder structure', async () => {
     const [dl] = await Promise.all([A.waitForEvent('download'), A.click('.fl-bar button:has-text("Download all")')]);
     const f = path.join(dir, 'all.zip'); await dl.saveAs(f); const names = readZipIndex(f).map((e) => e.name).sort();
-    for (const n of ['Designs/budget.csv', 'Designs/logo-notes.txt', 'greeter.js']) if (!names.includes(n)) throw new Error(names.join(', '));
+    for (const n of ['Designs/budget.csv', 'Designs/logo-notes.txt', 'Designs/server.log', 'greeter.js']) if (!names.includes(n)) throw new Error(names.join(', '));
   });
   await step('share link: members link is copied; it shows in the Files app under Shared links and can be removed', async () => {
     await A.click('.fl-table tr.fl-item:has-text("greeter.js") button[aria-haspopup="menu"]'); await A.click('.popmenu button:has-text("Copy link")');

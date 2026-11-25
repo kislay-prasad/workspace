@@ -110,7 +110,9 @@
       try {
         const got = await Promise.all(ranges.map(async ([a, b]) => { const [ev, ms] = await Promise.all([LC.api(`/api/calendar?from=${a}&to=${b}${o.chan ? '&chan=' + encodeURIComponent(o.chan) : ''}`), fetchMeetings(a, b)]); return [...ev.events.map(evItem), ...ms.filter((m) => !o.chan || m.chan === o.chan).map(mtItem)]; }));
         const all = new Map(); for (const it of got.flat()) all.set(it.key, it);
-        st.items = [...all.values()].sort((a, b) => a.start - b.start || a.title.localeCompare(b.title)); st.loadedKey = key;
+        const items = [...all.values()].sort((a, b) => a.start - b.start || a.title.localeCompare(b.title)), sig = JSON.stringify(items) + Math.floor(Date.now() / 300000); // + a 5-minute bucket: Join buttons appear as time passes
+        if (sig === st.sig && key === st.loadedKey && root.querySelector('.fl-calbar')) { st.loading = false; return; } // nothing changed: keep the page as it is
+        st.items = items; st.sig = sig; st.loadedKey = key;
       } catch (e) { st.error = e.message; }
       st.loading = false; if (root.isConnected) draw(); else live.delete(v);
       if (!o.chan && S.app === 'calendar') LC.renderNav();
@@ -144,12 +146,15 @@
     function draw() {
       if (!root.isConnected && st.loadedKey) { live.delete(v); return; }
       if (st.dragging) { st.pending = true; return; } // never redraw under the pointer (live updates wait until the drag ends)
+      const act = document.activeElement, focusKey = act && root.contains(act) ? (act.dataset.key ? `[data-key="${act.dataset.key}"]` : act.classList.contains('fl-viewsel') ? '.fl-viewsel' : '') : '';
+      st.day = dk(new Date());
       const [from, to] = range(), body = st.view === 'month' ? monthView(from, to) : weekView(from, to), was = root.querySelector('.fl-wkscroll'), same = st.drawn === st.view + from.getTime();
       const keep = was && same ? was.scrollTop : null; st.drawn = st.view + from.getTime();
       root.dataset.view = st.view;
       root.replaceChildren(...[toolbar(), st.error ? el('p', { class: 'err', text: st.error }) : null, body, o.chan ? agenda() : null].filter(Boolean));
       st.error = '';
       if (st.view !== 'month') { const sc = root.querySelector('.fl-wkscroll'); if (sc) { const h = new Date().getHours(); sc.scrollTop = keep !== null ? keep : (isRangeToday(from, to) && h >= 16 ? h - 3 : 7.5) * HH; } }
+      if (focusKey) { const n = root.querySelector(focusKey); if (n) n.focus(); } // live updates keep the keyboard where it was
     }
     const done = () => { st.dragging = false; if (st.pending) { st.pending = false; setTimeout(draw, 0); } };
     const isRangeToday = (from, to) => Date.now() >= from.getTime() && Date.now() < to.getTime();
@@ -296,6 +301,10 @@
         it.kind === 'event' && it.canEdit ? el('button', { class: 'secondary sm', text: t('edit'), 'aria-label': t('edit') + ' ' + it.title, onclick: () => eventDialog(it) }) : null)) : el('p', { class: 'muted', text: t('fl_noUpcoming') }));
     }
     v.newItem = newItem; v.load = load;
+    v.tick = () => { // every minute: move the "now" line; a new day redraws
+      if (st.day !== dk(new Date())) return draw();
+      const line = root.querySelector('.fl-col.today .fl-nowline'); if (line) line.style.top = (((Date.now() - sod(new Date()).getTime()) / MIN) / 60) * HH + 'px';
+    };
     load();
     return v;
   }
@@ -507,8 +516,8 @@
   LC.on('fl_events', (e) => refresh(e.chan));
   LC.on('mt_meeting', () => refresh(null));
   LC.on('reminder', () => refresh(null));
-  setInterval(() => { if (document.visibilityState === 'visible' && [...live].some((v) => v.root.isConnected)) redrawAll(); }, 60000); // the "now" line and Join buttons
-  setInterval(() => { if (document.visibilityState === 'visible' && [...live].some((v) => v.root.isConnected && !v.o.chan)) refresh(null); }, 300000);
+  setInterval(() => { for (const v of [...live]) { if (!v.root.isConnected) { live.delete(v); continue; } if (!v.st.dragging) v.tick(); } }, 60000); // the "now" line
+  setInterval(() => { if (document.visibilityState === 'visible' && [...live].some((v) => v.root.isConnected)) refresh(null); }, 300000); // meetings going live, Join buttons
 
   // ---------- activity items: "Bob accepted Movie night" ----------
   LC.ext.activityTypes = LC.ext.activityTypes || {};
