@@ -12,7 +12,7 @@
 
   function tabbed(title, tabs, start, o = {}) {
     const body = el('div', { class: 'tabbody' }), bar = el('div', { class: 'tabsbar', role: 'tablist' }); let cur = null;
-    const show = async (k) => { cur = k; [...bar.children].forEach((b) => { b.classList.toggle('on', b.dataset.k === k); b.setAttribute('aria-selected', b.dataset.k === k); }); body.replaceChildren(el('p', { class: 'muted', text: t('loading') })); try { const c = await tabs.find((x) => x.key === k).render(); if (cur === k) body.replaceChildren(c); } catch (e) { body.replaceChildren(el('p', { class: 'err', text: e.message })); } };
+    const show = async (k) => { cur = k; [...bar.children].forEach((b) => { b.classList.toggle('on', b.dataset.k === k); b.setAttribute('aria-selected', b.dataset.k === k); }); body.replaceChildren(el('p', { class: 'muted', text: t('loading') })); try { const c = await tabs.find((x) => x.key === k).render(), extra = []; for (const sec of (o.sections || []).filter((x) => x.tab === k).sort((a, b) => (a.order ?? 50) - (b.order ?? 50))) { try { const n = await sec.render(); if (n) extra.push(n); } catch (e) { console.error('settings section', e); } } if (cur === k) body.replaceChildren(c, ...extra); } catch (e) { body.replaceChildren(el('p', { class: 'err', text: e.message })); } };
     for (const tb of tabs) bar.append(el('button', { 'data-k': tb.key, role: 'tab', class: 'tabbtn', onclick: () => show(tb.key) }, tb.icon ? (LC.hasIcon(tb.icon) ? LC.icon(tb.icon) : tb.icon + ' ') : '', el('span', { text: tb.label })));
     LC.modal([el('div', { class: 'row-between' }, el('h2', { style: { margin: 0 } }, o.icon ? LC.icon(o.icon) : null, o.icon ? ' ' : '', title), LC.ibtn('dismiss', t('close'), LC.closeModal)), bar, body], { wide: true, label: title, onClose: o.onClose });
     show(tabs.some((x) => x.key === start) ? start : tabs[0].key); return { show, current: () => cur };
@@ -103,7 +103,7 @@
       { key: 'about', icon: 'info', label: t('tabAbout'), render: () => el('div', {}, el('p', {}, el('b', { text: S.chatName }), ' · LANChat' + (S.appVersion ? ' ' + S.appVersion : '')), el('p', { class: 'muted', text: t('aboutText') }), el('p', { class: 'muted small', text: t('yourRole', { role: t('role_' + S.me.role) }) }), el('div', { class: 'acts' }, el('button', { class: 'secondary', text: t('shortcuts'), onclick: () => LC.shortcutsHelp() }), el('button', { class: 'secondary', text: t('signOut'), onclick: async () => { if (await LC.confirm(t('confirmSignOut'))) LC.signOut('manual'); } })), el('h3', { text: t('myAccount') }), LC.isOwner() ? el('p', { class: 'muted small', text: t('ownerCantDelete') }) : el('div', {}, el('p', { class: 'muted small', text: t('deleteMyAccountHelp') }), el('div', { class: 'acts' }, el('button', { class: 'secondary danger', text: t('deleteMyAccount'), onclick: async () => { if (!(await LC.confirm(t('confirmDeleteAccount'), { danger: true, ok: t('delete') }))) return; const purge = await LC.confirm(t('confirmDeleteAccountMsgs'), { ok: t('alsoDeleteMsgs'), cancel: t('keepMsgs') }); LC.api('/api/account/delete', { purge }).then(() => LC.signOut('deleted')).catch(fail); } })))) },
     ];
     const extTabs = LC.ext.settingsTabs.map((x) => ({ ...x, label: typeof x.label === 'function' ? x.label() : x.label })), ek = new Set(extTabs.map((x) => x.key));
-    tabbed(t('settings'), [...tabs.filter((x) => !ek.has(x.key)), ...extTabs].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)), start, { icon: 'settings' });
+    tabbed(t('settings'), [...tabs.filter((x) => !ek.has(x.key)), ...extTabs].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)), start, { icon: 'settings', sections: LC.ext.settingsSections });
   };
 
   // ---------- custom emoji ----------
@@ -240,7 +240,7 @@
       } },
     ];
     const extTabs = LC.ext.adminTabs.filter((x) => !x.ownerOnly || owner).map((x) => ({ ...x, label: typeof x.label === 'function' ? x.label() : x.label })), ek = new Set(extTabs.map((x) => x.key));
-    adminTabs = tabbed(t('manage'), [...tabs.filter(Boolean).filter((x) => !ek.has(x.key)), ...extTabs].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)), focusUser ? 'people' : start);
+    adminTabs = tabbed(t('manage'), [...tabs.filter(Boolean).filter((x) => !ek.has(x.key)), ...extTabs].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)), focusUser ? 'people' : start, { sections: LC.ext.adminSections.filter((x) => !x.ownerOnly || owner) });
     LC.adminTabsApi = adminTabs;
   };
   const refreshAdmin = () => { if (adminTabs && !$('#modal').classList.contains('hidden') && adminTabs.current() === 'requests') adminTabs.show('requests'); };

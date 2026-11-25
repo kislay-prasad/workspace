@@ -104,7 +104,9 @@
     const micBtn = btn('mic', t('voiceNote'), () => toggleVoice(), 'mic'), emojiBtn = btn('emoji', t('emoji'), (e) => LC.openPicker(e.currentTarget, (em) => insert(em), { stickers: !cfg.compact, onSticker: (em) => send({ text: em, force: true }) }), 'emojibtn');
     const moreBtn = btn('more_horizontal', t('moreOptions'), (e) => moreMenu(e.currentTarget), 'morebtn'); moreBtn.append(ttlDot);
     const row = el('div', { class: 'row' }, ta, el('div', { class: 'ctools' }, emojiBtn, btn('attach', t('attach'), (e) => attachMenu(e.currentTarget), 'attachbtn'), micBtn, moreBtn, el('span', { class: 'csep', 'aria-hidden': 'true' }), sendBtn));
-    const root = el('div', { class: 'composer' + (cfg.compact ? ' compact' : ''), 'data-composer': cfg.compact ? 'thread' : 'main' }, notice, ctx, chips, recbar, row, ac, fileIn);
+    const banner = el('div', { class: 'cbanner hidden' }); // LC.ext.composerBanner: e.g. "Ana is out of office"
+    const root = el('div', { class: 'composer' + (cfg.compact ? ' compact' : ''), 'data-composer': cfg.compact ? 'thread' : 'main' }, banner, notice, ctx, chips, recbar, row, ac, fileIn);
+    const renderBanner = () => { const chan = cfg.chan(); const nodes = chan && S.me ? LC.extItems(LC.ext.composerBanner, chan, api).filter((n) => n && n.nodeType) : []; banner.replaceChildren(...nodes); banner.classList.toggle('hidden', !nodes.length); };
 
     const autosize = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; };
     const insert = (s) => { ta.setRangeText(s, ta.selectionStart, ta.selectionEnd, 'end'); ta.focus(); autosize(); saveDraft(); };
@@ -272,14 +274,14 @@
     function stopRecording(keep) { if (!recorder) return; recorder.cancelled = !keep; try { recorder.rec.stop(); } catch {} }
 
     function refresh() { // chat/thread changed
-      closeAc(); if (editing) { editing = null; } replyTo = null; renderCtx(); files = []; renderChips(); ta.value = LC.ls.get(key(), ''); autosize(); ttlChoice = undefined; refreshTtl(); guard(); update();
+      closeAc(); if (editing) { editing = null; } replyTo = null; renderCtx(); files = []; renderChips(); ta.value = LC.ls.get(key(), ''); autosize(); ttlChoice = undefined; refreshTtl(); guard(); update(); renderBanner();
       ta.placeholder = cfg.compact ? t('replyPlaceholder') : t('typeMessage');
     }
     function reply(m) { editing = null; replyTo = m; renderCtx(); ta.focus(); }
     function edit(m) { replyTo = null; editing = m; ta.value = m.text || ''; renderCtx(); autosize(); ta.focus(); update(); }
-    Object.assign(api, { el: root, focus: () => ta.focus(), refresh, reply, edit, addFiles, addDropped, insert, guard, ta, cfg, send: (o) => send(o || {}), row, root });
+    Object.assign(api, { el: root, focus: () => ta.focus(), refresh, reply, edit, addFiles, addDropped, insert, guard, ta, cfg, send: (o) => send(o || {}), row, root, renderBanner });
     for (const n of LC.extItems(LC.ext.composerTools, api)) if (n && n.nodeType) row.querySelector('.ctools').insertBefore(n, row.querySelector('.ctools .csep'));
-    LC.on('me', () => guard()); LC.on('channel', () => guard()); LC.on('lang', () => { ta.placeholder = cfg.compact ? t('replyPlaceholder') : t('typeMessage'); });
+    LC.on('me', () => guard()); LC.on('channel', () => guard()); LC.on('user', () => renderBanner()); LC.on('lang', () => { ta.placeholder = cfg.compact ? t('replyPlaceholder') : t('typeMessage'); });
     refresh(); return api;
   };
 })();

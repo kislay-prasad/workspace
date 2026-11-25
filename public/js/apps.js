@@ -1,5 +1,5 @@
 'use strict';
-// Files, built-in apps (Tasks board, Notebook, Whiteboard, Forms, Approvals, Lists...) and the Calendar app (sections 9, 10, 12).
+// Built-in apps: Tasks board, Notebook, Whiteboard extras, Forms, Approvals, Lists, Shifts, Bookings, check-ins, website tab, live components, app store (section 10).
 // Owned by the "apps" feature area — see docs/EXTENDING.md for the extension points (LC.ext.*) and conventions.
 (() => {
   const LC = window.LC; void LC;

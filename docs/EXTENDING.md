@@ -20,12 +20,14 @@ Ground rules:
 | Area | Owns (edit freely) | Sections of the Teams list |
 |---|---|---|
 | core | `lib/app.js`, `lib/store.js`, `lib/tls.js`, `public/js/core.js`, `public/js/i18n.js`, `public/js/main.js`, `public/style.css`, `test.js` | — |
-| chatux | `public/js/chatux.js`, `public/css/chatux.css`, `lib/routes-chatux.js`, and the existing `public/js/render.js`, `public/js/composer.js`, `public/js/chat.js`, `lib/routes-chat.js` | 1, 7, 14, 15, 16 |
-| people | `public/js/people.js`, `public/css/people.css`, `lib/routes-people.js`, `public/js/lang-*.js`, the existing `public/js/panels.js` (settings part), `desktop/main.js`, `desktop/preload.js`, `desktop/*.html`, `lib/routes-activity.js`, `public/manifest.webmanifest`, `public/sw.js` | 2, 3, 4, 5, 6, 8, 25 |
-| calls | `public/js/calls.js`, `public/css/calls.css`, `public/js/calls-*.js`, `lib/routes-calls.js`, `lib/routes-callx.js` | 17, 19, 20, 22 |
-| meetings | `public/js/meetings.js`, `public/css/meetings.css`, `public/js/meetings-*.js`, `lib/routes-meetings.js` | 18, 21, 23 |
-| apps | `public/js/apps.js`, `public/css/apps.css`, `public/js/apps-*.js`, `lib/routes-apps.js`, `lib/routes-files.js`, and the existing `public/js/collab.js`, `lib/routes-collab.js` | 9, 10, 12 |
-| teams | `public/js/teams.js`, `public/css/teams.css`, `public/js/teams-*.js`, `lib/routes-teams.js`, `lib/routes-bots.js`, and the existing `lib/routes-admin.js`, `lib/routes-auth.js`, the admin part of `public/js/panels.js` | 11, 13, 24 |
+| chatux | `public/js/chatux*.js`, `public/css/chatux.css`, `lib/routes-chatux.js`, and the existing `public/js/render.js`, `public/js/composer.js`, `public/js/chat.js`, `lib/routes-chat.js` | 1, 7, 14, 15, 16 |
+| people | `public/js/people*.js`, `public/css/people.css`, `lib/routes-people.js`, and the existing `lib/routes-activity.js` | 5, 6, 8 |
+| shell | `public/js/shell*.js`, `public/js/lang-*.js`, `public/css/shell.css`, `lib/routes-shell.js`, and the existing `public/js/panels.js` (settings part), `desktop/main.js`, `desktop/preload.js`, `desktop/*.html`, `public/manifest.webmanifest`, `public/sw.js`, `scripts/build_desktop.py` | 2, 3, 4, 25 |
+| calls | `public/js/calls*.js` (including the existing meeting window `calls.js`), `public/css/calls.css`, `lib/routes-calls.js`, `lib/routes-callx.js` | 17, 19, 20, 22 |
+| meetings | `public/js/meetings*.js`, `public/css/meetings.css`, `lib/routes-meetings.js` | 18, 21, 23 |
+| apps | `public/js/apps*.js`, `public/css/apps.css`, `lib/routes-apps.js`, and the existing `public/js/collab.js`, `lib/routes-collab.js` (notes, whiteboard, to-dos) | 10 |
+| files | `public/js/files*.js`, `public/css/files.css`, `lib/routes-files.js`, `lib/routes-calendar.js` | 9, 12 |
+| teams | `public/js/teams*.js`, `public/css/teams.css`, `lib/routes-teams.js`, `lib/routes-bots.js`, and the existing `lib/routes-admin.js`, `lib/routes-auth.js`, the admin part of `public/js/panels.js` | 11, 13, 24 |
 
 Desktop: any area may add `desktop/ext-<area>.js` (loaded automatically, see below).
 
@@ -44,7 +46,7 @@ someone else's file.
 - Strings: never edit `i18n.js`. In your own file call `LC.addStrings('en', { key: 'Text' })` (and
   `LC.addStrings('hi', {...})`, `LC.addStrings('es', {...})` when you can). New languages:
   `LC.addStrings('fr', {...}, 'Français')`, right-to-left: `LC.addStrings('ar', {...}, 'العربية', 'rtl')`.
-  Prefix keys with your area to avoid clashes (`cx_`, `pp_`, `cl_`, `mt_`, `ap_`, `tm_`).
+  Prefix keys with your area to avoid clashes (`cx_`, `pp_`, `sh_`, `cl_`, `mt_`, `ap_`, `fl_`, `tm_`).
 - CSS: put styles in `public/css/<area>.css`. Use the design tokens from `style.css` (`var(--bg)`, `var(--fg)`,
   `var(--muted)`, `var(--line)`, `var(--brand)`, `var(--card)`, `var(--hover)` …) so light, dark and high-contrast
   themes keep working. Prefix class names with your area when they are new (`.cx-…`).
@@ -71,7 +73,9 @@ module.exports = (ctx) => {
 };
 ```
 
-Routes are exact `METHOD /path` keys; pass ids in the query string or body. Public routes (no sign-in, e.g. an
+Routes are exact `METHOD /path` keys; pass ids in the query string or body. Extra modules load after the core ones
+(`routes-auth`, `routes-admin`, `routes-chat`, `routes-collab`, `routes-calls`), so a module may *replace* a core
+route by assigning the same key again — only do that for behaviour your area owns, and keep the old behaviour working. Public routes (no sign-in, e.g. an
 incoming webhook) must be added with `ctx.publicRoutes.add('POST /api/hook')` and must check their own secret.
 
 ### ctx — the most used helpers
@@ -133,7 +137,9 @@ stored on the server), `LC.ui` / `LC.setUi(patch)` (this device only), `LC.ls` (
 | `composerTools` | `(composer) => node` | buttons next to Send |
 | `beforeSend` | `(body, composer, opts)` | add fields to an outgoing message |
 | `mentionSources` | `(query, chan) => [{ label, insert, icon }]` | extra @mention suggestions |
-| `settingsTabs`, `adminTabs` | `{ key, icon, label, order, render(), ownerOnly }` | Settings and Manage dialogs |
+| `settingsTabs`, `adminTabs` | `{ key, icon, label, order, render(), ownerOnly }` | new tabs in the Settings and Manage dialogs |
+| `settingsSections`, `adminSections` | `{ tab, order, render(), ownerOnly }` | an extra section at the end of an existing tab (Settings tabs: `profile`, `appearance`, `notifications`, `people`, `emoji`, `about`; Manage tabs: `requests`, `people`, `settings`, `security`, `storage`, `blocked`, `cleanup`) |
+| `composerBanner` | `(chan, composer) => node` | a strip above the message box (e.g. "Ana is out of office") |
 | `commands` | `'/name' -> { help, run(args) }` | slash commands |
 | `callPanels` | `{ key, icon, label, short, order, when(call), render(host, call) }` | meeting toolbar button + side panel |
 | `callToolbar`, `callMore` | `(call) => [buttons / items]` | meeting toolbar / "More" menu |
@@ -172,7 +178,8 @@ area owns how these look and how people set them; calls and meetings only call `
 **Activity items** (`ctx.activity(uid, item)`): `{ type, from, chan?, msg?, text?, ... }` with `type` one of
 `mention`, `reply`, `reaction`, `missedCall`, `voicemail`, `added` (to a chat or team), `task` (assigned to you),
 `meeting` (invite, update, starting now), `follow` (a followed thread), `urgent`, `approval`, `form`, `report`,
-`system`. The people area owns the Activity pane and creates `mention`, `reply` and `reaction` items (from the
+`system`. The people area owns the Activity pane, the notification rules (`LC.shouldAlert` / `LC.alertMessage`) and creates
+`mention`, `reply` and `reaction` items (from the
 `afterMessage`/`afterReact` hooks, using `u.follows` for followed threads). Other areas create items for their own
 features.
 
@@ -194,8 +201,15 @@ Client: `LC.meetings.schedule(prefill)` opens the "New meeting" form, `LC.meetin
 `LC.meetings.join(id)` joins. The calendar app (apps area) shows these next to calendar events and uses
 `LC.meetings` when it exists, so it must also work when meetings are missing.
 
-**Files** (apps area): `db.files[id] = { id, name, size, by, ts, ... }`; uploaded bytes in `P.uploads/<id>`. Messages
-reference files as `m.files = [{ id, name, size, type? }]`.
+**Files** (files area): `db.files[id] = { id, name, size, by, ts, ... }`; uploaded bytes in `P.uploads/<id>`. Messages
+reference files as `m.files = [{ id, name, size, type? }]`. Other areas upload with `LC.upload(blob, name)` (client) and
+may attach the result to a message.
+
+**Calendar events** (files area): per chat in `db.extras[chan].events = [{ id, by, ts, title, start, end, notes, remind,
+reminded }]` (written by `POST /api/event` in `routes-collab.js`; reminders by the tick there). The files area may extend
+the event shape (all-day, repeat, category colour, location …) and take over `POST /api/event` from `lib/routes-calendar.js`
+(re-assign the route). Keep old events readable. Per-chat notes, whiteboard and to-dos (`db.extras[chan].note/board/todos`)
+belong to the apps area.
 
 **Teams** (teams area, `db.teams`): `{ id, name, picture, description, owners: [uid], members: [uid], guests: [uid],
 code, archived, created }`; a channel belongs to a team via `c.team`.
@@ -205,8 +219,11 @@ code, archived, created }`; a channel belongs to a team via `c.team`.
 - `node tests/run-api.js [filter]` — every `tests/api-*.js` file (the harness gives each a fresh server on a free port).
 - Browser tests: Playwright (`require('playwright')`; Chromium is preinstalled; never run `playwright install`). Launch
   with `{ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] }` for calls. Use your
-  area's port range for servers: chatux 4100–4199, people 4200–4299, calls 4300–4399, meetings 4400–4499, apps
-  4500–4599, teams 4600–4699. Electron debugging ports: chatux 9511–9519, people 9521–9529, calls 9531–9539,
-  meetings 9541–9549, apps 9551–9559, teams 9561–9569.
+  area's port range for servers: chatux 4100–4199, people 4200–4299, shell 4300–4399, calls 4400–4499, meetings
+  4500–4599, apps 4600–4699, files 4700–4799, teams 4800–4899. Electron debugging ports: chatux 9511–9519, people
+  9521–9529, shell 9531–9539, calls 9541–9549, meetings 9551–9559, apps 9561–9569, files 9571–9579, teams 9581–9589.
+  Temporary folders: put them under `os.tmpdir()` with your area name in them.
+- Desktop tests (Linux, under `xvfb-run`): Electron is at `/tmp/elec/lin/node_modules/electron/dist/electron`; build an
+  app folder with `desktop/*` + `lib/` + `public/` + `package.json` (see `tests/README.md`, `tests/electron-*.js`).
 - Existing browser suites that must keep passing: `tests/ui-smoke.js`, `tests/ui-features.js`, `tests/ui-cleanup.js`,
   `tests/ui-https.js`, `tests/a11y.js` (axe-core accessibility scan).

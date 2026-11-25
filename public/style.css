@@ -416,3 +416,7 @@ input[type=range]{padding:0;border:0;accent-color:var(--brand)}
 .card h3{margin:16px 0 4px;font-size:14px;font-weight:600}
 /* touch screens: the message action bar appears after tapping a message (tap = hover would put buttons under the finger) */
 @media (hover:none){.msg .tools,.msg:hover .tools,.msg:focus-within .tools{display:none}.msg.sel .tools{display:flex}}
+
+/* strip above the message box filled by LC.ext.composerBanner (docs/EXTENDING.md) */
+.cbanner { display: flex; flex-direction: column; gap: 4px; margin: 0 0 6px; font-size: .86em; }
+.cbanner.hidden { display: none; }

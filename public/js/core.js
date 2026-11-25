@@ -37,7 +37,10 @@
     composerTools: [],  // (composer) => node | null : buttons next to Send
     beforeSend: [],     // (body, composer) => void : add fields to an outgoing message
     settingsTabs: [],   // { key, icon, label, order, render() }
+    settingsSections: [], // { tab, order, render() } : extra section at the end of an existing Settings tab (profile, appearance, notifications, people, ...)
     adminTabs: [],      // { key, icon, label, order, ownerOnly, render() }
+    adminSections: [],  // { tab, order, ownerOnly, render() } : extra section in an existing Manage tab (requests, people, settings, ...)
+    composerBanner: [], // (chan) => node | null : a strip above the message box (peer's status message, out of office, ...)
     commands: {},       // '/name' -> { help, run(args) } : slash commands in the search box
     mentionSources: [], // (query) => [{ label, insert, icon?, sub? }] : extra @mention suggestions (tags, @team...)
     callPanels: [],     // { key, icon, label, short?, order, when?(call), render(host, call) } : meeting side panels + toolbar buttons
