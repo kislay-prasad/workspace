@@ -35,7 +35,7 @@
     A.modal(t('ap_newAppr'), 'clipboard_task', [A.field(t('ap_apprTitle'), title), A.field(t('ap_apprDetails'), details), A.field(t('ap_postIn'), where), A.field(t('ap_approvers'), whoBox), el('fieldset', { class: 'ap-fset' }, el('legend', { text: t('ap_apprMode') }), mode),
       el('div', { class: 'ap-row' }, el('button', { type: 'button', class: 'secondary sm withicon', onclick: () => fileIn.click() }, LC.icon('attach'), el('span', { text: t('ap_addAttachment') })), fileName, fileIn)],
     [el('button', { class: 'secondary', text: t('ap_cancel'), onclick: LC.closeModal }), el('button', { class: 'primary', text: t('ap_newAppr'), onclick: send })], { wide: false });
-    setTimeout(() => title.focus(), 40);
+    LC.focusSoon(title);
   };
   async function respond(id, decision, comment) { const r = await A.call('/api/ap/approval/respond', { id, decision, comment }); if (r) { LC.emitLocal('ap:approvals', {}); refreshCount(); } return r; }
   A.approvalDetails = async (id) => {

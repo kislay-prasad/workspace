@@ -245,7 +245,7 @@
       const r = await tabOp(chan, { op: 'add', type: 'ap_web', multi: true, name: name.value || new URL(u).hostname, url: u }); if (r) { LC.closeModal(); LC.setTab(r.key); }
     };
     A.modal(inst ? t('ap_editTab') : t('ap_website'), 'globe', [el('p', { class: 'muted small', text: t('ap_desc_web') }), A.field(t('ap_webName'), name), A.field(t('ap_webUrl'), url, t('ap_webUrlHint'))], [el('button', { class: 'secondary', text: t('ap_cancel'), onclick: LC.closeModal }), el('button', { class: 'primary', text: inst ? t('ap_save') : t('ap_add'), onclick: go })], { wide: false });
-    setTimeout(() => url.focus(), 40);
+    LC.focusSoon(url);
   }
   A.tab({ key: 'ap_web', icon: 'globe', label: () => t('ap_website'), desc: () => t('ap_desc_web'), order: 400, multi: true, when: () => false,
     render(host, chan, inst) {

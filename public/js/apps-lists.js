@@ -26,7 +26,7 @@
     draw();
     A.modal(t('ap_newList'), 'apps_list_detail', [el('h3', { text: t('ap_template') }), grid, A.field(t('ap_listName'), name), A.field(t('ap_description'), desc), A.field(t('ap_where'), where)],
       [el('button', { class: 'secondary', text: t('ap_cancel'), onclick: LC.closeModal }), el('button', { class: 'primary', text: t('ap_newList'), onclick: async () => { if (!name.value.trim()) return name.focus(); const r = await A.call('/api/ap/list/new', { chan: where.value || undefined, name: name.value, desc: desc.value, template: tpl }); if (r) { LC.closeModal(); after && after(r.id, where.value); } } })]);
-    setTimeout(() => name.focus(), 40);
+    LC.focusSoon(name);
   };
 
   // ---------- value display and editors ----------
@@ -91,7 +91,7 @@
         const def = { name: name.value, type: type.value, long, choices: choices.filter((o) => o.t.trim()) };
         const r = await call('/api/ap/list/col', c ? { op: 'edit', col: c.id, def } : { op: 'add', def }); if (r) { LC.closeModal(); load(); }
       } })], { wide: false });
-      setTimeout(() => name.focus(), 40);
+      LC.focusSoon(name);
     }
     function itemDialog(r) {
       const l = V.l, vals = { ...(r ? r.v : {}) };

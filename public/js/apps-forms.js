@@ -57,7 +57,7 @@
     draw();
     A.modal(form ? t('ap_editForm') : t('ap_newForm'), 'form', [title, desc, el('div', { class: 'ap-fopts' }, opt('anon', t('ap_anon')), opt('multi', t('ap_multiResp')), opt('showResults', t('ap_showRes'))), box, adders],
       [el('button', { class: 'secondary', text: t('ap_cancel'), onclick: LC.closeModal }), chan && !form ? el('button', { class: 'secondary', text: t('ap_save'), onclick: () => save(false) }) : null, el('button', { class: 'primary', text: chan && !form ? t('ap_saveShare') : t('ap_save'), onclick: () => save(!!chan && !form) })]);
-    setTimeout(() => title.focus(), 40);
+    LC.focusSoon(title);
   };
 
   // ---------- fill in ----------

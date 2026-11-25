@@ -49,6 +49,8 @@
     beforeCall: [],     // async ({ chan, mode, joining }) => false | { micId, camId, cam, muted, ...extra body } : e.g. "before you join" screen
     rail: [],           // (railNode) => void : after the left app bar is drawn
   };
+  // focus a field once a dialog has rendered, unless the person has already moved into another field (never steal their typing)
+  LC.focusSoon = (node, ms = 40) => setTimeout(() => { if (!node || !node.isConnected) return; const a = document.activeElement; if (a && a !== document.body && a !== node && a.matches('input, textarea, select, [contenteditable="true"]')) return; node.focus(); }, ms);
   LC.extItems = (list, ...args) => list.flatMap((f) => { try { const r = f(...args); return Array.isArray(r) ? r : r ? [r] : []; } catch (e) { console.error('extension error', e); return []; } });
 
   // ---------- storage ----------

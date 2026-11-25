@@ -236,7 +236,7 @@
       el('div', { class: 'mt-grid2' }, MT.field(t('mt_repeat'), rep), untilWrap), custom, editing && editing.repeat ? el('p', { class: 'muted small', text: t('mt_seriesNote') }) : null,
       el('div', { class: 'mt-grid2' }, MT.field(t('mt_where'), where), MT.field(t('mt_location'), loc)), MT.field(t('mt_details'), details), optBox, err,
       el('div', { class: 'acts mt-acts' }, !editing ? el('button', { type: 'button', class: 'secondary withicon mt-left', onclick: saveTpl }, LC.icon('save'), el('span', { text: t('mt_saveTemplate') })) : null, el('button', { type: 'button', class: 'secondary', text: t('cancel'), onclick: LC.closeModal }), el('button', { type: 'submit', class: 'primary withicon' }, LC.icon('send'), el('span', { text: editing ? t('mt_sendUpdate') : t('mt_send') })))), { wide: true, label: editing ? t('mt_editMeeting') : t('mt_newMeeting') });
-    syncAllDay(); syncRepeat(); syncPres(); setTimeout(() => title.focus(), 40);
+    syncAllDay(); syncRepeat(); syncPres(); LC.focusSoon(title);
   };
   LC.meetings.edit = async (id) => { try { const m = await MT.get(id, true); LC.meetings.schedule({}, m); } catch (e) { MT.fail(e); } };
 
@@ -366,7 +366,7 @@
       else { cleanup(); resolve({ opts }); }
     }
     document.body.append(box); sync(); if (media()) openMedia(); else status.textContent = t('mt_noMedia');
-    setTimeout(() => joinBtn.focus(), 30);
+    LC.focusSoon(joinBtn, 30);
   });
   LC.on('call:effects', () => { if (MT.prejoinFx) MT.prejoinFx(); }); // LC.callEffects.set() fires it (docs/features-calls.md)
   // waits in the lobby; resolves true when admitted, false when denied / left
