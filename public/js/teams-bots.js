@@ -59,7 +59,9 @@
   // ---------- message extensions (message box ⋯) ----------
   let manual = { at: 0, list: [] };
   const loadManual = async (chan) => { if (Date.now() - manual.at > 30000) { try { manual = { at: Date.now(), list: (await LC.api('/api/tm/flows/manual?chan=' + encodeURIComponent(chan || ''))).flows }; } catch { manual = { at: Date.now(), list: [] }; } } return manual.list; };
+  LC.addEvents('tm_flows');
   LC.on('init', () => { manual.at = 0; if (S.me && S.me.role !== 'guest') loadManual(''); });
+  LC.on('tm_flows', () => { manual.at = 0; if (S.me && S.me.role !== 'guest') loadManual(''); });
   LC.ext.composerMore.push((composer) => {
     const chan = composer.cfg.chan(); if (!chan) return [];
     return ['sep', { icon: 'card_ui', label: t('tm_createCard'), fn: () => cardDialog(composer) },
@@ -120,7 +122,7 @@
     return el('div', {}, el('div', { class: 'acts' }, el('button', { class: 'primary sm withicon', onclick: () => botDialog(null) }, LC.icon('add'), el('span', { text: t('tm_newBot') }))),
       bots.length ? el('div', {}, bots.map((b) => el('div', { class: 'req' }, LC.avatar(S.users.get(b.uid) || { name: b.name, color: '#6264a7' }, 'sm', false), el('div', { class: 'grow' }, el('b', { text: b.name }), ' ', U.pill(t('tm_bot'), 'bot'), el('div', { class: 'muted small', text: `${b.rules.length} ${t('tm_rules').toLowerCase()} · ${t('tm_runs', { n: b.runs })} · ${t('tm_lastRun', { when: fmt(b.lastRun) })}` }), b.lastError ? el('div', { class: 'err small', text: b.lastError }) : null),
         U.toggle(t('tm_on'), b.on, (v) => save({ id: b.id, on: v })), el('button', { class: 'secondary sm', text: t('tm_editBot'), onclick: () => botDialog(b) }), LC.ibtn('delete', t('delete') + ' ' + b.name, async () => { if (await LC.confirm(t('delete') + ' ' + b.name + '?', { danger: true, ok: t('delete') })) LC.api('/api/tm/admin/bots/remove', { id: b.id }).then(() => refresh('tm_bots')).catch(U.fail); })))) : el('p', { class: 'muted', text: t('tm_noBots') }),
-      el('h3', { text: t('tm_allHooks') }), hooks.length ? el('div', { class: 'tablewrap' }, el('table', { class: 'table small' }, el('thead', {}, el('tr', {}, [t('tm_hookName'), t('tm_where'), '', t('tm_lastRun', { when: '' }).trim(), ''].map((h) => el('th', { text: h })))),
+      el('h3', { text: t('tm_allHooks') }), hooks.length ? el('div', { class: 'tablewrap' }, el('table', { class: 'table small' }, el('thead', {}, el('tr', {}, [t('tm_hookName'), t('tm_where'), '', t('tm_lastRun', { when: '' }).trim(), ''].map(U.th))),
         el('tbody', {}, hooks.map((h) => el('tr', {}, el('td', { text: h.name }), el('td', { text: h.where }), el('td', { text: h.kind === 'in' ? t('tm_inHooks') : t('tm_outHooks') }), el('td', {}, el('span', { text: h.lastUsed ? LC.ago(h.lastUsed) : t('tm_neverUsed') }), h.lastError ? el('div', { class: 'err small', text: h.lastError }) : null),
           el('td', {}, LC.ibtn('delete', t('delete') + ' ' + h.name, () => LC.api('/api/tm/hooks/remove', { id: h.id }).then(() => refresh('tm_bots')).catch(U.fail)))))))) : el('p', { class: 'muted small', text: t('tm_noHooks') }));
   }
@@ -194,7 +196,7 @@
     let bot = '', read = true, post = true; const out = el('div', { 'aria-live': 'polite' });
     const sel = U.select([['', t('tm_newBotNamed')], ...bots.map((b) => [b.id, b.name])], '', (v) => { bot = v; newBot.classList.toggle('hidden', !!v); }, t('tm_actsAs'));
     return el('div', {}, el('p', { class: 'muted small', text: t('tm_devHelp') }), el('p', {}, el('a', { href: '/api/tm/docs/api?token=' + encodeURIComponent(S.token), target: '_blank', rel: 'noopener' }, LC.icon('document_text'), ' ' + t('tm_guide'))),
-      el('h3', { text: t('tm_keys') }), keys.length ? el('div', { class: 'tablewrap' }, el('table', { class: 'table small' }, el('thead', {}, el('tr', {}, [t('tm_keyName'), t('tm_actsAs'), t('tm_scopes'), t('tm_lastRun', { when: '' }).trim(), ''].map((h) => el('th', { text: h })))),
+      el('h3', { text: t('tm_keys') }), keys.length ? el('div', { class: 'tablewrap' }, el('table', { class: 'table small' }, el('thead', {}, el('tr', {}, [t('tm_keyName'), t('tm_actsAs'), t('tm_scopes'), t('tm_lastRun', { when: '' }).trim(), ''].map(U.th))),
         el('tbody', {}, keys.map((k) => el('tr', {}, el('td', {}, el('b', { text: k.name }), el('div', {}, el('code', { class: 'small', text: k.prefix + '_…' }))), el('td', { text: k.bot }), el('td', { text: k.scopes.join(', ') }), el('td', { text: k.lastUsed ? LC.ago(k.lastUsed) : t('tm_neverUsed') }),
           el('td', {}, k.revoked ? U.pill(t('tm_revoked'), 'warn') : el('button', { class: 'secondary sm danger', text: t('tm_revoke'), onclick: () => LC.api('/api/tm/admin/keys/revoke', { id: k.id }).then(() => refresh('tm_dev')).catch(U.fail) }))))))) : el('p', { class: 'muted small', text: t('tm_noKeys') }),
       el('section', { class: 'tm-sec' }, el('h3', { text: t('tm_newKey') }), U.field(t('tm_keyName'), kname), U.field(t('tm_actsAs'), sel), newBot,

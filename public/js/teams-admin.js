@@ -46,7 +46,7 @@
   const save = (patch, k) => LC.api('/api/tm/admin/policies', patch).then(() => LC.toast(t('tm_policySaved'), { ms: 1200 })).catch((e) => { U.fail(e); if (k) refresh(k); });
   const sec = (title, help, ...kids) => el('section', { class: 'tm-sec' }, el('h3', { text: title }), help ? el('p', { class: 'muted small', text: help }) : null, ...kids);
   const num = (value, min, max, label) => el('input', { type: 'number', min, max, value: String(value ?? 0), 'aria-label': label, class: 'tm-num' });
-  const table = (heads, rows, cls = '') => el('div', { class: 'tablewrap' }, el('table', { class: 'table small ' + cls }, el('thead', {}, el('tr', {}, heads.map((h) => el('th', { text: h })))), el('tbody', {}, rows)));
+  const table = (heads, rows, cls = '') => el('div', { class: 'tablewrap' }, el('table', { class: 'table small ' + cls }, el('thead', {}, el('tr', {}, heads.map(U.th))), el('tbody', {}, rows)));
   const people = () => [...S.users.values()].filter((u) => !u.deleted && !u.bot && !u.barrier).sort((a, b) => a.name.localeCompare(b.name));
   const personSelect = (label, value = '', filter) => U.select([['', t('tm_pickPerson')], ...people().filter((u) => !filter || filter(u)).map((u) => [u.id, u.name])], value, null, label);
   const fileLink = (href, text) => el('a', { class: 'secondary sm btn', href, download: '' }, LC.icon('arrow_download'), ' ' + text);

@@ -90,6 +90,7 @@
     return el('div', { class: 'tm-chartbox' }, svg);
   };
   U.dayLabels = (from, days) => Array.from({ length: days }, (_, i) => new Date(from + i * 86400000).toLocaleDateString(LC.ui.lang === 'auto' ? undefined : LC.ui.lang, { month: 'short', day: 'numeric' }));
+  U.th = (h) => el('th', {}, h || el('span', { class: 'sr-only', text: t('actions') })); // never an empty header cell
   U.stat = (big, small) => el('div', { class: 'stat' }, el('b', { text: String(big) }), el('small', { text: small }));
   U.csv = (rows) => rows.map((r) => r.map((c) => { const s = String(c ?? ''); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n');
   U.download = (name, text, type = 'text/csv') => { const a = el('a', { href: URL.createObjectURL(new Blob([text], { type })), download: name }); document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); };
