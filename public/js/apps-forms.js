@@ -146,7 +146,7 @@
       el('div', { class: 'ap-mcacts' }, !c.closed ? el('button', { class: 'primary sm', text: t('ap_fillIn'), onclick: () => A.fillForm(c.id) }) : null, el('button', { class: 'secondary sm', text: t('ap_results'), onclick: () => A.formResults(c.id) }),
         owner ? LC.ibtn('more_horizontal', t('ap_formMenu'), (e) => formMenu(e.currentTarget, { id: c.id, title: c.title, closed: c.closed }), { menu: true }) : null));
   });
-  LC.ext.composerMore.push((composer) => (composer.cfg && composer.cfg.chan() && A.writable(composer.cfg.chan()) ? [{ icon: 'form', label: t('ap_newForm') + '…', fn: () => A.editForm(null, composer.cfg.chan()) }] : []));
+  LC.ext.composerMore.push((composer) => (composer.cfg && composer.cfg.chan() && A.writable(composer.cfg.chan()) && !A.guest() ? [{ icon: 'form', label: t('ap_newForm') + '…', fn: () => A.editForm(null, composer.cfg.chan()) }] : []));
 
   // ---------- lists of forms: the chat tab and the app ----------
   function formRow(f) {
@@ -159,16 +159,16 @@
     async render(host, chan) {
       const box = el('div', { class: 'ap-flist' });
       const load = async () => { try { const d = await LC.api('/api/ap/forms?chan=' + encodeURIComponent(chan)); A.put(box, ...(d.forms.length ? d.forms.map(formRow) : [A.empty('form', t('ap_noForms'), t('ap_noFormsHelp'))])); } catch (e) { A.put(box, el('p', { class: 'err', text: e.message })); } };
-      A.put(host, el('div', { class: 'ap-page' }, A.head('form', t('ap_forms'), A.writable(chan) ? el('button', { class: 'primary sm withicon', onclick: () => A.editForm(null, chan) }, LC.icon('add'), el('span', { text: t('ap_newForm') })) : null), box));
+      A.put(host, el('div', { class: 'ap-page' }, A.head('form', t('ap_forms'), A.writable(chan) && !A.guest() ? el('button', { class: 'primary sm withicon', onclick: () => A.editForm(null, chan) }, LC.icon('add'), el('span', { text: t('ap_newForm') })) : null), box));
       A.on('ap:forms', load, box); A.on('update', (m) => { if (m.chan === chan && m.apCard && m.apCard.kind === 'form') load(); }, box); load();
     } });
   A.app({ key: 'ap_forms', icon: 'form', color: '#038387', name: () => t('ap_forms'), desc: () => t('ap_formsDesc'), tab: 'ap_forms', order: 72,
     pane: {
-      render(nav) { A.put(nav, el('button', { class: 'ap-navitem on', 'aria-current': 'page', onclick: () => LC.openApp('ap_forms') }, LC.icon('form'), el('span', { class: 'grow', text: t('ap_forms') })), el('div', { class: 'pad' }, el('button', { class: 'primary sm withicon', onclick: () => A.editForm(null, null) }, LC.icon('add'), el('span', { text: t('ap_newForm') })))); },
+      render(nav) { A.put(nav, el('button', { class: 'ap-navitem on', 'aria-current': 'page', onclick: () => LC.openApp('ap_forms') }, LC.icon('form'), el('span', { class: 'grow', text: t('ap_forms') })), A.guest() ? null : el('div', { class: 'pad' }, el('button', { class: 'primary sm withicon', onclick: () => A.editForm(null, null) }, LC.icon('add'), el('span', { text: t('ap_newForm') })))); },
       async main(host) {
         const mine = el('div', { class: 'ap-flist' }), shared = el('div', { class: 'ap-flist' });
         const load = async () => { try { const d = await LC.api('/api/ap/forms'); const a = d.forms.filter((f) => f.mine), b = d.forms.filter((f) => !f.mine); A.put(mine, ...(a.length ? a.map(formRow) : [el('p', { class: 'muted', text: t('ap_noFormsHelp') })])); A.put(shared, ...(b.length ? b.map(formRow) : [el('p', { class: 'muted', text: '—' })])); } catch (e) { A.put(mine, el('p', { class: 'err', text: e.message })); } };
-        A.put(host, el('div', { class: 'ap-page' }, el('div', { class: 'ap-row' }, el('button', { class: 'primary sm withicon', onclick: () => A.editForm(null, null) }, LC.icon('add'), el('span', { text: t('ap_newForm') }))), el('h2', { class: 'ap-sub', text: t('ap_myForms') }), mine, el('h2', { class: 'ap-sub', text: t('ap_sharedForms') }), shared));
+        A.put(host, el('div', { class: 'ap-page' }, A.guest() ? null : el('div', { class: 'ap-row' }, el('button', { class: 'primary sm withicon', onclick: () => A.editForm(null, null) }, LC.icon('add'), el('span', { text: t('ap_newForm') }))), el('h2', { class: 'ap-sub', text: t('ap_myForms') }), mine, el('h2', { class: 'ap-sub', text: t('ap_sharedForms') }), shared));
         A.on('ap:forms', load, mine); load();
       },
     } });

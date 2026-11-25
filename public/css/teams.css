@@ -1,1 +1,125 @@
-/* Teams & channels, bots & automation, admin & security (sections 11, 13, 24). Owned by the "teams" feature area (docs/EXTENDING.md). */
+/* Teams & channels, bots & automation, admin & security (sections 11, 13, 24). Owned by the "teams" feature area (docs/EXTENDING.md).
+   Uses the design tokens from style.css only, so light, dark and high-contrast themes all work. */
+
+/* ---------- pills, labels, tiles ---------- */
+.tm-pill{white-space:nowrap;color:var(--text)}.pill.warn{background:var(--bg2);border-color:var(--warn)}.pill.guest{background:var(--bg2);border-color:var(--brand-t)}
+.pill.bot{background:var(--bg2)}.pill.ok{background:var(--bg2);border-color:var(--ok)}.pill.bad{background:var(--bg2);border-color:var(--danger)}
+.tm-tile{font-size:12px;letter-spacing:.02em;overflow:hidden}.tm-tile img{width:100%;height:100%;object-fit:cover;border-radius:6px}.av.tile.lg.tm-tile{font-size:20px}.av.tile.xl.tm-tile{font-size:34px;border-radius:10px}
+.av.tile{position:relative}.tm-lock{position:absolute;right:-4px;bottom:-4px;width:16px;height:16px;border-radius:50%;background:var(--bg);color:var(--text2);display:grid;place-items:center;box-shadow:var(--shadow-s)}.tm-lock .ic{width:11px;height:11px;color:var(--text2)!important}
+.tm-label{--lc:var(--muted);display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;border-radius:10px;padding:1px 8px;color:var(--text);border:1px solid var(--lc);background:color-mix(in srgb,var(--lc) 16%,var(--bg));white-space:nowrap}
+.tm-label .ic{width:14px;height:14px;color:var(--lc)}.tm-label.sm{font-size:11px;padding:0 6px}
+:root[data-theme=hc] .tm-label{background:#000;color:#fff}
+.tm-banner{display:flex;align-items:center;gap:8px;background:var(--brand-l);border-radius:4px;padding:6px 10px;margin-bottom:6px;font-size:13px}.tm-banner .ic{width:18px;height:18px;color:var(--brand-t);flex:none}
+.tm-banner .icon{width:24px;height:24px}
+
+/* ---------- Teams pane (list column) ---------- */
+.tm-team{margin:2px 0 6px}
+.tm-trow{display:flex;align-items:center;border-radius:6px}.tm-trow:hover{background:var(--hover2)}
+.tm-thead{flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:none;border:0;padding:6px 6px 6px 4px;border-radius:6px;color:inherit;text-align:left}
+.tm-chev{width:14px!important;height:14px!important;color:var(--muted);flex:none}
+.tm-thead .tm-tile{width:28px;height:28px;font-size:11px;letter-spacing:0}
+.tm-tname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.tm-trow.unread .tm-tname{font-weight:700}.tm-team.current>.tm-trow .tm-tname{color:var(--brand-t)}
+.tm-trow:hover .kebab,.tm-trow .kebab:focus{opacity:1}
+.tm-chans{padding-left:22px}
+.tm-chan .itemmain{padding:5px 8px;gap:8px}.tm-chan .name{font-size:14px}
+.tm-chan.unread .name{font-weight:700}
+.tm-cico{width:16px;display:flex;justify-content:center;color:var(--muted);flex:none}.tm-cico .ic{width:14px;height:14px}
+.tm-dot{background:var(--brand)}
+.tm-hiddenbtn{display:flex;align-items:center;gap:4px;background:none;border:0;color:var(--muted);font-size:12px;padding:4px 8px;border-radius:4px;margin:2px 0}.tm-hiddenbtn:hover{color:var(--text);background:var(--hover2)}.tm-hiddenbtn .ic{width:14px;height:14px}
+.tm-hiddenchan .name{color:var(--muted);font-style:italic}
+.tm-empty .primary{margin-top:4px}
+
+/* ---------- pages in the main area (Join or create, Manage team) ---------- */
+.tm-page{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.tm-page h2{margin:0;font-size:20px}
+.tm-pagehead input[type=search]{width:min(320px,100%)}
+.tm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.tm-card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow-s);min-width:0}
+.tm-card h3{margin:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm-card .tm-desc{margin:0;min-height:2.6em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tm-card>button:last-child{align-self:flex-start}.tm-card.flash{outline:2px solid var(--brand);outline-offset:2px}
+.tm-start{align-items:flex-start}.tm-start input{width:100%}
+.tm-cardicon{width:40px;height:40px;border-radius:8px;background:var(--brand-l);color:var(--brand-t);display:grid;place-items:center;flex:none}.tm-cardicon .ic{width:24px;height:24px}
+.tm-startgrid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.tm-mhead{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}.tm-mhead p{margin:4px 0}.tm-mhead .rowline{margin:0}
+.tm-mtabs{margin-top:4px}.tm-mbody{min-height:200px}
+.tm-code{font-size:18px;letter-spacing:.12em;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:4px 12px}
+.tm-settings h3{margin-top:18px}
+
+/* ---------- dialogs ---------- */
+.tm-tpls{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.tm-tpl{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:12px;color:inherit}.tm-tpl:hover{border-color:var(--brand);background:var(--hover)}
+.tm-tpl small{line-height:1.3}
+.tm-radios{display:flex;flex-direction:column;gap:6px}
+.tm-radio{display:flex;align-items:flex-start;gap:8px;border:1px solid var(--line);border-radius:6px;padding:8px 10px;cursor:pointer}.tm-radio:hover{background:var(--hover)}
+.tm-radio input{margin-top:2px;flex:none}.tm-radio span{display:flex;flex-direction:column}.tm-radio b{font-weight:600}
+.tm-radio:has(input:checked){border-color:var(--brand);background:var(--brand-l)}
+.tm-picline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tm-picprev{width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--line);display:grid;place-items:center;color:var(--muted);background:var(--bg2)}
+.tm-pickwrap{display:flex;flex-direction:column;gap:6px}.tm-people{max-height:240px}
+.tm-memberlist{border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+.tm-details{margin:6px 0}.tm-details summary{cursor:pointer;color:var(--link);padding:4px 0}
+.tm-tagrow .ic{color:var(--brand-t)}
+
+/* ---------- analytics ---------- */
+.tm-tiles .stat{flex:1;min-width:96px}
+.tm-chartbox{border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--card)}
+.tm-chart{width:100%;height:auto;display:block}
+.tm-bar{fill:var(--brand)}.tm-bar.alt{fill:var(--ok)}.tm-bar.warn{fill:var(--warn)}.tm-bar:hover{fill:var(--brand-d)}
+.tm-gl{stroke:var(--line);stroke-width:1}
+.tm-axis{fill:var(--muted);font-size:11px;font-family:inherit}
+.tm-top{padding-left:20px;margin:4px 0}.tm-top li{display:flex;align-items:center;gap:8px;margin:4px 0}
+
+/* ---------- messages: cross-posts ---------- */
+.tm-xpost{margin-top:4px;display:flex;align-items:center;gap:2px;flex-wrap:wrap}.tm-xpost .ic{width:14px;height:14px}
+
+/* ---------- phone ---------- */
+@media (max-width:760px){
+  .tm-page{gap:10px}.tm-pagehead{flex-wrap:wrap}.tm-grid{grid-template-columns:1fr}
+  .tm-mhead .av.xl{width:56px;height:56px;font-size:22px}
+  .tm-chans{padding-left:14px}
+}
+
+/* ---------- Manage dialog: side list of tabs (Teams admin centre style) ---------- */
+.card.wide.tm-admin{width:min(1180px,100%);height:min(820px,calc(100dvh - 24px));display:grid;grid-template-columns:210px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:0 16px;overflow:hidden}
+.tm-admin>.row-between{grid-column:1/-1;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.tm-admin>.tabsbar{flex-direction:column;border-bottom:0;border-right:1px solid var(--line);overflow-y:auto;padding-right:8px;gap:1px}
+.tm-admin>.tabsbar .tabbtn{width:100%;border-radius:6px;padding:7px 10px;white-space:normal;text-align:left}
+.tm-admin>.tabsbar .tabbtn:hover{background:var(--hover)}.tm-admin>.tabsbar .tabbtn.on{background:var(--brand-l)}
+.tm-admin>.tabsbar .tabbtn.on::after{left:0;right:auto;top:8px;bottom:8px;width:3px;height:auto;border-radius:2px}
+.tm-admin>.tabbody{overflow-y:auto;min-height:0;padding-right:4px}
+.tm-sec{border:1px solid var(--line);border-radius:8px;padding:4px 14px 12px;margin:10px 0;background:var(--card)}
+.tm-sec h3{margin-top:10px}.tm-sec h4{margin:12px 0 4px;font-size:13px}
+.tm-num{width:120px}.tm-cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0 14px}
+.tm-labelrow{display:grid;grid-template-columns:minmax(120px,1fr) 44px 170px minmax(120px,2fr) 32px;gap:6px;align-items:center;margin:6px 0}
+.tm-report{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0;background:var(--card)}.tm-report.done{opacity:.8}.tm-report .ic{color:var(--danger)}
+.tm-snap{margin:6px 0;border-left:3px solid var(--line2);padding:4px 10px;background:var(--bg2);border-radius:0 6px 6px 0}
+.tm-poor td{color:var(--danger)}
+.tm-seg summary{display:flex;gap:4px;align-items:center}
+.tm-secret{word-break:break-all;font-size:13px}
+/* ---------- sign-in: branding, invite, PIN ---------- */
+.tm-welcome{white-space:pre-line}.tm-logoimg{object-fit:contain;border-radius:8px}
+.tm-invitenote{margin:0}
+.tm-lobbylogo{width:56px;height:56px;object-fit:contain;border-radius:8px;display:block;margin:0 auto 6px}
+#tmPin,#tmTotp{width:100%;font-size:15px;min-height:40px}
+@media (max-width:760px){
+  .card.wide.tm-admin{display:flex;flex-direction:column;height:calc(100dvh - 24px)}
+  .tm-admin>.tabsbar{flex-direction:row;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden;padding-right:0;flex:none}
+  .tm-admin>.tabsbar .tabbtn{width:auto;white-space:nowrap}
+  .tm-admin>.tabsbar .tabbtn.on::after{left:8px;right:8px;top:auto;bottom:0;width:auto;height:3px}
+  .tm-admin>.tabbody{flex:1}
+  .tm-labelrow{grid-template-columns:1fr 44px;}.tm-labelrow select,.tm-labelrow input:not([type=color]){grid-column:1/-1}
+}
+
+/* ---------- cards, bot and guest badges, bots/workflows editors ---------- */
+.tm-cardmsg{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card);margin-top:6px;max-width:480px;box-shadow:var(--shadow-s)}
+.tm-cardimg{display:block;width:100%;max-height:260px;object-fit:cover;background:var(--bg2)}
+.tm-cardbody{padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.tm-cardtitle{font-weight:700;font-size:15px}.tm-cardtext{font-size:14px}
+.tm-facts{display:grid;grid-template-columns:max-content 1fr;gap:2px 12px;margin:0;font-size:13px}.tm-facts dt{color:var(--muted);font-weight:600}.tm-facts dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.tm-cardbtns{display:flex;gap:6px;flex-wrap:wrap}.tm-cardbtns .ic{width:16px;height:16px}
+.role.tm-role.bot{border-color:var(--muted);color:var(--text2)}.role.tm-role.guest{border-color:var(--warn);color:var(--text2)}
+.tm-factrow{display:flex;gap:6px;align-items:center;margin:4px 0}.tm-factrow input{flex:1;min-width:0}
+.tm-rule{border:1px solid var(--line);border-radius:6px;padding:8px;margin:6px 0;display:flex;flex-direction:column;gap:6px}.tm-rule textarea{width:100%}
+.tm-pre{background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:8px;overflow:auto;font-size:12px;white-space:pre-wrap;word-break:break-all}

@@ -114,7 +114,7 @@
         const item = (label, icon, on, fn, color) => el('button', { class: 'ap-navitem' + (on ? ' on' : ''), 'aria-current': on ? 'page' : null, onclick: fn }, color ? el('i', { class: 'ap-ldot', style: { background: color } }) : LC.icon(icon), el('span', { class: 'grow', text: label }));
         A.put(nav, item(t('ap_myBookings'), 'person', !V.page, () => { V.page = null; LC.openApp('ap_bookings'); LC.renderNav(); }), el('div', { class: 'ap-navsec', text: t('ap_bookings') }));
         try { const d = await LC.api('/api/ap/bookings'); V.pages = d.pages; nav.append(...d.pages.map((p) => item(p.name, '', V.page === p.id, () => { V.page = p.id; V.view = 'book'; LC.openApp('ap_bookings'); LC.renderNav(); }, p.color))); } catch {}
-        nav.append(el('div', { class: 'pad' }, el('button', { class: 'secondary sm withicon', onclick: () => { V.page = 'new'; LC.openApp('ap_bookings'); LC.renderNav(); } }, LC.icon('add'), el('span', { text: t('ap_newPage') }))));
+        if (!A.guest()) nav.append(el('div', { class: 'pad' }, el('button', { class: 'secondary sm withicon', onclick: () => { V.page = 'new'; LC.openApp('ap_bookings'); LC.renderNav(); } }, LC.icon('add'), el('span', { text: t('ap_newPage') }))));
       },
       main(host) { if (V.page === 'new') { const box = el('div', { class: 'ap-book' }); A.put(host, el('div', { class: 'ap-page' }, el('h2', { text: t('ap_newPage') }), box)); settingsView(box, null); } else if (V.page) pageView(host, V.page); else mine(host); },
     } });

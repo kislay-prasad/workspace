@@ -21,20 +21,24 @@
   const COLORS = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink', 'gray'], SIZES = ['small', 'large', 'huge'];
   LC.cxColors = COLORS; LC.cxSizes = SIZES;
   function inlineSource() {
-    if (LC.inlineSrc) return LC.inlineSrc;
+    const tagList = LC.tm && LC.tm.tags; // rebuilt when the teams area replaces its tag list (it arrives after the first render)
+    if (LC.inlineSrc && LC.inlineSrcTags === tagList) return LC.inlineSrc;
+    LC.inlineSrcTags = tagList;
     const names = [...S.users.values()].filter((u) => !u.removed).map((u) => u.name).sort((a, b) => b.length - a.length).map(esc);
+    // group mentions: @everyone / @here, the teams area's @channel / @team and its tags (@designers)
+    const groups = ['everyone', 'here', 'channel', 'team', ...((LC.tm && Array.isArray(LC.tm.tags) ? LC.tm.tags : []).map((g) => String(g.name || '')).filter(Boolean).sort((a, b) => b.length - a.length).map(esc))];
     const parts = [
       '(`[^`\\n]+`)', // 1 code
       '(\\[[^\\]\\n]{1,200}\\]\\((?:https?:\\/\\/|#m=)[^\\s)]+\\))', // 2 [text](link)
       '(\\*\\*[^*\\n]+?\\*\\*)', '(__[^_\\n]+?__)', '(~~[^~\\n]+?~~)', '(==[^=\\n]+?==)', // 3 bold, 4 underline, 5 strike, 6 highlight
       '(\\{color:(?:' + COLORS.join('|') + ')\\}[^\\n]*?\\{\\/color\\})', '(\\{size:(?:' + SIZES.join('|') + ')\\}[^\\n]*?\\{\\/size\\})', // 7 colour, 8 size
       '(\\*[^\\s*][^*\\n]*?\\*)', '((?:^|\\s)_[^\\s_][^_\\n]*?_(?=\\s|$|[.,!?;:]))', // 9, 10 italic
-      '(https?:\\/\\/[^\\s<]+)', '(@(?:everyone|here)(?![\\p{L}\\p{N}_]))', '(:[a-z0-9_]{2,20}:)', // 11 url, 12 @everyone, 13 :emoji:
+      '(https?:\\/\\/[^\\s<]+)', '(@(?:' + groups.join('|') + ')(?![\\p{L}\\p{N}_]))', '(:[a-z0-9_]{2,20}:)', // 11 url, 12 @everyone, 13 :emoji:
       names.length ? '(@(?:' + names.join('|') + ')(?![\\p{L}\\p{N}_]))' : '(?!)()', // 14 @person
     ];
     return (LC.inlineSrc = parts.join('|'));
   }
-  LC.on('user', () => { LC.inlineSrc = null; }); LC.on('init', () => { LC.inlineSrc = null; });
+  LC.on('user', () => { LC.inlineSrc = null; }); LC.on('init', () => { LC.inlineSrc = null; }); LC.on('tm_tags', () => { LC.inlineSrc = null; });
   // links to a message in this session (#m=<chan>/<id>) open inside the app instead of a new tab
   const deepLink = (url) => { const h = url.startsWith('#m=') ? url : url.startsWith(location.origin + '/') && url.includes('#m=') ? url.slice(url.indexOf('#m=')) : ''; return h || null; };
   function linkEl(url, text, depth) {

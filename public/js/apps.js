@@ -33,9 +33,13 @@
   A.fail = (e) => LC.toast((e && e.message) || String(e));
   A.call = async (path, body) => { try { return await LC.api(path, body); } catch (e) { A.fail(e); return null; } };
   A.lbl = (x) => (typeof x === 'function' ? x() : x);
-  A.writable = (chan) => { if (!S.me || !chan) return false; const c = S.channels.get(chan); return !(S.me.mutedUntil > Date.now()) && !(c && c.readonly && !LC.isAdmin()); };
+  A.writable = (chan) => { if (!S.me || !chan) return false; const c = S.channels.get(chan); return !(S.me.mutedUntil > Date.now()) && !(c && c.archived) && !(c && c.readonly && !LC.isAdmin()); };
+  A.guest = () => !!S.me && S.me.role === 'guest'; // guests (teams area) use the apps but don't set new things up
   A.isManager = (chan) => { const c = S.channels.get(chan); return LC.isAdmin() || chan.startsWith('dm:') || !!(c && c.members && c.by === S.me.id); };
-  A.members = (chan) => { const c = S.channels.get(chan); return [...S.users.values()].filter((u) => !u.removed && !u.deleted && (!chan ? true : chan.startsWith('dm:') ? chan.split(':').includes(u.id) : !c || !c.members || c.members.includes(u.id))).sort((a, b) => LC.uname(a.id).localeCompare(LC.uname(b.id))); };
+  A.members = (chan) => {
+    const c = S.channels.get(chan), tm = c && !c.members && c.team && LC.tm && LC.tm.teams ? LC.tm.teams.get(c.team) : null, inTeam = tm ? new Set([...(tm.members || []), ...(tm.owners || []), ...(tm.guests || [])]) : null;
+    return [...S.users.values()].filter((u) => !u.removed && !u.deleted && (!chan ? true : chan.startsWith('dm:') ? chan.split(':').includes(u.id) : c && c.members ? c.members.includes(u.id) : inTeam ? inTeam.has(u.id) : u.role !== 'guest' || u.id === S.me.id)).sort((a, b) => LC.uname(a.id).localeCompare(LC.uname(b.id)));
+  };
   A.everyone = () => [...S.users.values()].filter((u) => !u.removed && !u.deleted).sort((a, b) => LC.uname(a.id).localeCompare(LC.uname(b.id)));
   A.chatTitle = (chan) => LC.chanInfo(chan).title || chan;
   A.allChats = () => { const e = LC.chatEntries ? LC.chatEntries() : { chans: [], people: [] }; return [...e.chans.map((x) => ({ id: x.id, label: LC.chanInfo(x.id).title })), ...e.people.map((x) => ({ id: x.id, label: LC.uname(x.u.id) }))]; };
@@ -174,7 +178,7 @@
     keys.splice(i, 1); keys.splice(j, 0, key); await tabOp(chan, { op: 'order', keys });
   }
   function tabMenu(anchor, chan, key) {
-    if (key === 'chat' || key === 'ap_add') return; const can = A.writable(chan), mgr = A.isManager(chan), keys = LC.tabsFor(chan).map((x) => x.key).filter((k) => k !== 'chat' && k !== 'ap_add'), i = keys.indexOf(key);
+    if (key === 'chat' || key === 'ap_add') return; const can = A.writable(chan) && !A.guest(), mgr = A.isManager(chan), keys = LC.tabsFor(chan).map((x) => x.key).filter((k) => k !== 'chat' && k !== 'ap_add'), i = keys.indexOf(key);
     const inst = A.inst(chan, key), mine = inst && inst.by === S.me.id, change = can && (mgr || mine);
     LC.menu(anchor, [
       { icon: 'edit', label: t('ap_rename'), fn: () => renameTab(chan, key), disabled: !change },
@@ -189,7 +193,7 @@
     const box = $('#tabs'); let dragKey = null;
     box.addEventListener('contextmenu', (e) => { const b = e.target.closest('.tab'); if (!b || !S.chan) return; e.preventDefault(); tabMenu({ x: e.clientX, y: e.clientY }, S.chan, b.dataset.tab); });
     box.addEventListener('keydown', (e) => { const b = e.target.closest('.tab'); if (b && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) { e.preventDefault(); tabMenu(b, S.chan, b.dataset.tab); } });
-    new MutationObserver(() => { for (const b of box.querySelectorAll('.tab')) { const k = b.dataset.tab; b.draggable = k !== 'chat' && k !== 'ap_add' && A.isManager(S.chan || 'general') && A.writable(S.chan); if (k === 'ap_add') { b.title = t('ap_addTab'); b.classList.add('ap-addtab'); } } }).observe(box, { childList: true });
+    new MutationObserver(() => { for (const b of box.querySelectorAll('.tab')) { const k = b.dataset.tab; b.draggable = k !== 'chat' && k !== 'ap_add' && A.isManager(S.chan || 'general') && A.writable(S.chan) && !A.guest(); if (k === 'ap_add') { b.title = t('ap_addTab'); b.classList.add('ap-addtab'); } } }).observe(box, { childList: true });
     box.addEventListener('dragstart', (e) => { const b = e.target.closest('.tab'); if (!b || !b.draggable) return; dragKey = b.dataset.tab; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragKey); });
     box.addEventListener('dragover', (e) => { if (dragKey) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } });
     box.addEventListener('drop', (e) => {
@@ -202,7 +206,7 @@
 
   // ---------- "+" Add a tab gallery ----------
   A.tabGallery = (chan) => {
-    if (!chan) return; const can = A.writable(chan), q = el('input', { type: 'search', placeholder: t('ap_searchApps'), 'aria-label': t('ap_searchApps') }), grid = el('div', { class: 'ap-gallery' }), manage = el('div', { class: 'ap-tablist' });
+    if (!chan) return; const can = A.writable(chan) && !A.guest(), q = el('input', { type: 'search', placeholder: t('ap_searchApps'), 'aria-label': t('ap_searchApps') }), grid = el('div', { class: 'ap-gallery' }), manage = el('div', { class: 'ap-tablist' });
     const types = () => {
       const shown = new Set(LC.tabsFor(chan).map((x) => x.key));
       const seen = new Set(), list = [];
@@ -255,7 +259,7 @@
         let loaded = false; f.addEventListener('load', () => { loaded = true; }); setTimeout(() => { if (!loaded && f.isConnected) say(t('ap_webSlow')); }, 8000);
         A.put(frameBox, f);
       };
-      A.put(host, el('div', { class: 'ap-fillbox ap-webtab' }, el('div', { class: 'ap-webbar' }, LC.icon('globe'), el('span', { class: 'ap-weburl', text: inst.url, title: inst.url }), LC.ibtn('arrow_sync', t('ap_reload'), () => frame()), open, A.writable(chan) ? LC.ibtn('more_horizontal', t('ap_tabOptions'), (e) => tabMenu(e.currentTarget, chan, inst.type + ':' + inst.id), { menu: true }) : null), note, frameBox));
+      A.put(host, el('div', { class: 'ap-fillbox ap-webtab' }, el('div', { class: 'ap-webbar' }, LC.icon('globe'), el('span', { class: 'ap-weburl', text: inst.url, title: inst.url }), LC.ibtn('arrow_sync', t('ap_reload'), () => frame()), open, A.writable(chan) && !A.guest() ? LC.ibtn('more_horizontal', t('ap_tabOptions'), (e) => tabMenu(e.currentTarget, chan, inst.type + ':' + inst.id), { menu: true }) : null), note, frameBox));
       if (!u) return say(t('ap_webNoFrame'), true);
       if (u.origin === location.origin) return say(t('ap_webSame'), true);
       if (location.protocol === 'https:' && u.protocol === 'http:') return say(t('ap_webMixed'), true);

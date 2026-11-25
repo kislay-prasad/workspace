@@ -246,6 +246,33 @@ H.suite('Built-in apps', async (t) => {
     srv.close();
   });
 
+  await t.section('teams: team channels stay private in cross-chat views, archived teams are read-only, guests use but do not set up, workflows create tasks', async () => {
+    if (!s.ctx.tm || !s.ctx.tm.teamOfChan) return; // the teams area is not there
+    let r = await P('/api/teams/create', { name: 'Builders', members: [bob.id] }, host); t.eq(r.s, 200, r.d); const team = r.d.team || r.d, tid = team.id, gen = (team.general || (s.db.teams[tid] || {}).general);
+    t.ok(gen, team);
+    r = await P('/api/ap/task', { chan: gen, op: 'add', title: 'Team task', assignees: [bob.id, carol.id] }, host); t.eq(r.s, 200, r.d); t.eq(r.d.task.assignees, [bob.id], 'carol is not in the team');
+    t.eq((await G('/api/ap/tasks?chan=' + gen, carol)).s, 404, 'outsiders cannot read team tasks'); t.ok(!(await G('/api/ap/mytasks', carol)).d.plans.some((p2) => p2.chan === gen));
+    t.ok((await G('/api/ap/mytasks', bob)).d.tasks.some((x) => x.chan === gen));
+    const task = s.ctx.apps.createTask({ chan: gen, text: 'From a workflow', assignee: bob.id, by: host.id }); t.eq(task.text, 'From a workflow'); t.eq(task.assignees, [bob.id]);
+    t.ok((await G('/api/ap/tasks?chan=' + gen, bob)).d.tasks.some((x) => x.text === 'From a workflow'));
+    r = await P('/api/teams/archive', { id: tid, archived: true }, host); t.eq(r.s, 200, r.d);
+    t.eq((await P('/api/ap/task', { chan: gen, op: 'add', title: 'No' }, bob)).s, 403, 'archived: tasks are read-only');
+    t.eq((await P('/api/ap/nb', { chan: gen, op: 'addsec', name: 'No' }, host)).s, 403, 'archived: even owners and admins');
+    t.eq((await P('/api/ap/board', { chan: gen, op: 'add', obj: { t: 'rect', x: 0, y: 0, w: 9, h: 9 } }, bob)).s, 403);
+    t.eq((await G('/api/ap/tasks?chan=' + gen, bob)).s, 200, 'still readable');
+    await P('/api/teams/archive', { id: tid, archived: false }, host);
+    // guests
+    const gu = await s.user('Gus'); s.db.users[gu.id].role = 'guest'; s.ctx.store.save();
+    await P('/api/channel/members', { id: grp, add: [gu.id] }, host);
+    t.eq((await P('/api/ap/tabs', { chan: grp, op: 'add', type: 'ap_forms' }, gu)).s, 403, 'guests do not change tabs');
+    t.eq((await P('/api/ap/list/new', { chan: grp, name: 'X' }, gu)).s, 403, 'guests do not make lists');
+    t.eq((await P('/api/ap/form/save', { title: 'X', qs: [{ type: 'text', text: 'Q' }] }, gu)).s, 403, 'guests do not make forms');
+    t.eq((await P('/api/ap/approval/new', { title: 'X', approvers: [bob.id] }, gu)).s, 403, 'guests do not ask for approvals');
+    t.eq((await P('/api/ap/booking/save', { name: 'X', services: [{ name: 'a' }], staff: [{ uid: gu.id }] }, gu)).s, 403, 'guests do not make booking pages');
+    t.eq((await P('/api/ap/checkin', { chan: grp, op: 'add', title: 'X', qs: ['a'], days: [1], time: '09:00' }, gu)).s, 403, 'guests do not schedule check-ins');
+    t.eq((await P('/api/ap/task', { chan: grp, op: 'add', title: 'Guest task' }, gu)).s, 200, 'but they use the task board');
+  });
+
   await t.section('a chat deleted and made again starts with empty apps', async () => {
     const ch = (await P('/api/channel', { name: 'temp' }, host)).d.id;
     await P('/api/ap/nb', { chan: ch, op: 'addsec', name: 'Secret' }, host); await P('/api/ap/tabs', { chan: ch, op: 'add', type: 'ap_notebook' }, host);

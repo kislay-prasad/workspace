@@ -66,7 +66,7 @@
     }
     function draw() {
       const d = V.data;
-      if (!d) return A.put(root, A.empty('person_clock', t('ap_noSchedule'), t('ap_noScheduleHelp'), V.canCreate ? el('button', { class: 'primary', text: t('ap_createSchedule'), onclick: async () => { if (await A.call('/api/ap/shifts/create', { chan })) load(); } }) : null));
+      if (!d) return A.put(root, A.empty('person_clock', t('ap_noSchedule'), t('ap_noScheduleHelp'), V.canCreate && !A.guest() ? el('button', { class: 'primary', text: t('ap_createSchedule'), onclick: async () => { if (await A.call('/api/ap/shifts/create', { chan })) load(); } }) : null));
       const days = Array.from({ length: 7 }, (_, i) => A.addDays(V.ws, i)), today = A.dayStart(Date.now()), edit = d.canEdit && A.writable(chan), pend = d.reqs.filter((r) => r.status === 'pending').length;
       const chip = (x) => el('button', { type: 'button', class: 'ap-shift' + (x.uid ? '' : ' open'), style: '--sc:' + x.color, onclick: () => (edit ? shiftDialog(chan, d, x) : shiftInfo(chan, d, x)), 'aria-label': `${x.uid ? LC.uname(x.uid) : t('ap_openShifts')}, ${A.fmtDay(x.start)} ${range(x)} ${x.label || ''}` }, el('b', { text: range(x) }), x.label ? el('span', { text: x.label }) : null, !x.uid && d.reqs.some((r) => r.shift === x.id && r.status === 'pending' && (edit || r.by === S.me.id)) ? el('span', { class: 'ap-shreq', text: edit ? t('ap_requests') : t('ap_asked') }) : null);
       const cell = (uid, day) => { const list = d.shifts.filter((x) => x.uid === uid && x.start >= day && x.start < A.addDays(day, 1)).sort((a, b) => a.start - b.start); return el('td', { class: 'ap-scell' + (day === today ? ' today' : '') }, ...list.map(chip), edit ? el('button', { type: 'button', class: 'ap-sadd', 'aria-label': t('ap_addShift') + ': ' + (uid ? LC.uname(uid) : t('ap_openShifts')) + ', ' + A.fmtDay(day), onclick: () => shiftDialog(chan, d, null, { uid, day }) }, LC.icon('add')) : null); };
@@ -111,7 +111,7 @@
         const item = (label, icon, on, fn) => el('button', { class: 'ap-navitem' + (on ? ' on' : ''), 'aria-current': on ? 'page' : null, onclick: fn }, LC.icon(icon), el('span', { class: 'grow', text: label }));
         A.put(nav, item(t('ap_myShifts'), 'person', !V2.chan, () => { V2.chan = null; LC.openApp('ap_shifts'); LC.renderNav(); }), el('div', { class: 'ap-navsec', text: t('ap_schedules') }));
         try { const d = await LC.api(`/api/ap/myshifts?from=${Date.now()}&to=${Date.now() + DAY}`); V2.schedules = d.schedules; nav.append(...d.schedules.map((s) => item(A.chatTitle(s.chan), 'calendar_week_numbers', V2.chan === s.chan, () => { V2.chan = s.chan; LC.openApp('ap_shifts'); LC.renderNav(); }))); } catch {}
-        nav.append(el('div', { class: 'pad' }, el('button', { class: 'secondary sm withicon', onclick: newSchedule }, LC.icon('add'), el('span', { text: t('ap_newSchedule') }))));
+        if (!A.guest()) nav.append(el('div', { class: 'pad' }, el('button', { class: 'secondary sm withicon', onclick: newSchedule }, LC.icon('add'), el('span', { text: t('ap_newSchedule') }))));
       },
       main(host) { if (V2.chan) scheduleView(host, V2.chan); else myShifts(host); },
     } });
