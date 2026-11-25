@@ -12,7 +12,7 @@
   // ---------- strings ----------
   LC.addStrings('en', {
     role_guest: 'Guest', tm_teams: 'Teams', tm_joinCreate: 'Join or create a team', tm_createTeam: 'Create a team', tm_createTeamBtn: 'Create team', tm_joinCode: 'Join a team with a code', tm_codePh: 'Enter code', tm_join: 'Join', tm_joinTeam: 'Join team',
-    tm_requestJoin: 'Request to join', tm_requested: 'Requested', tm_cancelRequest: 'Cancel request', tm_searchTeams: 'Search teams', tm_noTeamsFound: 'No teams to show. Create one, or ask an owner for a team code.', tm_members: 'Members', tm_membersN: '{n} members',
+    tm_requestJoin: 'Request to join', tm_requested: 'Requested', tm_cancelRequest: 'Cancel request', tm_searchTeams: 'Search teams', tm_noTeamsFound: 'No teams to show. Create one, or ask an owner for a team code.', tm_members: 'Members', tm_membersN: '{n} members', tm_member1: '1 member',
     tm_public: 'Public', tm_private: 'Private', tm_shared: 'Shared', tm_publicHint: 'Anyone in this session can find and join', tm_privateHint: 'People need permission to join', tm_noTeams: "You aren't in any teams yet.", tm_teamOptions: 'More options for {name}',
     tm_chanOptions: 'More options for {name}', tm_manageTeam: 'Manage team', tm_addChannel: 'Add channel', tm_addMember: 'Add member', tm_hide: 'Hide', tm_show: 'Show', tm_editTeam: 'Edit team', tm_getLinkTeam: 'Get link to team', tm_getLinkChan: 'Get link to channel',
     tm_manageTags: 'Manage tags', tm_renew: 'Renew team', tm_leave: 'Leave the team', tm_archive: 'Archive team', tm_restore: 'Restore team', tm_deleteTeam: 'Delete the team', tm_hiddenTeams: 'Hidden teams', tm_archivedTeams: 'Archived teams',
@@ -48,6 +48,7 @@
 
   // ---------- small UI helpers (shared with teams-admin.js / teams-bots.js / teams-auth.js) ----------
   const U = (LC.tmUi = {});
+  U.set = (node, ...kids) => { node.replaceChildren(...kids.flat(Infinity).filter((k) => k != null && k !== false)); return node; }; // replaceChildren() would print "null"
   U.fail = (e) => LC.toast((e && e.message) || t('tm_err'));
   U.field = (label, control, hint) => el('label', { class: 'field' }, el('span', { class: 'flabel', text: label }), control, hint ? el('span', { class: 'muted small', text: hint }) : null);
   U.group = (label, ...kids) => el('div', { class: 'field', role: 'group', 'aria-label': label }, el('span', { class: 'flabel', 'aria-hidden': 'true', text: label }), ...kids);
@@ -69,7 +70,7 @@
   U.pictureInput = (cur, onChange, o = {}) => {
     const box = el('div', { class: 'tm-picline' }), file = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif', class: 'hidden', 'aria-label': o.label || t('tm_uploadPicture') });
     let val = cur || '';
-    const draw = () => box.replaceChildren(val ? el('img', { class: 'tm-picprev', src: val, alt: '' }) : el('span', { class: 'tm-picprev empty', 'aria-hidden': 'true' }, LC.icon('image')), el('button', { type: 'button', class: 'secondary sm', text: t('tm_uploadPicture'), onclick: () => file.click() }), val ? el('button', { type: 'button', class: 'secondary sm', text: t('tm_removePicture'), onclick: () => { val = ''; draw(); onChange(''); } }) : null, file);
+    const draw = () => U.set(box, val ? el('img', { class: 'tm-picprev', src: val, alt: '' }) : el('span', { class: 'tm-picprev empty', 'aria-hidden': 'true' }, LC.icon('image')), el('button', { type: 'button', class: 'secondary sm', text: t('tm_uploadPicture'), onclick: () => file.click() }), val ? el('button', { type: 'button', class: 'secondary sm', text: t('tm_removePicture'), onclick: () => { val = ''; draw(); onChange(''); } }) : null, file);
     file.onchange = async () => { const f = file.files[0]; file.value = ''; if (!f) return; try { val = await U.imageData(f, o.size || 160, o.type || 'image/jpeg', 0.85, o.max || 150000); draw(); onChange(val); } catch (e) { U.fail(e); } };
     draw(); return box;
   };
@@ -79,7 +80,7 @@
   U.chart = (values, labels, o = {}) => {
     const W = 640, H = o.height || 150, n = Math.max(1, values.length), max = Math.max(1, ...values), bw = W / n, gap = Math.min(4, bw * 0.2);
     const svg = sv('svg', { viewBox: `0 0 ${W} ${H + 22}`, class: 'tm-chart', role: 'img', 'aria-label': o.label || '' });
-    for (const f of [0.5, 1]) svg.append(sv('line', { x1: 0, x2: W, y1: H - H * f, y2: H - H * f, class: 'tm-grid' }));
+    for (const f of [0.5, 1]) svg.append(sv('line', { x1: 0, x2: W, y1: H - H * f, y2: H - H * f, class: 'tm-gl' }));
     svg.append(sv('text', { x: 2, y: 11, class: 'tm-axis' }, String(max)));
     values.forEach((v, i) => { const h = Math.round((v / max) * (H - 14)); svg.append(sv('rect', { x: i * bw + gap / 2, y: H - h, width: Math.max(1, bw - gap), height: h, rx: 2, class: 'tm-bar' + (o.cls ? ' ' + o.cls : '') }, sv('title', {}, `${labels[i]}: ${v}`))); });
     const marks = n <= 8 ? values.map((_, i) => i) : [0, Math.floor(n / 2), n - 1];
@@ -102,6 +103,7 @@
     q.addEventListener('input', draw); draw();
     return { el: el('div', { class: 'tm-pickwrap' }, q, list, count), value: () => [...picked] };
   };
+  U.members = (n) => (n === 1 ? t('tm_member1') : t('tm_membersN', { n }));
   U.badge = (n, mention) => el('span', { class: 'badge' + (mention ? ' mention' : ''), text: (mention ? '@' : '') + (n > 99 ? '99+' : n) });
 
   // ---------- state ----------
@@ -282,7 +284,7 @@
   LC.ext.headerMenu.push((chan) => { const c = S.channels.get(chan); if (!c) return []; if (!c.team && !LC.isAdmin() && !(c.members && c.by === me().id)) return []; return ['sep', ...chanItems(c)]; });
 
   // ---------- Join or create a team ----------
-  function openDirectory(focus) { TM.view = null; TM.dirFocus = focus || null; LC.openApp('tm_dir'); }
+  function openDirectory(focus) { TM.view = null; TM.dirFocus = focus || null; LC.openApp('tm_dir'); LC.renderNav(); }
   TM.openDirectory = openDirectory;
   async function renderDirectory(host) {
     const q = el('input', { type: 'search', placeholder: t('tm_searchTeams'), 'aria-label': t('tm_searchTeams') }), grid = el('div', { class: 'tm-grid', 'aria-live': 'polite' });
@@ -310,7 +312,7 @@
         : el('button', { class: 'secondary sm', text: t('tm_requestJoin'), onclick: async () => { const note = await LC.prompt(t('tm_whyJoin'), { max: 300, ok: t('tm_requestJoin') }); if (note === null) return; LC.api('/api/teams/request', { id: x.id, note }).then(() => { LC.toast(t('tm_requestSent')); reload(); }).catch(U.fail); } });
     return el('div', { class: 'tm-card', 'data-team': x.id }, el('div', { class: 'row-between' }, U.tile(x, 'lg'), lab ? el('span', { class: 'tm-label sm', style: `--lc:${lab.color}` }, el('span', { text: lab.name })) : null),
       el('h3', { text: x.name }), el('p', { class: 'muted small tm-desc', text: x.description || '' }),
-      el('div', { class: 'row-between' }, el('span', { class: 'small muted' }, LC.icon(x.visibility === 'public' ? 'globe' : 'lock_closed'), ' ' + (x.visibility === 'public' ? t('tm_public') : t('tm_private')) + ' · ' + t('tm_membersN', { n: x.count })), x.requested ? U.pill(t('tm_requested')) : null),
+      el('div', { class: 'row-between' }, el('span', { class: 'small muted' }, LC.icon(x.visibility === 'public' ? 'globe' : 'lock_closed'), ' ' + (x.visibility === 'public' ? t('tm_public') : t('tm_private')) + ' · ' + U.members(x.count)), x.requested ? U.pill(t('tm_requested')) : null),
       act);
   }
 
@@ -426,7 +428,7 @@
   }
 
   // ---------- Manage team (main area: members, pending requests, channels, settings, analytics, tags) ----------
-  function openManage(id, tab = 'members') { TM.view = id; TM.viewTab = tab; LC.openApp('tm_team'); }
+  function openManage(id, tab = 'members') { TM.view = id; TM.viewTab = tab; LC.openApp('tm_team'); LC.renderNav(); }
   TM.openManage = openManage;
   async function renderManage(host) {
     const tm = TM.teams.get(TM.view); if (!tm) return host.replaceChildren(el('p', { class: 'muted pad', text: t('tm_teamDeleted') }));
@@ -435,9 +437,9 @@
     const body = el('div', { class: 'tm-mbody' });
     const bar = el('div', { class: 'tabsbar tm-mtabs', role: 'tablist', 'aria-label': t('tm_manageTeam') }, tabs.map(([k, ic, lab]) => el('button', { class: 'tabbtn' + (k === TM.viewTab ? ' on' : ''), role: 'tab', 'aria-selected': String(k === TM.viewTab), onclick: () => { TM.viewTab = k; renderManage(host); } }, LC.icon(ic), el('span', { text: lab }))));
     const lab = labelOf(tm.label);
-    host.replaceChildren(el('div', { class: 'tm-page' },
+    U.set(host, el('div', { class: 'tm-page' },
       el('div', { class: 'tm-mhead' }, U.tile(tm, 'xl'), el('div', { class: 'grow' }, el('h2', { text: tm.name }), el('p', { class: 'muted', text: tm.description || '' }),
-        el('div', { class: 'rowline small muted' }, LC.icon(tm.visibility === 'public' ? 'globe' : 'lock_closed'), tm.visibility === 'public' ? t('tm_public') : t('tm_private'), ' · ', t('tm_membersN', { n: new Set([...(tm.members || []), ...(tm.guests || [])]).size }), lab ? el('span', { class: 'tm-label sm', style: `--lc:${lab.color}` }, el('span', { text: lab.name })) : null, tm.archived ? U.pill(t('tm_archived'), 'warn') : null)),
+        el('div', { class: 'rowline small muted' }, LC.icon(tm.visibility === 'public' ? 'globe' : 'lock_closed'), tm.visibility === 'public' ? t('tm_public') : t('tm_private'), ' · ', U.members(new Set([...(tm.members || []), ...(tm.guests || [])]).size), lab ? el('span', { class: 'tm-label sm', style: `--lc:${lab.color}` }, el('span', { text: lab.name })) : null, tm.archived ? U.pill(t('tm_archived'), 'warn') : null)),
         tm.general && S.channels.has(tm.general) ? el('button', { class: 'secondary sm withicon', onclick: () => LC.openChat(tm.general) }, LC.icon('chat'), el('span', { text: t('tm_general') })) : null),
       bar, body));
     body.append(el('p', { class: 'muted', text: t('loading') }));
@@ -510,13 +512,13 @@
     const mine = () => TM.tags.filter((g) => (g.team || '') === (tm ? tm.id : ''));
     const draw = () => {
       const list = mine();
-      box.replaceChildren(el('p', { class: 'muted small', text: t('tm_tagsHint') }), list.length ? el('div', {}, list.map((g) => el('div', { class: 'req tm-tagrow' }, LC.icon('tag'), el('div', { class: 'grow' }, el('b', { text: '@' + g.name }), el('div', { class: 'muted small', text: g.members.map(LC.uname).join(', ') || '—' })),
+      U.set(box, el('p', { class: 'muted small', text: t('tm_tagsHint') }), list.length ? el('div', {}, list.map((g) => el('div', { class: 'req tm-tagrow' }, LC.icon('tag'), el('div', { class: 'grow' }, el('b', { text: '@' + g.name }), el('div', { class: 'muted small', text: g.members.map(LC.uname).join(', ') || '—' })),
         can ? el('button', { class: 'secondary sm', text: t('tm_editTag'), onclick: () => editTag(g) }) : null, can ? LC.ibtn('delete', t('tm_deleteTag') + ' @' + g.name, () => LC.api('/api/teams/tags', { op: 'delete', id: g.id }).then((r) => { TM.tags = TM.tags.filter((x) => x.id !== g.id); draw(); return r; }).catch(U.fail)) : null))) : el('p', { class: 'muted', text: t('tm_noTags') }),
         can ? el('div', { class: 'acts' }, el('button', { class: 'primary sm withicon', onclick: () => editTag(null) }, LC.icon('add'), el('span', { text: t('tm_newTag') }))) : null);
     };
     const editTag = (g) => {
       const name = el('input', { value: g ? g.name : '', maxlength: 30, 'aria-label': t('tm_tagName'), placeholder: 'designers' }), pick = U.people({ value: g ? g.members : [], self: true, filter: tm ? (u) => (tm.members || []).includes(u.id) || (tm.guests || []).includes(u.id) : null });
-      box.replaceChildren(U.field(t('tm_tagName'), name), U.group(t('tm_tagMembers', { name: g ? g.name : '…' }), pick.el), el('div', { class: 'acts' }, el('button', { class: 'secondary sm', text: t('cancel'), onclick: draw }),
+      U.set(box, U.field(t('tm_tagName'), name), U.group(t('tm_tagMembers', { name: g ? g.name : '…' }), pick.el), el('div', { class: 'acts' }, el('button', { class: 'secondary sm', text: t('cancel'), onclick: draw }),
         el('button', { class: 'primary sm', text: t('save'), onclick: async () => { try { const r = await LC.api('/api/teams/tags', { op: g ? 'update' : 'add', id: g ? g.id : undefined, team: tm ? tm.id : '', name: name.value, members: pick.value() }); TM.tags = [...TM.tags.filter((x) => x.id !== r.tag.id), r.tag]; draw(); } catch (e) { U.fail(e); } } })));
       name.focus();
     };
