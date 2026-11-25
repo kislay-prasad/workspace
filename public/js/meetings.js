@@ -368,7 +368,7 @@
     document.body.append(box); sync(); if (media()) openMedia(); else status.textContent = t('mt_noMedia');
     setTimeout(() => joinBtn.focus(), 30);
   });
-  LC.on('ui', (patch) => { if (MT.prejoinFx && patch && ('clBg' in patch || 'clFilter' in patch)) MT.prejoinFx(); });
+  LC.on('call:effects', () => { if (MT.prejoinFx) MT.prejoinFx(); }); // LC.callEffects.set() fires it (docs/features-calls.md)
   // waits in the lobby; resolves true when admitted, false when denied / left
   function lobbyWait(m, ui) {
     return new Promise((resolve) => {
