@@ -46,11 +46,11 @@
     inp.setAttribute('role', 'combobox'); inp.setAttribute('aria-controls', 'cxSearchList'); inp.setAttribute('aria-expanded', 'false'); inp.setAttribute('aria-autocomplete', 'list');
     let items = [], sel = -1;
     const close = () => { box.classList.add('hidden'); inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); sel = -1; };
-    const choose = (it) => { close(); it.run(); };
+    const choose = (it) => { if (it.keep) { it.run(); sel = -1; return draw(); } close(); it.run(); };
     const draw = () => {
       const q = inp.value.trim(), lq = q.toLowerCase(), groups = [];
       if (q.startsWith('/')) groups.push([t('cx_commands'), LC.commandList(q.split(/\s/)[0]).slice(0, 10).map((c) => ({ icon: 'slash_forward', label: c.name + (c.args ? ' ' + c.args : ''), sub: c.help, run: () => { LC.runCommand(q.split(/\s/)[0] === c.name ? q : c.name); inp.value = ''; } }))]);
-      else if (!q) { const r = recent(); if (r.length) groups.push([t('cx_recentSearches'), r.map((x) => ({ icon: 'history', label: x, run: () => { inp.value = ''; LC.openSearch({ q: x }); } })), true]); }
+      else if (!q) { const r = recent(); if (r.length) groups.push([t('cx_recentSearches'), [...r.map((x) => ({ icon: 'history', label: x, run: () => { inp.value = ''; LC.openSearch({ q: x }); } })), { icon: 'dismiss', label: t('cx_clearRecent'), cls: 'cx-clearrec', keep: true, run: () => { S.me.prefs.recentSearches = []; LC.setPrefs({ recentSearches: [] }); } }]]); }
       else {
         groups.push(['', [{ icon: 'search', label: t('cx_searchFor', { q }), run: () => { inp.value = ''; LC.openSearch({ q }); } }]]);
         const ppl = [...S.users.values()].filter((u) => !u.removed && !u.deleted && (LC.uname(u.id).toLowerCase().includes(lq) || u.name.toLowerCase().includes(lq))).slice(0, 4);
@@ -63,8 +63,8 @@
       items = groups.flatMap((g) => g[1]); if (sel >= items.length) sel = items.length - 1;
       if (!items.length) return close();
       let i = 0;
-      box.replaceChildren(...groups.flatMap(([title, list, clearable]) => [title ? el('div', { class: 'cx-sughead', role: 'presentation' }, el('span', { text: title }), clearable ? el('button', { type: 'button', class: 'link', text: t('cx_clearRecent'), tabindex: '-1', onmousedown: (e) => { e.preventDefault(); S.me.prefs.recentSearches = []; LC.setPrefs({ recentSearches: [] }); draw(); } }) : null) : null,
-        ...list.map((it) => { const k = i++; return el('div', { class: 'cx-opt' + (k === sel ? ' on' : ''), role: 'option', id: 'cxs-' + k, 'aria-selected': String(k === sel), onmousedown: (e) => { e.preventDefault(); choose(it); } }, it.av ? LC.avatar(it.av, 'sm', true) : it.lead ? LC.chatLead(it.lead, 'sm') : LC.icon(it.icon), el('span', { class: 'cx-optl', text: it.label }), it.sub ? el('small', { class: 'muted', text: it.sub }) : null); })]));
+      box.replaceChildren(...groups.map(([title, list]) => el('div', { role: 'group', 'aria-label': title || t('search') }, title ? el('div', { class: 'cx-sughead', 'aria-hidden': 'true', text: title }) : null,
+        ...list.map((it) => { const k = i++; return el('div', { class: 'cx-opt' + (k === sel ? ' on' : '') + (it.cls ? ' ' + it.cls : ''), role: 'option', id: 'cxs-' + k, 'aria-selected': String(k === sel), onmousedown: (e) => { e.preventDefault(); choose(it); } }, it.av ? LC.avatar(it.av, 'sm', true) : it.lead ? LC.chatLead(it.lead, 'sm') : LC.icon(it.icon), el('span', { class: 'cx-optl', text: it.label }), it.sub ? el('small', { class: 'muted', text: it.sub }) : null); }))));
       box.classList.remove('hidden'); inp.setAttribute('aria-expanded', 'true'); if (sel >= 0) inp.setAttribute('aria-activedescendant', 'cxs-' + sel); else inp.removeAttribute('aria-activedescendant');
     };
     inp.addEventListener('focus', () => { sel = -1; draw(); });

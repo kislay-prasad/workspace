@@ -78,7 +78,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await H.screenshot({ path: SHOTS + '/search-results-light.png' });
     await H.click('.cx-rtabs [role=tab]:has-text("Messages")'); await H.fill('.cx-rq', 'zebracorn'); await H.waitForSelector('.cx-rmsg:has-text("budget")'); await H.click('.cx-rmsg:has-text("budget")'); await H.waitForSelector('#msgs .msg:has-text("budget") mark.cx-hl');
   });
-  await step('recent searches show when the box is focused and can be cleared', async () => { await H.click('#search'); await H.waitForSelector('#cxSearchList .cx-opt:has-text("zebracorn")'); await H.click('#cxSearchList .cx-sughead button'); await H.waitForFunction(() => !(LC.prefs().recentSearches || []).length); await H.keyboard.press('Escape'); });
+  await step('recent searches show when the box is focused and can be cleared', async () => { await H.click('#search'); await H.waitForSelector('#cxSearchList .cx-opt:has-text("zebracorn")'); await H.click('#cxSearchList .cx-clearrec'); await H.waitForFunction(() => !(LC.prefs().recentSearches || []).length); await H.keyboard.press('Escape'); });
   await step('find in this chat (Ctrl+F): count, next/previous, highlights', async () => {
     for (const w of ['needle one', 'needle two', 'needle three']) await send(H, w);
     await H.click('#msgs'); await H.keyboard.press('Control+f'); await H.waitForSelector('.cx-findin'); await H.fill('.cx-findin', 'needle'); await H.waitForSelector('.cx-findcount:has-text("1 of 3")');
@@ -199,6 +199,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await msgMenu(H, 'who is in for lunch?'); await H.click('.popmenu button:has-text("Turn off notifications")'); await H.waitForFunction(() => !LC.S.cx.follows.size || ![...LC.S.cx.follows].some((id) => LC.S.win.general.msgs.find((m) => m.id === id && /lunch/.test(m.text))));
   });
   await step('system lines carry icons (added, renamed, picture)', async () => { await openChat(H, gid); for (const k of ['add', 'rename', 'picture']) await H.waitForSelector(`#msgs .msg.sys.k-${k} svg`); });
+
+  console.log('Accessibility (axe-core, when available: AXE_JS=…/axe.min.js)');
+  let axeSrc = null; try { axeSrc = fs.readFileSync(process.env.AXE_JS || require.resolve('axe-core/axe.min.js'), 'utf8'); } catch {}
+  const audit = async (p, label) => { await p.evaluate(axeSrc); const v = await p.evaluate(async () => (await axe.run(document, { resultTypes: ['violations'] })).violations.map((x) => x.id + ' x' + x.nodes.length + ' ' + x.nodes.slice(0, 2).map((n) => n.target.join(' ')).join(' | '))); if (v.length) throw new Error(label + ': ' + v.join(' ; ')); };
+  if (axeSrc) await step('no axe violations on the chatux screens (list, picker, dialogs, results, find, Format box, posts, threads)', async () => {
+    await openChat(H, 'general'); await audit(H, 'chat list + chat'); await H.click('#composerHost .cx-fmtbtn'); await audit(H, 'format box'); await H.click('#composerHost .cx-fmtbtn');
+    await H.click('#composerHost .emojibtn'); await audit(H, 'emoji picker'); await H.click('#picker .ptabs button[aria-label="Stickers"]'); await audit(H, 'stickers'); await H.click('#picker .ptabs button[aria-label="My GIFs"]'); await H.waitForSelector('#picker .cx-gifpanel button'); await audit(H, 'my gifs'); await H.keyboard.press('Escape');
+    await H.click('#sideActions button[aria-label="New chat"]'); await H.fill('.cx-toin', 'b'); await audit(H, 'new chat'); await H.keyboard.press('Escape'); await H.keyboard.press('Escape');
+    await openChat(H, gid); await H.click('#headActions .cx-peoplebtn'); await audit(H, 'group info'); await H.keyboard.press('Escape');
+    await H.keyboard.press('Control+f'); await H.fill('.cx-findin', 'trip'); await sleep(500); await audit(H, 'find bar'); await H.press('.cx-findin', 'Escape');
+    await H.fill('#search', 'needle'); await H.press('#search', 'Enter'); await H.waitForSelector('.cx-rmsg'); await audit(H, 'search results'); await H.keyboard.press('Escape');
+    await H.waitForFunction(() => (LC.prefs().recentSearches || []).length > 0); await H.click('#search'); await H.waitForSelector('#cxSearchList .cx-clearrec'); await audit(H, 'search suggestions (recent)'); await H.fill('#search', 'b'); await H.waitForSelector('#cxSearchList [role=group] .cx-opt'); await audit(H, 'search suggestions (typing)'); await H.fill('#search', ''); await H.keyboard.press('Escape');
+    await openChat(H, 'news'); await audit(H, 'posts channel'); await H.evaluate(() => LC.openFollowed()); await H.waitForSelector('#tabView .tabhead'); await audit(H, 'followed threads');
+    await H.evaluate(() => LC.setUi({ theme: 'dark' })); await openChat(H, 'general'); await audit(H, 'chat (dark)'); await H.evaluate(() => LC.setUi({ theme: 'hc' })); await audit(H, 'chat (high contrast)'); await H.evaluate(() => LC.setUi({ theme: 'auto' }));
+  });
 
   console.log('Screens');
   await step('screenshots light and dark', async () => {

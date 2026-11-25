@@ -111,7 +111,7 @@
   LC.announceEl = (m) => {
     const a = m.announce, f = a.image && (m.files || []).find((x) => x.id === a.image);
     return el('div', { class: 'cx-ann cx-ban-' + (a.color || 'brand') + (f ? ' cx-annimg' : ''), style: f ? { backgroundImage: `linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.55)),url("${LC.fileUrl(f, true)}")` } : null },
-      el('div', { class: 'cx-annt', role: 'heading', 'aria-level': '3', text: a.title }), a.sub ? el('div', { class: 'cx-anns', text: a.sub }) : null);
+      el('div', { class: 'cx-annt', role: 'heading', 'aria-level': '2', text: a.title }), a.sub ? el('div', { class: 'cx-anns', text: a.sub }) : null);
   };
   function announceDialog(api) {
     let color = 'brand', image = null; const title = el('input', { maxlength: 120, placeholder: t('cx_annHeadline'), 'aria-label': t('cx_annHeadline') }), sub = el('input', { maxlength: 200, placeholder: t('cx_annSub'), 'aria-label': t('cx_annSub') });

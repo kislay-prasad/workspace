@@ -149,7 +149,7 @@ mark.cx-hl{background:var(--cx-hl);color:var(--cx-hl-text);border-radius:2px;pad
 .cx-sug,.cx-sugbox{position:absolute;left:0;right:0;top:100%;margin-top:2px;background:var(--bg);border-radius:6px;box-shadow:var(--shadow);z-index:40;max-height:320px;overflow:auto;padding:4px}
 .cx-opt{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:4px;cursor:pointer}.cx-opt.on,.cx-opt:hover{background:var(--hover)}.cx-opt small{margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50%}
 .cx-optl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cx-opt .ic{color:var(--muted);flex:none}
-.cx-sughead{display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:600;color:var(--muted);padding:6px 8px 2px}
+.cx-sughead{font-size:11px;font-weight:600;color:var(--muted);padding:6px 8px 2px}.cx-clearrec{color:var(--link)}
 .cx-newchat textarea{width:100%}
 .cx-ghead{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.cx-gtitle{flex:1;min-width:140px}.cx-gacts{display:flex;gap:6px;flex-wrap:wrap}
 .cx-members li{padding:2px 0}.cx-picker{display:flex;flex-direction:column;gap:6px}.cx-people{max-height:200px}
