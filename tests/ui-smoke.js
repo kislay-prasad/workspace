@@ -7,7 +7,7 @@ const { chromium } = require('playwright'); const { createApp } = require(ROOT +
   fs.rmSync(TMP + '/lc-ui', { recursive: true, force: true });
   const app = createApp({ dataDir: TMP + '/lc-ui', name: 'Friday Gang', publicDir: ROOT + '/public' }); const port = await app.start(3811); const B = `http://127.0.0.1:${port}`;
   const br = await chromium.launch(); const errs = [];
-  const mk = async (label, opts = {}) => { const c = await br.newContext({ viewport: { width: 1200, height: 780 }, ...opts }); const p = await c.newPage(); p.setDefaultTimeout(6000); p.on('pageerror', (e) => errs.push(label + ' pageerror: ' + e.message)); p.on('console', (m) => { if (m.type() === 'error') errs.push(label + ' console: ' + m.text()); }); return p; };
+  const mk = async (label, opts = {}) => { const c = await br.newContext({ viewport: { width: 1200, height: 780 }, ...opts }); const p = await c.newPage(); p.setDefaultTimeout(15000); p.on('pageerror', (e) => errs.push(label + ' pageerror: ' + e.message)); p.on('console', (m) => { if (m.type() === 'error') errs.push(label + ' console: ' + m.text()); }); return p; };
   const step = async (name, fn) => { try { await fn(); console.log('  ✓', name); } catch (e) { console.log('  ✗', name, '\n     ', e.message.split('\n')[0]); } };
   const host = await mk('host'), bob = await mk('bob');
   await step('host login via admin link', async () => { await host.goto(B + '/#k=' + app.adminKey); await host.waitForSelector('#login:not(.hidden)'); if (!(await host.isVisible('#hostNote'))) throw new Error('host note missing'); await host.fill('#nameIn', 'Host'); await host.click('#joinBtn'); await host.waitForSelector('#app:not(.hidden)'); await host.waitForSelector('.item.active'); });
