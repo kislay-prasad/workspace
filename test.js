@@ -501,7 +501,7 @@ async function section(name, fn) { try { await fn(); results.push([name, true]);
     // the certificate survives restarts (browsers remember the "proceed" choice)
     agents.https.destroy(); agents.http.destroy(); a.stop(); const b2 = createApp({ dataDir: dir, publicDir: path.join(__dirname, 'public') }); await b2.start(pt);
     assert.equal(fs.readFileSync(path.join(dir, 'tls-cert.pem'), 'utf8'), cert, 'same certificate after restart'); b2.stop();
-    const off = createApp({ dataDir: path.join(tmp, 'tls-off'), https: false, publicDir: path.join(__dirname, 'public') }); await off.start(pt + 20); assert(!off.https); assert.equal((await fetch(`http://127.0.0.1:${pt + 20}/api/config`).then((r) => r.json())).https, false); off.stop();
+    const off = createApp({ dataDir: path.join(tmp, 'tls-off'), https: false, publicDir: path.join(__dirname, 'public') }); const offPort = await off.start(0); assert(!off.https); assert.equal((await fetch(`http://127.0.0.1:${offPort}/api/config`).then((r) => r.json())).https, false); off.stop();
   });
 
   await section('clean-up tools: delete old messages, clear chats, delete people, delete my account, start fresh', async () => {
