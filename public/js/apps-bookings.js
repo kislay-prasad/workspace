@@ -21,7 +21,7 @@
   const offset = (tz, ts) => { const w = wall(tz, ts); return Math.round((Date.UTC(w.y, w.m - 1, w.d, 0, w.min, w.s) - Math.floor(ts / 1000) * 1000) / 60000); };
   const fromWall = (tz, y, m, d, min) => { const g = Date.UTC(y, m - 1, d, 0, min), f = g - offset(tz, g) * 60000; return g - offset(tz, f) * 60000; };
   const hm = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`, toMin = (s) => { const [h, m] = String(s || '').split(':').map(Number); return h * 60 + (m || 0); };
-  const svcName = (p, id) => (p.services.find((s) => s.id === id) || {}).name || '';
+  const svcName = (p, id) => ((Array.isArray(p.services) && p.services.find((s) => s.id === id)) || {}).name || '';
   function slots(p, svc, staffIds, dayTs) { // free start times on one day of the page's calendar → [{ ts, staff }]
     const w = wall(p.tz, dayTs + 12 * 3600000), out = new Map(), now = Date.now();
     for (const uid of staffIds) {

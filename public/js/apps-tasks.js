@@ -214,7 +214,13 @@
 
   // ---------- task details (also opened from My tasks and from activity) ----------
   let D = null; // { id, chan, node }
-  function refreshDetails() { if (!D || !D.node.isConnected) { D = null; return; } const a = document.activeElement; if (a && D.node.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type !== 'checkbox') { D.stale = true; return; } renderDetails(); }
+  // redraw on live changes; the field you are typing in keeps its text, the caret and the focus
+  function refreshDetails() {
+    if (!D || !D.node.isConnected) { D = null; return; }
+    const a = document.activeElement, k = a && D.node.contains(a) && a.dataset && a.dataset.k, keep = k ? { k, v: a.value, s: a.selectionStart, e: a.selectionEnd } : null;
+    D.redrawing = true; renderDetails(); D.redrawing = false;
+    if (keep) { const n = D.node.querySelector(`[data-k="${keep.k}"]`); if (n) { if (n.value !== undefined && keep.v !== undefined) n.value = keep.v; n.focus(); try { n.setSelectionRange(keep.s, keep.e); } catch {} } }
+  }
   async function details(id, chan) {
     chan = chan || P.chan;
     if (chan !== P.chan || !P.plan) { try { await load(chan); } catch (e) { return A.fail(e); } }
@@ -227,26 +233,26 @@
   function renderDetails() {
     const x = P.tasks.find((y) => y.id === D.id); if (!x) { LC.closeModal(); return; }
     const can = A.writable(D.chan), set = (o) => call('update', { id: x.id, set: o }).then((r) => { if (r) { upsert(r.task); redraw(); } });
-    const title = el('input', { class: 'ap-dtitle', value: x.text, maxlength: 255, 'aria-label': t('ap_taskName'), disabled: !can });
-    title.addEventListener('change', () => { if (title.value.trim() && title.value !== x.text) set({ title: title.value }); });
+    const title = el('input', { class: 'ap-dtitle', value: x.text, maxlength: 255, 'aria-label': t('ap_taskName'), disabled: !can, 'data-k': 'title' });
+    title.addEventListener('change', () => { if (!D.redrawing && title.value.trim() && title.value !== x.text) set({ title: title.value }); });
     title.addEventListener('keydown', (e) => { if (e.key === 'Enter') title.blur(); });
     const who = A.peoplePick({ people: people(), value: x.assignees, label: t('ap_assignedTo'), disabled: !can, onChange: (v) => set({ assignees: v }) });
     const labels = el('div', { class: 'ap-dlabels' }, ...x.labels.map((id) => { const l = P.plan.labels.find((y) => y.id === id); return l ? el('span', { class: 'ap-label big', style: '--lc:' + l.color }, el('span', { text: labelName(l) }), can ? el('button', { type: 'button', class: 'ap-lx', 'aria-label': t('ap_remove') + ': ' + labelName(l), onclick: () => set({ labels: x.labels.filter((y) => y !== id) }) }, LC.icon('dismiss')) : null) : null; }),
       can ? el('button', { type: 'button', class: 'secondary sm withicon', 'aria-haspopup': 'menu', onclick: (e) => LC.menu(e.currentTarget, P.plan.labels.map((l, i) => ({ label: labelName(l, i), checked: x.labels.includes(l.id), fn: () => set({ labels: x.labels.includes(l.id) ? x.labels.filter((y) => y !== l.id) : [...x.labels, l.id] }) })).concat(['sep', { icon: 'edit', label: t('ap_editLabels'), fn: labelsDialog }])) }, LC.icon('tag'), el('span', { text: t('ap_labels') })) : null);
     const sel = (opts, v, f, label) => { const s = A.select(opts, v, f, label); s.disabled = !can; return A.field(label, s); };
     const date = (v, label, key) => { const i = A.dateInput(v, label); i.disabled = !can; i.addEventListener('change', () => set({ [key]: i.value ? A.fromDay(i.value) + (key === 'due' ? 17 : 9) * 3600000 : 0 })); return A.field(label, i); };
-    const notes = el('textarea', { rows: 3, maxlength: 10000, 'aria-label': t('ap_notes'), disabled: !can }); notes.value = x.notes; notes.addEventListener('change', () => set({ notes: notes.value }));
+    const notes = el('textarea', { rows: 3, maxlength: 10000, 'aria-label': t('ap_notes'), disabled: !can, 'data-k': 'notes' }); notes.value = x.notes; notes.addEventListener('change', () => { if (!D.redrawing) set({ notes: notes.value }); });
     const ck = el('div', { class: 'ap-checklist' }, ...x.checklist.map((c, i) => el('div', { class: 'ap-ckrow' + (c.done ? ' done' : '') },
       el('input', { type: 'checkbox', checked: c.done, disabled: !can, 'aria-label': c.text, onchange: () => call('check', { id: x.id, act: 'toggle', item: c.id }) }),
-      (() => { const i2 = el('input', { class: 'ap-ckin', value: c.text, maxlength: 300, 'aria-label': t('ap_checklist') + ' ' + (i + 1), disabled: !can }); i2.addEventListener('change', () => call('check', { id: x.id, act: 'edit', item: c.id, text: i2.value })); return i2; })(),
+      (() => { const i2 = el('input', { class: 'ap-ckin', value: c.text, maxlength: 300, 'aria-label': t('ap_checklist') + ' ' + (i + 1), disabled: !can, 'data-k': 'ck:' + c.id }); i2.addEventListener('change', () => { if (!D.redrawing) call('check', { id: x.id, act: 'edit', item: c.id, text: i2.value }); }); return i2; })(),
       can ? LC.ibtn('arrow_up', t('ap_moveLeft'), () => call('check', { id: x.id, act: 'move', item: c.id, to: i - 1 }), { disabled: i === 0 }) : null,
       can ? LC.ibtn('delete', t('ap_delete') + ': ' + c.text, () => call('check', { id: x.id, act: 'del', item: c.id })) : null)));
-    const newItem = el('input', { placeholder: t('ap_addItem'), maxlength: 300, 'aria-label': t('ap_addItem'), disabled: !can });
-    newItem.addEventListener('keydown', (e) => { if (e.key === 'Enter' && newItem.value.trim()) { e.preventDefault(); const v = newItem.value; newItem.value = ''; call('check', { id: x.id, act: 'add', text: v }).then(() => { const n = D && D.node.querySelector('input[aria-label="' + t('ap_addItem') + '"]'); if (n) n.focus(); }); } });
+    const newItem = el('input', { placeholder: t('ap_addItem'), maxlength: 300, 'aria-label': t('ap_addItem'), disabled: !can, 'data-k': 'newItem' });
+    newItem.addEventListener('keydown', (e) => { if (e.key === 'Enter' && newItem.value.trim()) { e.preventDefault(); const v = newItem.value; newItem.value = ''; call('check', { id: x.id, act: 'add', text: v }).then((r) => { if (r) { upsert(r.task); refreshDetails(); } }); } });
     const atts = el('div', { class: 'ap-atts' }, ...x.links.map((l) => el('div', { class: 'ap-att' }, LC.icon('link'), el('a', { href: l.url, target: '_blank', rel: 'noopener noreferrer', text: l.name }), can ? LC.ibtn('dismiss', t('ap_remove') + ': ' + l.name, () => call('attach', { id: x.id, del: l.id })) : null)),
       ...x.files.map((f) => el('div', { class: 'ap-att' }, LC.icon('document'), el('a', { href: LC.fileUrl(f), download: f.name, text: f.name }), el('span', { class: 'muted small', text: LC.fmtSize(f.size) }), can ? LC.ibtn('dismiss', t('ap_remove') + ': ' + f.name, () => call('attach', { id: x.id, del: f.id })) : null)));
     const fileIn = el('input', { type: 'file', class: 'hidden', onchange: async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const up = await LC.upload(f, f.name).promise; await call('attach', { id: x.id, file: { id: up.id } }); } catch (er) { A.fail(er); } } });
-    const comment = el('textarea', { rows: 2, maxlength: 2000, placeholder: t('ap_addComment'), 'aria-label': t('ap_addComment'), disabled: !can });
+    const comment = el('textarea', { rows: 2, maxlength: 2000, placeholder: t('ap_addComment'), 'aria-label': t('ap_addComment'), disabled: !can, 'data-k': 'comment' });
     const comments = el('div', { class: 'ap-comments' }, ...[...x.comments].reverse().map((c) => el('div', { class: 'ap-comment' }, LC.avatar(S.users.get(c.by), 'sm'), el('div', { class: 'grow' }, el('div', { class: 'ap-cmhead' }, el('b', { text: LC.uname(c.by) }), el('time', { class: 'muted small', text: LC.fmtDateTime(c.ts) }), c.by === S.me.id || LC.isAdmin() ? LC.ibtn('delete', t('ap_delete'), () => call('comment', { id: x.id, del: c.id })) : null), el('div', { class: 'ap-cmtext', text: c.text })))));
     A.put(D.node, 
       el('div', { class: 'row-between' }, el('div', { class: 'ap-dtop' }, completeBox(x, can), title), LC.ibtn('dismiss', t('ap_close'), LC.closeModal)),
@@ -259,9 +265,7 @@
       el('h3', { text: t('ap_attachments') }), atts, can ? el('div', { class: 'ap-row' }, el('button', { type: 'button', class: 'secondary sm withicon', onclick: () => linkDialog(x) }, LC.icon('link'), el('span', { text: t('ap_addLink') })), el('button', { type: 'button', class: 'secondary sm withicon', onclick: () => fileIn.click() }, LC.icon('attach'), el('span', { text: t('ap_attachFile') })), fileIn) : null,
       el('h3', { text: t('ap_comments') }), can ? el('div', { class: 'ap-cmnew' }, comment, el('button', { type: 'button', class: 'primary sm', text: t('ap_post'), onclick: async () => { const v = comment.value.trim(); if (!v) return; comment.value = ''; await call('comment', { id: x.id, text: v }); } })) : null, comments,
       el('div', { class: 'acts' }, can && (x.by === S.me.id || LC.isAdmin()) ? el('button', { class: 'secondary danger', text: t('ap_delTask'), onclick: async () => { if (await LC.confirm(t('ap_confirmDelTask', { name: x.text }), { danger: true, ok: t('ap_delete') })) { await call('del', { id: x.id }); LC.closeModal(); } } }) : null, el('button', { class: 'primary', text: t('ap_close'), onclick: LC.closeModal })));
-    D.stale = false;
   }
-  document.addEventListener('focusout', (e) => { if (D && D.stale && D.node.contains(e.target)) setTimeout(() => { if (D && D.stale && !(document.activeElement && D.node.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))) renderDetails(); }, 50); });
   async function linkDialog(x) {
     const url = await LC.prompt(t('ap_linkUrl'), { value: 'https://', max: 1000 }); if (!url || !/^https?:\/\/\S+/i.test(url.trim())) return;
     const name = await LC.prompt(t('ap_linkName'), { value: '', max: 120 }); await call('attach', { id: x.id, url: url.trim(), name: name || '' });
