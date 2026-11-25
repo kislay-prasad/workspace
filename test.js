@@ -420,8 +420,11 @@ async function section(name, fn) { try { await fn(); results.push([name, true]);
     }
   });
   await section('hardening: auth required everywhere, headers, traversal, body limits, bad input', async () => {
-    const open = new Set(['POST /api/join', 'GET /api/join/status', 'POST /api/join/cancel', 'GET /api/config', 'POST /api/handoff/redeem']);
-    for (const key of Object.keys(app.ctx.api)) { if (open.has(key) || app.ctx.publicRoutes.has(key)) continue; const [m, p] = key.split(' '); let r; try { r = await fetch(B + p, { method: m, body: m === 'POST' ? '{}' : undefined }); } catch (e) { throw new Error('fetch failed for ' + key + ': ' + (e.cause && e.cause.message)); } assert.equal(r.status, 401, key + ' must require a token'); }
+    const coreOpen = new Set(['POST /api/join', 'GET /api/join/status', 'POST /api/join/cancel', 'GET /api/config', 'POST /api/handoff/redeem']);
+    // feature modules may declare their own public routes (ctx.publicRoutes, e.g. webhooks); a core route must never become public
+    for (const key of app.ctx.publicRoutes) if (!coreOpen.has(key)) assert(!app.ctx.coreRoutes.has(key), 'a core route was made public: ' + key);
+    const open = new Set([...coreOpen, ...app.ctx.publicRoutes]);
+    for (const key of Object.keys(app.ctx.api)) { if (open.has(key)) continue; const [m, p] = key.split(' '); let r; try { r = await fetch(B + p, { method: m, body: m === 'POST' ? '{}' : undefined }); } catch (e) { throw new Error('fetch failed for ' + key + ': ' + (e.cause && e.cause.message)); } assert.equal(r.status, 401, key + ' must require a token'); }
     const idx = await fetch(B + '/'); assert(/default-src 'self'/.test(idx.headers.get('content-security-policy'))); assert.equal(idx.headers.get('x-content-type-options'), 'nosniff');
     for (const p of ['/..%2f..%2fetc/passwd', '/%2e%2e/server.js', '/lib/app.js', '/..%2flib%2fapp.js']) { const r = await fetch(B + p); assert([403, 404].includes(r.status), p + ' → ' + r.status); }
     assert.equal((await fetch(B + '/api/send', { method: 'POST', headers: { 'x-token': bob.token }, body: 'x'.repeat(2e6) })).status, 413);
@@ -501,7 +504,7 @@ async function section(name, fn) { try { await fn(); results.push([name, true]);
     // the certificate survives restarts (browsers remember the "proceed" choice)
     agents.https.destroy(); agents.http.destroy(); a.stop(); const b2 = createApp({ dataDir: dir, publicDir: path.join(__dirname, 'public') }); await b2.start(pt);
     assert.equal(fs.readFileSync(path.join(dir, 'tls-cert.pem'), 'utf8'), cert, 'same certificate after restart'); b2.stop();
-    const off = createApp({ dataDir: path.join(tmp, 'tls-off'), https: false, publicDir: path.join(__dirname, 'public') }); await off.start(pt + 20); assert(!off.https); assert.equal((await fetch(`http://127.0.0.1:${pt + 20}/api/config`).then((r) => r.json())).https, false); off.stop();
+    const off = createApp({ dataDir: path.join(tmp, 'tls-off'), https: false, publicDir: path.join(__dirname, 'public') }); const offPort = await off.start(0); assert(!off.https); assert.equal((await fetch(`http://127.0.0.1:${offPort}/api/config`).then((r) => r.json())).https, false); off.stop();
   });
 
   await section('clean-up tools: delete old messages, clear chats, delete people, delete my account, start fresh', async () => {

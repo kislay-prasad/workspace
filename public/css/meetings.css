@@ -1,1 +1,197 @@
-/* Meetings: scheduling, lobby, before-you-join, engagement (Q&A, breakout rooms, attendance, recap), webinars (sections 18, 21, 23). Owned by the "meetings" feature area (docs/EXTENDING.md). */
+/* Meetings: scheduling, lobby, before-you-join, engagement (Q&A, breakout rooms, attendance, recap), webinars (sections 18, 21, 23). Owned by the "meetings" feature area (docs/EXTENDING.md).
+   Colours come from the theme tokens in style.css; inside the meeting window the calls area re-scopes them to dark values. */
+
+/* ---------- people picker ---------- */
+.mt-picker{display:flex;flex-direction:column;gap:6px}
+.mt-chips{display:flex;flex-wrap:wrap;gap:6px}
+.mt-chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:2px 4px 2px 3px;font-size:13px;max-width:100%}
+.mt-chip>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mt-chip .mt-x{width:24px;height:24px}.mt-chip .mt-x .ic{width:14px;height:14px}
+.mt-pickin{position:relative}.mt-pickin input{width:100%}
+.mt-sugg{position:absolute;left:0;right:0;top:100%;margin-top:2px;background:var(--bg);border-radius:6px;box-shadow:var(--shadow);z-index:40;max-height:260px;overflow:auto;padding:4px}
+.mt-opt{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:4px;cursor:pointer}.mt-opt.on,.mt-opt:hover{background:var(--hover)}
+
+/* ---------- "New meeting" form ---------- */
+.mt-form{display:flex;flex-direction:column;gap:2px}
+.mt-form .row-between h2{margin:0}
+.mt-title{font-size:18px;font-weight:600;width:100%;min-height:40px;margin:6px 0 2px}
+.mt-tpl select{min-width:150px}
+.mt-optlink{align-self:flex-start;margin:-4px 0 4px;font-size:13px}
+.mt-when{display:grid;grid-template-columns:1.4fr 1fr 1fr auto;gap:10px;align-items:end}
+.mt-when .field{margin:6px 0}.mt-when input{width:100%}
+.mt-allday{padding-bottom:6px}.mt-allday .check{margin:0;white-space:nowrap}
+.mt-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.mt-grid2 select,.mt-grid2 input{width:100%}.mt-grid2 .field{margin:6px 0}
+.mt-num{width:76px}
+.mt-custom{border-left:3px solid var(--line);padding:2px 0 4px 10px;margin:2px 0 6px}
+.mt-days{display:flex;flex-wrap:wrap;gap:6px}
+.mt-day{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line2);border-radius:14px;padding:2px 10px 2px 6px;font-size:13px;cursor:pointer}
+.mt-day:has(input:checked){background:var(--brand-l);border-color:var(--brand)}
+.mt-form textarea{width:100%;resize:vertical}
+.mt-opts{border:1px solid var(--line);border-radius:6px;padding:6px 12px;margin:6px 0}
+.mt-opts summary{cursor:pointer;font-weight:600;display:flex;align-items:center;gap:6px;padding:4px 0;list-style:none}
+.mt-opts summary::-webkit-details-marker{display:none}
+.mt-opts summary::after{content:"";margin-left:auto;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s}
+.mt-opts[open] summary::after{transform:rotate(-135deg)}
+.mt-indent{border-left:3px solid var(--brand-l);padding-left:10px;margin:2px 0 8px}
+.mt-indent input:not([type]){width:100%}
+.mt-acts{align-items:center}.mt-left{margin-right:auto}
+
+/* ---------- details, join info, RSVP ---------- */
+.mt-dhead{display:flex;gap:12px;align-items:flex-start;min-width:0;flex:1}
+.mt-dicon,.mt-cicon,.mt-ringicon{width:40px;height:40px;border-radius:8px;background:var(--brand-l);color:var(--brand-t);display:grid;place-items:center;flex:none}
+.mt-cicon.x{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger)}
+.mt-dtitle{margin:0 0 2px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:18px;overflow-wrap:anywhere}
+.mt-dtitle .pill{margin-left:0}
+.mt-livepill,.pill.mt-ok{background:color-mix(in srgb,var(--ok) 16%,var(--bg));color:var(--text);border-color:var(--ok)}
+.mt-dacts{justify-content:flex-start}
+.mt-rsvp{display:flex;flex-wrap:wrap;gap:6px}
+.mt-rsvp .secondary[aria-pressed=true]{background:var(--brand-l);border-color:var(--brand);color:var(--brand-t)}
+.mt-orgpill{margin-left:0;align-self:flex-start}
+.mt-joininfo{display:flex;flex-direction:column;gap:6px}
+.mt-linktext{font-size:12px;word-break:break-all}
+.mt-idrow{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+.mt-code,.mt-pass{font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.mt-detailstext{background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:8px 12px;overflow-wrap:anywhere}
+.mt-people{display:flex;flex-direction:column;max-height:260px;overflow:auto}
+.mt-person{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--line)}
+.mt-pills{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}.mt-pills .pill{margin-left:0}
+.pill.mt-r-yes{background:color-mix(in srgb,var(--ok) 18%,var(--bg));border-color:var(--ok)}.pill.mt-r-no{background:color-mix(in srgb,var(--danger) 14%,var(--bg));border-color:var(--danger)}.pill.mt-r-maybe{border-style:dashed}
+.mt-sessions{display:flex;flex-direction:column;gap:4px}
+.mt-session{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+
+/* ---------- invitation cards in the chat ---------- */
+.msg .body:has(> .mt-card) > .txt{display:none}
+.mt-card{border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:6px;background:var(--bg);padding:10px 12px;margin-top:4px;display:flex;flex-direction:column;gap:8px;max-width:520px}
+.mt-card[data-kind=cancel]{border-left-color:var(--danger)}
+.mt-chead{display:flex;gap:10px;align-items:flex-start}
+.mt-ctitle{display:block;font-size:15px;overflow-wrap:anywhere}
+.mt-cnote{margin:0;font-style:italic}
+.mt-cacts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+/* ---------- before you join ---------- */
+.mt-prejoin{position:fixed;inset:0;z-index:145;background:color-mix(in srgb,var(--bg2) 92%,transparent);display:grid;place-items:center;padding:12px;overflow:auto}
+.mt-pjcard{background:var(--bg);border-radius:10px;box-shadow:var(--shadow-l);width:min(900px,100%);padding:22px 24px;display:flex;flex-direction:column;gap:14px;max-height:calc(100dvh - 24px);overflow:auto}
+.mt-pjhead h2{margin:0;font-size:20px;overflow-wrap:anywhere}.mt-pjhead p{margin:2px 0 0}
+.mt-pjbody{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:18px}
+.mt-pvcol{display:flex;flex-direction:column;gap:10px;min-width:0;align-self:start}.mt-fxhost{border-radius:8px;padding:8px 10px;max-height:280px;overflow:auto;background:#292929;color:#fff;color-scheme:dark;--bg:#292929;--bg2:#1f1f1f;--card:#333;--text:#fff;--text2:#d6d6d6;--muted:#c8c8c8;--line:#3d3d3d;--line2:#5c5c5c;--hover:#3d3d3d;--hover2:#474747;--brand-t:color-mix(in srgb,var(--brand) 55%,#fff)} /* the calls area's picker is made for the dark meeting window */
+:root[data-theme=hc] .mt-fxhost{background:#000;border:1px solid #fff}
+.mt-pvbox{display:flex;flex-direction:column;border-radius:8px;overflow:hidden;background:#1f1f1f;color:#fff}
+.mt-pvstage{position:relative;aspect-ratio:16/9;display:grid;place-items:center;background:#292929}
+.mt-pv{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
+.mt-pvav{display:flex;flex-direction:column;align-items:center;gap:10px;color:#d6d6d6;font-size:13px}
+.mt-pvbar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#1f1f1f}
+.mt-pvbar .secondary{background:#333;color:#fff;border-color:#5c5c5c}
+.mt-tog{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+.mt-switch{width:40px;height:20px;border-radius:10px;border:1px solid var(--muted);background:transparent;position:relative;padding:0;flex:none}
+.mt-switch::after{content:"";position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:50%;background:var(--muted);transition:left .12s}
+.mt-switch[aria-checked=true]{background:var(--brand);border-color:var(--brand)}.mt-switch[aria-checked=true]::after{left:23px;background:var(--on-brand)}
+.mt-pvbar .mt-switch{border-color:#c8c8c8}.mt-pvbar .mt-switch::after{background:#c8c8c8}.mt-pvbar .mt-switch[aria-checked=true]::after{background:var(--on-brand)}
+.mt-switch:disabled{opacity:.45;cursor:default}
+.mt-pjside{display:flex;flex-direction:column;gap:10px;min-width:0}
+.mt-modes{display:flex;flex-direction:column;gap:6px}
+.mt-mode{display:flex;align-items:flex-start;gap:10px;text-align:left;border:1px solid var(--line2);background:var(--bg);border-radius:6px;padding:8px 10px;color:var(--text)}
+.mt-mode .itext,.mt-mode .grow{display:flex;flex-direction:column}
+.mt-mode[aria-pressed=true]{border-color:var(--brand);background:var(--brand-l)}
+.mt-mode:hover{background:var(--hover)}.mt-mode[aria-pressed=true]:hover{background:var(--brand-l)}
+.mt-audio{display:flex;flex-direction:column}.mt-audio.dim .mt-microw{opacity:.5}
+.mt-audio .field{margin:6px 0}.mt-audio select{width:100%}
+.mt-microw{display:flex;align-items:center;gap:12px}
+.mt-meter{flex:1;height:6px;border-radius:3px;background:var(--line);overflow:hidden}.mt-meter i{display:block;height:100%;width:0;background:var(--ok);transition:width .08s}
+.mt-adddev{align-self:flex-start;display:inline-flex;align-items:center;gap:4px}
+.mt-status{min-height:1em;color:var(--muted);font-size:13px}
+.mt-pjacts{margin-top:0}.mt-joinbtn{min-width:120px}
+.mt-wait{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:8px}.mt-wait h3{margin:0;font-size:16px}.mt-wait p{margin:0}
+.mt-prejoin.waiting .mt-pjside .mt-audio{display:none}
+
+/* ---------- lobby ---------- */
+.mt-lobbybar,.mt-attnote{position:absolute;left:50%;top:76px;transform:translateX(-50%);z-index:7;display:flex;align-items:center;gap:10px;background:var(--bg);color:var(--text);border-radius:8px;box-shadow:var(--shadow);padding:8px 12px;width:min(560px,calc(100% - 24px))}
+.mt-attnote{top:auto;bottom:16px;font-size:13px}
+.mt-lrow .grow{display:flex;align-items:center;gap:4px;flex-wrap:wrap}.mt-lrow .pill{margin-left:0}
+
+/* ---------- reminders ---------- */
+.mt-ring .ringhead{align-items:center}.mt-ringacts{gap:8px}
+.mt-ring .secondary{background:#333;color:#fff;border-color:#5c5c5c}
+
+/* ---------- the Meet pane ---------- */
+.mt-paneacts{display:flex;flex-direction:column;gap:6px;padding:4px 4px 8px}
+.mt-bigbtn{display:flex;align-items:center;gap:10px;border:1px solid var(--line2);background:var(--bg);color:var(--text);border-radius:6px;padding:8px 12px;font-weight:600;text-align:left}
+.mt-bigbtn:hover{background:var(--hover)}.mt-bigbtn.primary{background:var(--brand);color:var(--on-brand);border-color:transparent}.mt-bigbtn.primary:hover{background:var(--brand-d)}
+.mt-row{display:flex;align-items:center;gap:6px;border-radius:6px;padding-right:6px}.mt-row:hover{background:var(--hover2)}
+.mt-row.live{background:color-mix(in srgb,var(--ok) 10%,transparent)}
+.mt-rowmain{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:none;border:0;padding:8px;text-align:left;color:inherit;border-radius:6px}
+.mt-rtime{width:62px;white-space:nowrap;flex:none;display:flex;flex-direction:column;align-items:center;font-size:12px;border-right:2px solid var(--brand);padding-right:8px}.mt-rtime small{color:var(--muted)}
+.mt-repicon{width:16px;height:16px;color:var(--muted);flex:none}
+
+/* ---------- chat header ---------- */
+.mt-meetbtn{margin-right:4px}.mt-meetbtn .mt-caret{width:14px;height:14px}
+
+/* ---------- meeting-window panels: Q&A, polls, notes, rooms ---------- */
+.mt-qa,.mt-polls,.mt-notes{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.mt-qa.wide{max-width:720px}
+.mt-ask{display:flex;flex-direction:column;gap:4px}.mt-ask textarea{width:100%;resize:vertical}.mt-ask .check{margin:0}
+.mt-seg{display:inline-flex;border:1px solid var(--line2);border-radius:4px;overflow:hidden;align-self:flex-start}
+.mt-segb{border:0;background:var(--bg);color:var(--text);padding:3px 12px;font-size:13px}.mt-segb+.mt-segb{border-left:1px solid var(--line2)}
+.mt-segb[aria-pressed=true]{background:var(--brand);color:var(--on-brand)}
+.mt-qlist{display:flex;flex-direction:column;gap:8px}
+.mt-q{border:1px solid var(--line);border-radius:6px;padding:8px 10px;background:var(--card);display:flex;flex-direction:column;gap:4px}
+.mt-q.pinned{border-color:var(--brand)}.mt-q.answered{border-left:3px solid var(--ok)}.mt-q.dismissed{opacity:.6}
+.mt-qhead{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.mt-qhead .pill{margin-left:0}
+.mt-anonav{background:var(--muted)}.mt-anonav .ic{width:14px;height:14px;color:#fff}
+.mt-qtext{overflow-wrap:anywhere;white-space:pre-wrap}
+.mt-replies{border-left:2px solid var(--line);padding-left:8px;display:flex;flex-direction:column;gap:2px;font-size:13px}
+.mt-qacts{display:flex;align-items:center;gap:10px}
+.mt-vote{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line2);background:var(--bg);color:var(--text);border-radius:14px;padding:1px 10px;font-size:13px}
+.mt-vote .ic{width:16px;height:16px}.mt-vote.on{background:var(--brand-l);border-color:var(--brand);color:var(--brand-t)}
+.mt-replyform{display:flex;gap:6px}.mt-replyform input{flex:1;min-width:0}
+.mt-poll{border:1px solid var(--line);border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;background:var(--card)}
+.mt-pq{display:flex;align-items:center;gap:6px;overflow-wrap:anywhere}.mt-pq .pill{margin-left:auto}
+.mt-popt{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--line2);border-radius:4px;background:var(--bg);color:var(--text);padding:6px 10px;overflow:hidden;text-align:left;min-height:34px}
+.mt-popt:disabled{cursor:default}.mt-popt.mine{border-color:var(--brand)}
+.mt-pbar{position:absolute;inset:0 auto 0 0;background:var(--brand-l);z-index:0}.mt-pt,.mt-pc{position:relative;z-index:1}.mt-pt{display:flex;align-items:center;gap:4px}.mt-pc{font-size:12px;color:var(--muted);flex:none}
+.mt-pform{display:flex;flex-direction:column;gap:6px}.mt-pform input:not([type]){width:100%}
+.mt-plist{display:flex;flex-direction:column;gap:8px}
+.mt-pollpop{position:fixed;right:16px;bottom:96px;z-index:96;width:min(360px,calc(100vw - 32px));background:var(--bg);color:var(--text);border-radius:8px;box-shadow:var(--shadow-l);padding:12px;display:flex;flex-direction:column;gap:8px;animation:ringin .25s ease-out}
+.mt-agenda{display:flex;flex-direction:column}.mt-agendabox{display:flex;flex-direction:column;gap:6px;max-width:720px}
+.mt-aitem{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.mt-aitem .pill{margin-left:0}
+.mt-aitem.done .grow,.mt-aitem.done>span{text-decoration:line-through;color:var(--muted)}
+.mt-aitem .icon{width:28px;height:28px}
+.mt-aform{display:flex;gap:6px}.mt-aform input:not([type]){flex:1;min-width:0}
+.mt-notearea{width:100%;min-height:180px;resize:vertical;line-height:1.45}
+.mt-notes h3,.mt-qa h3{margin:6px 0 0;font-size:13px;display:flex;align-items:center;gap:6px}
+.mt-timer{font-variant-numeric:tabular-nums;font-weight:600;color:var(--warn);margin:6px 0}
+.mt-rstate{display:flex;align-items:center;gap:6px;color:var(--muted);margin:6px 0}.mt-rstate.on{color:var(--ok)}
+.mt-room{border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:6px 0;display:flex;flex-direction:column;gap:4px}
+.mt-rp{display:flex;align-items:center;gap:8px}.mt-rp select{max-width:130px}
+.mt-live{color:var(--ok)}.mt-live .ic{width:10px;height:10px}
+.mt-annform{display:flex;gap:6px}.mt-annform input{flex:1;min-width:0}
+
+/* ---------- recap, attendance, registration ---------- */
+.mt-recap{display:flex;flex-direction:column;gap:6px}
+.mt-rhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:8px}
+.mt-rsec{border-bottom:1px solid var(--line);padding:2px 0 8px}
+.mt-rsec h3{margin:8px 0 6px}
+.mt-rec{display:flex;flex-direction:column;gap:4px;max-width:480px}.mt-rec video{width:100%;border-radius:6px;background:#000}
+.mt-file{display:flex;align-items:center;gap:8px;padding:3px 0;flex-wrap:wrap}
+.mt-rmsg{padding:4px 0;border-bottom:1px dashed var(--line);overflow-wrap:anywhere}
+.mt-att td{white-space:nowrap}
+.mt-regform{display:flex;flex-direction:column;gap:4px}.mt-regform input,.mt-regform textarea{width:100%}
+.mt-reghero{display:flex;gap:14px;align-items:flex-start}.mt-reghero h2{margin:0;overflow-wrap:anywhere}.mt-reghero p{margin:2px 0}
+.mt-regacts{display:flex;gap:6px;flex-wrap:wrap}
+.mt-langs{display:flex;flex-direction:column}
+.mt-guestnote{font-size:13px}
+.mt-reqs h3{display:flex;align-items:center;gap:6px}
+
+/* ---------- high contrast ---------- */
+:root[data-theme=hc] .mt-card,:root[data-theme=hc] .mt-q,:root[data-theme=hc] .mt-poll,:root[data-theme=hc] .mt-mode,:root[data-theme=hc] .mt-pjcard{border:1px solid #fff}
+:root[data-theme=hc] .mt-switch[aria-checked=true]::after{background:#000}
+
+/* ---------- phones ---------- */
+@media (max-width:760px){
+  .mt-when{grid-template-columns:1fr 1fr}.mt-when .field:first-child,.mt-when .mt-allday{grid-column:1 / -1}
+  .mt-grid2{grid-template-columns:1fr}
+  .mt-pjbody{grid-template-columns:1fr}.mt-pjcard{padding:16px}
+  .mt-meetbtn .mt-meetlbl,.mt-meetbtn .mt-caret{display:none}.mt-meetbtn{padding:3px 7px;min-height:30px}
+  .mt-lobbybar{top:12px}
+  .mt-pollpop{bottom:80px;right:8px;left:8px;width:auto}
+  .mt-acts .mt-left{width:100%;justify-content:center}
+}
