@@ -54,6 +54,7 @@ const SHOTS = '/tmp/meetings-shots', sleep = (ms) => new Promise((r) => setTimeo
     await H.evaluate((i) => { LC.meetings.join(i); }, mid); await H.waitForSelector('.mt-prejoin'); await H.waitForFunction(() => { const v = document.querySelector('.mt-pv'); return v && v.videoWidth > 0; });
     if ((await H.$$eval('.mt-prejoin select', (s) => s.length)) < 2) throw new Error('device pickers missing');
     await H.click('.mt-switch[aria-label="Camera"]'); await H.waitForSelector('.mt-pvav:not(.hidden)'); await H.click('.mt-switch[aria-label="Camera"]'); await H.waitForFunction(() => { const v = document.querySelector('.mt-pv'); return v && !v.classList.contains('hidden') && v.videoWidth > 0; });
+    if (await H.$('.mt-prejoin button:has-text("Background effects")')) { await H.click('.mt-prejoin button:has-text("Background effects")'); await H.waitForSelector('.mt-fxhost:not(.hidden) .cl-fx'); }
     await shot(H, 'prejoin-light'); await audit(H, 'before you join');
     await H.click('.mt-joinbtn'); await H.waitForSelector('#callUI:not(.hidden) .tile');
     const st = await H.evaluate(() => LC.S.calls[LC.callChan()]); if (st.meeting !== mid || st.roles[st.by] !== 'organizer') throw new Error(JSON.stringify({ m: st.meeting, roles: st.roles }));

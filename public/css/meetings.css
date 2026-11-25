@@ -69,11 +69,12 @@
 .mt-cacts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 
 /* ---------- before you join ---------- */
-.mt-prejoin{position:fixed;inset:0;z-index:100;background:color-mix(in srgb,var(--bg2) 92%,transparent);display:grid;place-items:center;padding:12px;overflow:auto}
+.mt-prejoin{position:fixed;inset:0;z-index:145;background:color-mix(in srgb,var(--bg2) 92%,transparent);display:grid;place-items:center;padding:12px;overflow:auto}
 .mt-pjcard{background:var(--bg);border-radius:10px;box-shadow:var(--shadow-l);width:min(900px,100%);padding:22px 24px;display:flex;flex-direction:column;gap:14px;max-height:calc(100dvh - 24px);overflow:auto}
 .mt-pjhead h2{margin:0;font-size:20px;overflow-wrap:anywhere}.mt-pjhead p{margin:2px 0 0}
 .mt-pjbody{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:18px}
-.mt-pvbox{display:flex;flex-direction:column;align-self:start;border-radius:8px;overflow:hidden;background:#1f1f1f;color:#fff}
+.mt-pvcol{display:flex;flex-direction:column;gap:10px;min-width:0;align-self:start}.mt-fxhost{border:1px solid var(--line);border-radius:8px;padding:8px 10px;max-height:260px;overflow:auto}
+.mt-pvbox{display:flex;flex-direction:column;border-radius:8px;overflow:hidden;background:#1f1f1f;color:#fff}
 .mt-pvstage{position:relative;aspect-ratio:16/9;display:grid;place-items:center;background:#292929}
 .mt-pv{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
 .mt-pvav{display:flex;flex-direction:column;align-items:center;gap:10px;color:#d6d6d6;font-size:13px}

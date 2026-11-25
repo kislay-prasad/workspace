@@ -295,7 +295,16 @@
     const meter = el('div', { class: 'mt-meter', 'aria-hidden': 'true' }, el('i')), av = el('div', { class: 'mt-pvav' }, LC.avatar(S.me, 'xl', false), el('span', { text: t('mt_camOff') }));
     const camSel = el('select', { 'aria-label': t('mt_camera') }), micSel = el('select', { 'aria-label': t('mt_mic') }), spkSel = el('select', { 'aria-label': t('mt_speaker') });
     const camBtn = el('button', { type: 'button', class: 'mt-switch', role: 'switch', 'aria-label': t('mt_camera') }), micBtn = el('button', { type: 'button', class: 'mt-switch', role: 'switch', 'aria-label': t('mt_mic') });
-    const fx = LC.callEffects && (LC.callEffects.picker || LC.callEffects.open) ? el('button', { type: 'button', class: 'secondary sm withicon', onclick: () => { try { (LC.callEffects.picker || LC.callEffects.open).call(LC.callEffects, { stream, anchor: fx }); } catch (e) { console.error(e); } } }, LC.icon('video_background_effect'), el('span', { text: t('mt_effects') })) : null;
+    // background effects: the calls area's picker (LC.callEffects); the preview shows the chosen effect
+    const fxHost = el('div', { class: 'mt-fxhost hidden', role: 'group', 'aria-label': t('mt_effects') });
+    const fx = LC.callEffects && LC.callEffects.picker ? el('button', { type: 'button', class: 'secondary sm withicon', 'aria-expanded': 'false', onclick: () => { const open = !fxHost.classList.toggle('hidden'); fx.setAttribute('aria-expanded', String(open)); if (open && !fxHost.firstChild) { try { LC.callEffects.picker(fxHost, {}); } catch (e) { console.error(e); } } } }, LC.icon('video_background_effect'), el('span', { text: t('mt_effects') })) : null;
+    let fxp = null;
+    const applyFx = () => {
+      if (fxp) { try { fxp.stop(); } catch {} fxp = null; } const v = stream && stream.getVideoTracks()[0];
+      if (v && LC.callEffects && LC.callEffects.process) { try { fxp = LC.callEffects.process(v); } catch { fxp = null; } }
+      video.srcObject = v ? new MediaStream([fxp && fxp.track ? fxp.track : v]) : stream || null; if (video.srcObject) video.play().catch(() => {});
+    };
+    MT.prejoinFx = applyFx;
     const status = el('div', { class: 'mt-status', role: 'status', 'aria-live': 'polite' });
     const modeBtn = (k, ic, label, help) => el('button', { type: 'button', class: 'mt-mode', 'data-mode': k, 'aria-pressed': String(mode === k), onclick: () => { mode = k; if (k !== 'computer') { micOn = false; if (k === 'companion') camOn = false; } else micOn = true; sync(); } }, LC.icon(ic), el('span', { class: 'grow' }, el('b', { text: label }), help ? el('small', { class: 'muted', text: help }) : null));
     const modes = el('div', { class: 'mt-modes', role: 'group', 'aria-label': t('mt_computerAudio') }, modeBtn('computer', 'speaker_2', t('mt_computerAudio')), modeBtn('none', 'speaker_mute', t('mt_noAudio')), modeBtn('companion', 'phone_laptop', t('mt_companion'), t('mt_companionHelp')));
@@ -304,7 +313,7 @@
     const controls = el('div', { class: 'mt-pvbar' }, el('label', { class: 'mt-tog' }, LC.icon('video'), camBtn), fx, el('span', { class: 'grow' }));
     const box = el('div', { class: 'mt-prejoin', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'mtPjTitle' },
       el('div', { class: 'mt-pjcard' }, el('div', { class: 'mt-pjhead' }, el('h2', { id: 'mtPjTitle', text: o.title || t('mt_newMeeting') }), el('p', { class: 'muted', text: t('mt_prejoinHelp') })),
-        el('div', { class: 'mt-pjbody' }, el('div', { class: 'mt-pvbox' }, el('div', { class: 'mt-pvstage' }, video, av), controls),
+        el('div', { class: 'mt-pjbody' }, el('div', { class: 'mt-pvcol' }, el('div', { class: 'mt-pvbox' }, el('div', { class: 'mt-pvstage' }, video, av), controls), fxHost),
           el('div', { class: 'mt-pjside' }, modes, el('div', { class: 'mt-audio' }, el('div', { class: 'mt-microw' }, el('label', { class: 'mt-tog' }, LC.icon('mic'), micBtn), meter), MT.field(t('mt_mic'), micSel), 'setSinkId' in HTMLMediaElement.prototype ? MT.field(t('mt_speaker'), spkSel) : null, MT.field(t('mt_camera'), camSel)),
             o.meeting && MT.addDevice ? el('button', { type: 'button', class: 'link mt-adddev', onclick: () => MT.addDevice(o.meeting.id) }, LC.icon('phone'), ' ' + t('mt_addDevice')) : null)),
         status, waitBox, el('div', { class: 'acts mt-pjacts' }, cancelBtn, joinBtn)));
@@ -332,7 +341,7 @@
       try { stream = await gum(true, wantV); } catch { stream = null; status.textContent = t('micDenied'); }
       if (done) { stopStream(stream); return; }
       if (wantV && !(stream && stream.getVideoTracks()[0])) { camOn = false; status.textContent = t('noCamera'); }
-      video.srcObject = stream; if (stream) video.play().catch(() => {}); await fillDevices(); meterOn();
+      applyFx(); await fillDevices(); meterOn();
       opening = false; if (again) { again = false; openMedia(); } else sync();
     }
     async function fillDevices() {
@@ -348,7 +357,7 @@
     }
     const keys = (e) => { if (e.key === 'Escape' && !box.classList.contains('waiting')) { e.stopPropagation(); finish(false); } else if (e.key === 'Tab') { const f = [...box.querySelectorAll('button:not([disabled]),select:not([disabled]),input:not([disabled])')].filter((x) => x.offsetParent !== null); if (!f.length) return; if (e.shiftKey && document.activeElement === f[0]) { f[f.length - 1].focus(); e.preventDefault(); } else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { f[0].focus(); e.preventDefault(); } } };
     box.addEventListener('keydown', keys);
-    function cleanup() { if (done && !box.isConnected) return; done = true; cancelAnimationFrame(raf); stopStream(stream); try { ac && ac.close(); } catch {} box.remove(); if (prev && prev.focus) try { prev.focus(); } catch {} }
+    function cleanup() { if (done && !box.isConnected) return; done = true; if (MT.prejoinFx === applyFx) MT.prejoinFx = null; if (fxp) { try { fxp.stop(); } catch {} } cancelAnimationFrame(raf); stopStream(stream); try { ac && ac.close(); } catch {} box.remove(); if (prev && prev.focus) try { prev.focus(); } catch {} }
     function finish(ok) {
       if (!ok) { cleanup(); return resolve(null); }
       const opts = { micId: micSel.value || LC.ui.micId || '', camId: camSel.value || LC.ui.camId || '', cam: !!camOn && mode !== 'companion', muted: !micOn || mode !== 'computer' };
@@ -359,6 +368,7 @@
     document.body.append(box); sync(); if (media()) openMedia(); else status.textContent = t('mt_noMedia');
     setTimeout(() => joinBtn.focus(), 30);
   });
+  LC.on('ui', (patch) => { if (MT.prejoinFx && patch && ('clBg' in patch || 'clFilter' in patch)) MT.prejoinFx(); });
   // waits in the lobby; resolves true when admitted, false when denied / left
   function lobbyWait(m, ui) {
     return new Promise((resolve) => {
@@ -422,10 +432,12 @@
     l.waiting.length > 1 ? el('div', { class: 'acts' }, el('button', { type: 'button', class: 'primary sm', text: t('mt_admitAll'), onclick: () => MT.admit(id, '', 'admitAll') })) : null);
   };
   LC.ext.callPanels.push({ key: 'mtlobby', icon: 'people_queue', label: t('mt_lobbyTitle'), short: t('mt_lobbyTitle'), order: 5, when: () => { const id = MT.callMeeting(); return !!id && lobbyFor(id).waiting.length > 0; }, render: lobbyPanel });
+  // the meeting window keeps its DOM between draws: the banner is updated in place (and removed when nobody waits)
   LC.on('call:drawn', ({ ui }) => {
-    const id = MT.callMeeting(); if (!id) return; const l = lobbyFor(id); if (!l.waiting.length || (LC.callApi.panel && LC.callApi.panel() === 'mtlobby')) return;
+    const id = MT.callMeeting(), l = id ? lobbyFor(id) : { waiting: [] }, old = ui.querySelector('.mt-lobbybar'), show = l.waiting.length && !(LC.callApi.panel && LC.callApi.panel() === 'mtlobby');
+    const sig = show ? JSON.stringify(l.waiting.map((w) => w.uid)) : ''; if (old && old.dataset.sig === sig) return; if (old) old.remove(); if (!show) return;
     const text = l.waiting.length === 1 ? t('mt_waiting1', { name: l.waiting[0].name }) : t('mt_waitingN', { n: l.waiting.length });
-    ui.append(el('div', { class: 'mt-lobbybar', role: 'status' }, LC.icon('people_queue'), el('span', { class: 'grow', text: text }), l.waiting.length === 1 ? el('button', { type: 'button', class: 'primary sm', text: t('mt_admit'), onclick: () => MT.admit(id, l.waiting[0].uid) }) : el('button', { type: 'button', class: 'primary sm', text: t('mt_admitAll'), onclick: () => MT.admit(id, '', 'admitAll') }), el('button', { type: 'button', class: 'secondary sm', text: t('mt_viewLobby'), onclick: () => LC.callApi.setPanel('mtlobby') })));
+    ui.append(el('div', { class: 'mt-lobbybar', role: 'status', 'data-sig': sig }, LC.icon('people_queue'), el('span', { class: 'grow', text: text }), l.waiting.length === 1 ? el('button', { type: 'button', class: 'primary sm', text: t('mt_admit'), onclick: () => MT.admit(id, l.waiting[0].uid) }) : el('button', { type: 'button', class: 'primary sm', text: t('mt_admitAll'), onclick: () => MT.admit(id, '', 'admitAll') }), el('button', { type: 'button', class: 'secondary sm', text: t('mt_viewLobby'), onclick: () => LC.callApi.setPanel('mtlobby') })));
   });
 
   // ---------- reminders: toast 15 minutes before, a ring when it starts ----------

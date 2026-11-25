@@ -57,7 +57,8 @@
 
   // ---------- attendees in a webinar: a short note in the meeting window (the calls area does the enforcing) ----------
   LC.on('call:drawn', ({ ui }) => {
-    const c = MT.call(); if (!c || !c.mt || !c.mt.viewOnly || MT.myRole() !== 'attendee') return; const d = LC.callApi.data(); if (d.mtNoteShown) return;
+    const c = MT.call(), d = LC.callApi.data(), want = !!(c && c.mt && c.mt.viewOnly && MT.myRole() === 'attendee' && !d.mtNoteShown), old = ui.querySelector('.mt-attnote');
+    if (!want) { if (old) old.remove(); return; } if (old) return;
     const n = el('div', { class: 'mt-attnote', role: 'status' }, LC.icon('info'), el('span', { class: 'grow', text: t('mt_attendeeNote') }), LC.ibtn('dismiss', t('close'), () => { d.mtNoteShown = true; n.remove(); }));
     ui.append(n);
   });
