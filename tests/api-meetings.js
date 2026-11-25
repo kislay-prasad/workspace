@@ -40,6 +40,7 @@ H.suite('Meetings', async (t) => {
     t.eq((await create(owner.token, { chan: g.d.id, invitees: [cy.id] })).s, 400, 'invitees must be in the group chat');
     t.eq((await create(owner.token, { chan: 'dm:' + [owner.id, bob.id].sort().join(':') })).s, 404);
     const ch = await create(owner.token, { chan: 'general', title: 'All hands', invitees: [bob.id] }); t.eq(ch.s, 200, ch.d); t.eq(ch.d.meeting.chan, 'general');
+    s.db.channels.general.readonly = true; t.eq((await create(bob.token, { chan: 'general' })).s, 403, 'read-only channel'); t.eq((await create(owner.token, { chan: 'general', title: 'Announce' })).s, 200); s.db.channels.general.readonly = false;
   });
   await t.section('repeats: daily / weekdays / weekly / monthly in the meeting time zone, until, cancel one', async () => {
     const mon = new Date(Date.UTC(2027, 2, 1, 8, 30)).getTime(); // Mon 1 Mar 2027 09:30 Berlin (UTC+1); DST starts 28 Mar

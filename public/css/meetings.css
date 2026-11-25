@@ -19,7 +19,7 @@
 .mt-optlink{align-self:flex-start;margin:-4px 0 4px;font-size:13px}
 .mt-when{display:grid;grid-template-columns:1.4fr 1fr 1fr auto;gap:10px;align-items:end}
 .mt-when .field{margin:6px 0}.mt-when input{width:100%}
-.mt-allday{padding-bottom:6px}.mt-allday .check{margin:0}
+.mt-allday{padding-bottom:6px}.mt-allday .check{margin:0;white-space:nowrap}
 .mt-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.mt-grid2 select,.mt-grid2 input{width:100%}.mt-grid2 .field{margin:6px 0}
 .mt-num{width:76px}
 .mt-custom{border-left:3px solid var(--line);padding:2px 0 4px 10px;margin:2px 0 6px}
@@ -73,7 +73,8 @@
 .mt-pjcard{background:var(--bg);border-radius:10px;box-shadow:var(--shadow-l);width:min(900px,100%);padding:22px 24px;display:flex;flex-direction:column;gap:14px;max-height:calc(100dvh - 24px);overflow:auto}
 .mt-pjhead h2{margin:0;font-size:20px;overflow-wrap:anywhere}.mt-pjhead p{margin:2px 0 0}
 .mt-pjbody{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:18px}
-.mt-pvcol{display:flex;flex-direction:column;gap:10px;min-width:0;align-self:start}.mt-fxhost{border:1px solid var(--line);border-radius:8px;padding:8px 10px;max-height:260px;overflow:auto}
+.mt-pvcol{display:flex;flex-direction:column;gap:10px;min-width:0;align-self:start}.mt-fxhost{border-radius:8px;padding:8px 10px;max-height:280px;overflow:auto;background:#292929;color:#fff;color-scheme:dark;--bg:#292929;--bg2:#1f1f1f;--card:#333;--text:#fff;--text2:#d6d6d6;--muted:#c8c8c8;--line:#3d3d3d;--line2:#5c5c5c;--hover:#3d3d3d;--hover2:#474747;--brand-t:color-mix(in srgb,var(--brand) 55%,#fff)} /* the calls area's picker is made for the dark meeting window */
+:root[data-theme=hc] .mt-fxhost{background:#000;border:1px solid #fff}
 .mt-pvbox{display:flex;flex-direction:column;border-radius:8px;overflow:hidden;background:#1f1f1f;color:#fff}
 .mt-pvstage{position:relative;aspect-ratio:16/9;display:grid;place-items:center;background:#292929}
 .mt-pv{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
@@ -186,7 +187,7 @@
 
 /* ---------- phones ---------- */
 @media (max-width:760px){
-  .mt-when{grid-template-columns:1fr 1fr}.mt-when .field:first-child{grid-column:1 / -1}
+  .mt-when{grid-template-columns:1fr 1fr}.mt-when .field:first-child,.mt-when .mt-allday{grid-column:1 / -1}
   .mt-grid2{grid-template-columns:1fr}
   .mt-pjbody{grid-template-columns:1fr}.mt-pjcard{padding:16px}
   .mt-meetbtn .mt-meetlbl,.mt-meetbtn .mt-caret{display:none}.mt-meetbtn{padding:3px 7px;min-height:30px}

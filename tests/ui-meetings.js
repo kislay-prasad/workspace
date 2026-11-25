@@ -154,7 +154,13 @@ const SHOTS = '/tmp/meetings-shots', sleep = (ms) => new Promise((r) => setTimeo
     await shot(C, 'webinar-attendee'); await C.evaluate(() => LC.leaveCall()); await H.evaluate(() => LC.leaveCall());
   });
 
-  console.log('Meetings: themes and phone');
+  console.log('Meetings: settings, themes and phone');
+  await step('settings → Meetings: the before-you-join screen for every call, sounds', async () => {
+    await H.evaluate(() => LC.settingsPanel('meetings')); const sel = '.modal select[aria-label="Show the “before you join” screen"]'; await H.waitForSelector(sel); await audit(H, 'meetings settings');
+    await H.selectOption(sel, 'all'); await H.keyboard.press('Escape'); const dm = 'dm:' + [host.id, bob.id].sort().join(':');
+    await H.evaluate((d) => LC.openChat(d), dm); await H.evaluate((d) => { LC.startCall(d, 'voice'); }, dm); await H.waitForSelector('.mt-prejoin'); await H.click('.mt-prejoin button:has-text("Cancel")');
+    if (await H.evaluate(() => LC.inCall())) throw new Error('cancel should not start the call'); await H.evaluate(() => LC.setUi({ mtPrejoin: 'meetings' }));
+  });
   await step('dark theme screenshots (pane, form, before you join)', async () => {
     await H.evaluate(() => LC.setUi({ theme: 'dark' })); await H.click('.rbtn[data-pane="meet"]'); await H.waitForSelector('.mt-paneacts'); await shot(H, 'meet-pane-dark'); await audit(H, 'meet pane (dark)');
     await H.evaluate(() => LC.meetings.schedule()); await H.waitForSelector('.mt-form'); await shot(H, 'new-meeting-dark'); await H.keyboard.press('Escape');
