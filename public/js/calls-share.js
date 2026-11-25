@@ -244,7 +244,7 @@
     const tb = (k, icon, label, fn, o = {}) => el('button', { class: 'cl-ptbtn' + (o.on ? ' on' : '') + (o.danger ? ' danger' : ''), type: 'button', title: label, 'aria-label': label, 'aria-pressed': o.pressed === undefined ? null : String(!!o.pressed), 'data-k': 'pt:' + k, onclick: fn }, LC.icon(icon, { filled: !!o.on }), o.text ? el('span', { text: o.text }) : null);
     const what = sh.kind === 'board' ? t('cl_whiteboard') : sh.kind === 'pdf' ? (sh.file && sh.file.name) || t('cl_pdf') : t('cl_screen');
     return el('div', { class: 'cl-ptool', role: 'toolbar', 'aria-label': t('cl_presenting') },
-      el('span', { class: 'cl-ptitle' }, el('span', { class: 'cl-recdot cl-live', 'aria-hidden': 'true' }), el('b', { text: t('cl_presenting') }), el('small', { class: 'muted', text: what }), el('span', { class: 'ctimer', text: X.fmtDur(Date.now() - (sh.at || Date.now()) + (S.serverSkew || 0) * 0) })),
+      el('span', { class: 'cl-ptitle' }, el('span', { class: 'cl-recdot cl-live', 'aria-hidden': 'true' }), el('b', { text: t('cl_presenting') }), el('small', { class: 'muted', text: what }), el('span', { class: 'ctimer', 'data-since': String((sh.at || Date.now()) - (S.serverSkew || 0)), text: X.fmtDur(Date.now() - ((sh.at || Date.now()) - (S.serverSkew || 0))) })),
       sh.kind === 'screen' ? tb('pause', c.paused ? 'play' : 'pause', c.paused ? t('cl_resumeShare') : t('cl_pause'), togglePause, { pressed: c.paused }) : null,
       c.companion ? null : tb('mic', c.me.mic ? 'mic' : 'mic_off', c.me.mic ? t('mute') : t('unmuteMic'), () => LC.callApi.toggleMic(), { pressed: c.me.mic }),
       tb('cam', c.me.cam ? 'video' : 'video_off', c.me.cam ? t('turnCameraOff') : t('turnCameraOn'), () => LC.callApi.toggleCam(), { pressed: c.me.cam }),

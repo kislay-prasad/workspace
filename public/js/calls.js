@@ -466,7 +466,7 @@
     if (eps.length === 2 && view !== 'large' && eps.includes(call.ep)) return el('div', { class: 'stage duo' }, tileFor(eps.find((x) => x !== call.ep)), tileFor(call.ep));
     const per = view === 'large' ? 49 : 9, pg = pager(eps.length, per), shown = eps.slice(call.page * per, call.page * per + per), sg = shown.filter((ep) => signers().has(uidOf(ep))).length;
     const n = shown.length + sg * 3, cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : n <= 25 ? 5 : n <= 36 ? 6 : 7, rows = Math.max(1, Math.ceil(n / cols));
-    return el('div', { class: 'stage gallery cl-grid' + (view === 'large' ? ' cl-large' : ''), style: `--cols:${cols};--rows:${rows}` }, shown.map(tileFor), pg);
+    return el('div', { class: 'stage gallery' + (sg ? ' cl-grid' : '') + (view === 'large' ? ' cl-large' : ''), style: `--cols:${cols};--rows:${rows}` }, shown.map(tileFor), pg);
   }
   function bannerNodes(st) {
     const out = [], b = call.banners, close = (k) => LC.ibtn('dismiss', t('cl_dismiss'), () => { b[k] = 0; if (k === 'net') call.netHushed = true; if (k === 'muted') call.mutedHushed = Date.now(); if (k === 'rec') call.recSeen = st.rec && st.rec.started; drawUi(); }, { cls: 'icon sm' });
@@ -548,7 +548,7 @@
       bar.addEventListener('pointermove', move); bar.addEventListener('pointerup', up);
     });
   }
-  const tickTimer = () => { const n = $('#callTimer'); if (n && call) n.textContent = fmtDur(Date.now() - call.t0); };
+  const tickTimer = () => { const n = $('#callTimer'); if (n && call) n.textContent = fmtDur(Date.now() - call.t0); if (call) for (const x of document.querySelectorAll('#callUI [data-since]')) x.textContent = fmtDur(Date.now() - Number(x.dataset.since)); };
   setInterval(tickTimer, 1000);
   const fullscreen = (node) => { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else if (node && node.requestFullscreen) node.requestFullscreen().catch(() => {}); };
 
