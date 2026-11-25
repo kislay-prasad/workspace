@@ -292,7 +292,7 @@
     if (m.system) return sysEl(m);
     const mine = m.from === S.me.id, u = S.users.get(m.from);
     if (m.deleted) return el('div', { class: 'msg tomb' + (mine ? ' mine' : ''), 'data-id': m.id, 'data-seq': m.seq }, mine ? null : el('div', { class: 'gut' }), el('div', { class: 'body bubble deleted' }, LC.icon('delete'), ' ' + t('deleted') + (m.deletedBy && m.deletedBy !== m.from ? ' · ' + t('deletedBy', { name: LC.uname(m.deletedBy) }) : '')));
-    const body = el('div', { class: 'body bubble' + (m.priority ? ' cx-p-' + m.priority : '') });
+    const body = el('div', { class: 'body bubble' + (m.priority ? ' cx-p-' + m.priority : '') + (m.sticker && !m.text && !(m.files || []).length && !m.reply ? ' cx-stickmsg' : '') });
     const prio = m.priority ? el('span', { class: 'cx-prio ' + m.priority }, LC.icon(m.priority === 'urgent' ? 'alert_urgent' : 'important'), t(m.priority === 'urgent' ? 'cx_urgent' : 'cx_important')) : null;
     const marks = () => [m.pinned ? LC.icon('pin', { filled: true, cls: 'pinmark', label: t('pinned') }) : null, m.expiresAt ? el('span', { class: 'ttlmark', title: t('disappearsAt', { when: LC.fmtDateTime(m.expiresAt) }) }, LC.icon('timer', { label: t('disappearsAt', { when: LC.fmtDateTime(m.expiresAt) }) })) : null];
     if (!o.grouped) body.append(el('div', { class: 'mh' },
