@@ -351,5 +351,113 @@ H.suite('Teams area: teams, channels, admin and security, bots', async (t) => {
   });
 
   // ---------------- bots and automation ----------------
+  await t.section('incoming webhooks: secret URL (hashed, constant-time), posts cards, rate-limited, regenerate and remove', async () => {
+    carol.token = s.ctx.newToken(s.db.users[carol.id]); // signed out everywhere in the devices section
+    t.eq((await call('POST', '/api/tm/hooks/create', { chan: gen, kind: 'in', name: 'CI' }, carol.token)).s, 404, 'outsiders cannot');
+    const r = await call('POST', '/api/tm/hooks/create', { chan: gen, kind: 'in', name: 'Build bot' }, bob.token); ok(r);
+    const hook = r.d.hook, url = new URL(s.B + r.d.url), key = url.searchParams.get('key');
+    t.ok(!JSON.stringify(s.db.tmHooks).includes(key), 'webhook key stored hashed');
+    t.eq((await fetch(`${s.B}/api/hook/in?id=${hook.id}&key=${key.slice(0, -2)}xx`, { method: 'POST', body: '{"text":"x"}' })).status, 404);
+    const p = await fetch(s.B + r.d.url, { method: 'POST', body: JSON.stringify({ title: 'Build passed', text: 'All green', card: { title: 'Build 42', facts: [{ k: 'Branch', v: 'main' }], buttons: [{ label: 'Open', url: 'https://example.com/b/42' }, { label: 'Bad', url: 'javascript:alert(1)' }] } }) });
+    t.eq(p.status, 200); const m = s.db.messages.find((x) => x.card && x.card.title === 'Build 42');
+    t.ok(m && m.from === hook.uid && m.bot.kind === 'in', m); t.eq(m.card.buttons.length, 1, 'unsafe link dropped');
+    t.ok(s.db.users[hook.uid].bot && s.db.users[hook.uid].removed, 'webhook identity is a hidden bot');
+    const codes = []; for (let i = 0; i < 31; i++) codes.push((await fetch(s.B + r.d.url, { method: 'POST', body: '{"text":"spam"}', headers: { 'x-forwarded-for': '10.9.9.' + i } })).status);
+    t.ok(codes.includes(429), 'rate-limited');
+    const g = await call('POST', '/api/tm/hooks/regen', { id: hook.id }, owner.token); ok(g);
+    t.eq((await fetch(s.B + r.d.url, { method: 'POST', body: '{"text":"old key"}', headers: { 'x-forwarded-for': '10.9.8.1' } })).status, 404, 'old key stops working');
+    ok(await call('POST', '/api/tm/hooks/remove', { id: hook.id }, owner.token));
+    t.eq((await fetch(s.B + g.d.url, { method: 'POST', body: '{"text":"gone"}', headers: { 'x-forwarded-for': '10.9.8.2' } })).status, 404);
+  });
+
+  await t.section('outgoing webhooks: @mention → signed POST (HMAC-SHA256) → answer posted as a reply; errors kept for admins', async () => {
+    let got = null; const srv = require('http').createServer((req, res) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => { got = { body: b, auth: req.headers.authorization, sig: req.headers['x-lanchat-signature'] }; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ text: 'Pong from the service', card: { title: 'Answer', buttons: [{ label: 'Again', action: 'post', id: 'again' }] } })); }); });
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r)); const port = srv.address().port;
+    t.eq((await call('POST', '/api/tm/hooks/create', { chan: gen, kind: 'out', name: 'Pinger', url: `http://127.0.0.1:${port}/hook` }, dan.token)).s, 403, 'members cannot add outgoing webhooks');
+    const r = await call('POST', '/api/tm/hooks/create', { chan: gen, kind: 'out', name: 'Pinger', url: `http://127.0.0.1:${port}/hook` }, owner.token); ok(r);
+    const sent = await call('POST', '/api/send', { chan: gen, text: '@Pinger ping please' }, bob.token); ok(sent);
+    for (let i = 0; i < 40 && !s.db.messages.some((m) => m.text === 'Pong from the service'); i++) await t.wait(50);
+    t.ok(got, 'the service was called'); const expect = crypto.createHmac('sha256', Buffer.from(r.d.secret, 'base64')).update(got.body).digest('base64'); t.eq(got.auth, 'HMAC ' + expect);
+    t.eq(JSON.parse(got.body).text, '@Pinger ping please');
+    const reply = s.db.messages.find((m) => m.text === 'Pong from the service'); t.ok(reply && reply.thread === sent.d.id && reply.bot.kind === 'out', reply);
+    got = null; const act = await call('POST', '/api/tm/card/action', { id: reply.id, button: 0 }, dan.token); ok(act); t.eq(JSON.parse(got.body).action, 'again');
+    t.eq((await call('POST', '/api/tm/card/action', { id: reply.id, button: 0 }, carol.token)).s, 404, 'outsiders cannot press buttons');
+    srv.close(); await t.wait(50);
+    ok(await call('POST', '/api/send', { chan: gen, text: '@Pinger again' }, bob.token));
+    for (let i = 0; i < 60 && !s.db.tmHooks[r.d.hook.id].lastError; i++) await t.wait(100);
+    t.ok(s.db.tmHooks[r.d.hook.id].lastError, 'error recorded'); const l = await call('GET', '/api/tm/hooks', undefined, ada.token); t.ok(l.d.hooks.some((h) => h.lastError), l.d);
+  });
+
+  let botId;
+  await t.section('simple bots: keyword and regex replies, welcome messages; bots cannot sign in', async () => {
+    t.eq((await call('POST', '/api/tm/admin/bots/save', { name: 'Helper' }, bob.token)).s, 403);
+    const r = await call('POST', '/api/tm/admin/bots/save', { name: 'Helper', rules: [{ match: 'keyword', pattern: 'wifi, password', reply: { text: 'The Wi-Fi password is on the fridge, {person}.' }, chans: ['*'] }, { match: 'regex', pattern: '^order\\s+#?\\d+$', reply: { text: 'Order noted' }, chans: ['general'] }], welcome: { general: true, dm: true, text: 'Welcome {person}!' } }, ada.token); ok(r); botId = r.d.bot.uid;
+    t.eq((await call('POST', '/api/tm/admin/bots/save', { name: 'Bad', rules: [{ match: 'regex', pattern: '(', reply: { text: 'x' } }] }, ada.token)).s, 400);
+    ok(await call('POST', '/api/send', { chan: 'general', text: 'what is the wifi code?' }, carol.token)); await t.wait(50);
+    t.ok(s.db.messages.some((m) => m.from === botId && m.text === 'The Wi-Fi password is on the fridge, Carol.'), 'keyword rule');
+    ok(await call('POST', '/api/send', { chan: 'general', text: 'order #42' }, carol.token)); await t.wait(50); t.ok(s.db.messages.some((m) => m.from === botId && m.text === 'Order noted'), 'regex rule');
+    ok(await call('POST', '/api/send', { chan: s.dm(carol, { id: botId }), text: 'password?' }, carol.token)); await t.wait(50);
+    t.ok(s.db.messages.some((m) => m.from === botId && m.chan === s.dm(carol, { id: botId })), 'answers in a 1:1 chat with the bot');
+    ok(await call('POST', '/api/send', { chan: s.dm(carol, dan), text: 'wifi?' }, carol.token)); await t.wait(50);
+    t.ok(!s.db.messages.some((m) => m.from === botId && m.chan === s.dm(carol, dan)), 'bots never read other 1:1 chats');
+    const nu = await s.user('Newbie'); t.ok(s.db.messages.some((m) => m.from === botId && m.chan === 'general' && m.text === 'Welcome Newbie!')); t.ok(s.db.messages.some((m) => m.from === botId && m.chan === s.dm(nu, { id: botId })), 'welcome DM');
+    t.eq((await call('POST', '/api/join', { name: 'Helper', deviceId: 'b' }, null, { ip: s.nextIp() })).s, 403, 'a bot name cannot sign in');
+    const ev = s.sse(bob.token); const init = await ev.waitFor('init'); ev.close(); const bu = init.users.find((u) => u.id === botId); t.ok(bu.bot && bu.presence === 'online', bu);
+  });
+
+  await t.section('workflows: message, reaction, team join, manual and schedule triggers; steps and errors', async () => {
+    t.eq((await call('POST', '/api/tm/admin/flows/save', { name: 'x', trigger: { type: 'join' }, actions: [{ type: 'dm', to: 'person', text: 'hi' }] }, bob.token)).s, 403);
+    const planning = Object.values(s.db.channels).find((c) => c.team === team.id && c.name === 'Planning').id;
+    ok(await call('POST', '/api/tm/admin/flows/save', { name: 'Urgent watcher', trigger: { type: 'message', chan: gen, words: 'urgent' }, actions: [{ type: 'post', chan: planning, text: '{person} flagged: {text}' }, { type: 'task', chan: planning, text: 'Follow up with {person}' }] }, owner.token));
+    ok(await call('POST', '/api/send', { chan: gen, text: 'this is urgent!' }, bob.token)); await t.wait(100);
+    t.ok(s.db.messages.some((m) => m.chan === planning && m.text === 'Bob flagged: this is urgent!' && m.bot && m.bot.kind === 'flow'), 'post step');
+    t.ok((s.db.extras[planning] || { todos: [] }).todos.some((x) => x.text === 'Follow up with Bob'), 'task step');
+    const pub = await call('POST', '/api/teams/create', { name: 'Runners club', visibility: 'public' }, owner.token);
+    const f2 = await call('POST', '/api/tm/admin/flows/save', { name: 'Welcome runners', trigger: { type: 'teamJoin', team: pub.d.team.id }, actions: [{ type: 'dm', to: 'person', text: 'Welcome to {team}, {person}!' }] }, owner.token); ok(f2);
+    ok(await call('POST', '/api/teams/join', { id: pub.d.team.id }, carol.token)); await t.wait(100);
+    t.ok(s.db.messages.some((m) => m.text === 'Welcome to Runners club, Carol!' && m.chan.includes(carol.id)), 'team join trigger');
+    ok(await call('POST', '/api/tm/admin/flows/save', { name: 'Thumbs', trigger: { type: 'reaction', chan: gen, emoji: '👍' }, actions: [{ type: 'addTeam', team: pub.d.team.id }] }, owner.token));
+    const target = s.db.messages.filter((m) => m.chan === gen && !m.system).pop(); ok(await call('POST', '/api/react', { id: target.id, emoji: '👍' }, dan.token)); await t.wait(100);
+    t.ok(s.db.teams[pub.d.team.id].members.includes(dan.id), 'reaction trigger added Dan to the team');
+    const man = await call('POST', '/api/tm/admin/flows/save', { name: 'Stand-up', trigger: { type: 'manual', input: 'What did you do?' }, actions: [{ type: 'card', card: { title: 'Stand-up from {person}', text: '{input}' } }] }, owner.token); ok(man);
+    const list = await call('GET', `/api/tm/flows/manual?chan=${gen}`, undefined, bob.token); t.ok(list.d.flows.some((f) => f.id === man.d.flow.id));
+    ok(await call('POST', '/api/tm/flows/run', { id: man.d.flow.id, chan: gen, input: 'Shipped it' }, bob.token)); await t.wait(50);
+    t.ok(s.db.messages.some((m) => m.chan === gen && m.card && m.card.title === 'Stand-up from Bob' && m.card.text === 'Shipped it'), 'manual run posts a card');
+    t.eq((await call('POST', '/api/tm/flows/run', { id: man.d.flow.id, chan: priv }, carol.token)).s, 404, 'cannot run into a chat you cannot see');
+    const d = new Date(Date.now() + 120000), hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const sch = await call('POST', '/api/tm/admin/flows/save', { name: 'Daily hello', trigger: { type: 'schedule', freq: 'daily', time: hm }, actions: [{ type: 'post', chan: 'general', text: 'Good morning!' }, { type: 'webhook', url: 'http://127.0.0.1:9/' }] }, owner.token); ok(sch);
+    s.tick(d.getTime()); await t.wait(300); t.ok(s.db.messages.some((m) => m.chan === 'general' && m.text === 'Good morning!'), 'schedule trigger');
+    for (let i = 0; i < 30 && !s.db.tmFlows[sch.d.flow.id].lastError; i++) await t.wait(100);
+    t.ok(/webhook/.test(s.db.tmFlows[sch.d.flow.id].lastError), 'webhook error kept: ' + s.db.tmFlows[sch.d.flow.id].lastError);
+    ok(await call('POST', '/api/tm/admin/flows/toggle', { id: sch.d.flow.id, on: false }, owner.token));
+  });
+
+  await t.section('cards from people: validated; reply buttons ok, callback buttons only for bots', async () => {
+    const r = await call('POST', '/api/send', { chan: 'general', card: { title: 'Lunch?', text: 'Vote below', buttons: [{ label: 'Yes', action: 'reply', value: 'Count me in' }, { label: 'Sneaky', action: 'post', id: 'x' }, { label: 'Menu', url: 'https://example.com/menu' }] } }, bob.token); ok(r);
+    const m = s.db.messages.find((x) => x.id === r.d.id); t.eq(m.card.buttons.map((b) => b.label), ['Yes', 'Menu']);
+    t.eq((await call('POST', '/api/send', { chan: 'general', card: { image: 'data:image/svg+xml;base64,PHN2Zz4=' } }, bob.token)).s, 400, 'no SVG pictures');
+    t.eq((await call('POST', '/api/tm/card/action', { id: r.d.id, button: 0 }, dan.token)).s, 400);
+  });
+
+  await t.section('API keys: hashed, scoped, act as a bot only in chats it belongs to; revoke', async () => {
+    t.eq((await call('POST', '/api/tm/admin/keys/create', { name: 'k', botName: 'Reporter', scopes: ['read'] }, bob.token)).s, 403);
+    const rk = await call('POST', '/api/tm/admin/keys/create', { name: 'Reader', botName: 'Reporter', scopes: ['read'] }, ada.token); ok(rk);
+    const wk = await call('POST', '/api/tm/admin/keys/create', { name: 'Writer', bot: rk.d.info.uid, scopes: ['read', 'post'] }, ada.token); ok(wk);
+    t.ok(/^lck_[a-f0-9]{10}_/.test(wk.d.key)); t.ok(!JSON.stringify(s.db.tmKeys).includes(wk.d.key.split('_')[2]), 'API key stored hashed');
+    const api = (k, m, p, b) => fetch(s.B + p, { method: m, headers: { 'x-api-key': k, 'x-forwarded-for': '10.5.5.5' }, body: b ? JSON.stringify(b) : undefined }).then(async (r) => ({ s: r.status, d: await r.json().catch(() => ({})) }));
+    t.eq((await api('lck_0000000000_nope-nope-nope-nope-nope', 'GET', '/api/bot/me')).s, 401);
+    const me = await api(wk.d.key, 'GET', '/api/bot/me'); t.eq(me.d.name, 'Reporter');
+    t.eq((await api(wk.d.key, 'GET', `/api/bot/messages?chan=${gen}`)).s, 404, 'not in the team yet');
+    t.eq((await api(rk.d.key, 'POST', '/api/bot/send', { chan: 'general', text: 'hi' })).s, 403, 'read-only key');
+    const sent = await api(wk.d.key, 'POST', '/api/bot/send', { chan: 'general', text: 'Daily report', card: { title: 'Report', buttons: [{ label: 'Ack', action: 'post', id: 'ack' }] } }); t.eq(sent.s, 200, sent.d);
+    const msgs = await api(rk.d.key, 'GET', '/api/bot/messages?chan=general&limit=5'); t.ok(msgs.d.messages.some((m) => m.text === 'Daily report'));
+    ok(await call('POST', '/api/tm/card/action', { id: sent.d.id, button: 0 }, dan.token));
+    const evs = await api(rk.d.key, 'GET', '/api/bot/events'); t.ok(evs.d.events.some((e) => e.button === 'ack' && e.user.id === dan.id), evs.d);
+    ok(await call('POST', '/api/teams/members', { id: team.id, add: [rk.d.info.uid] }, owner.token));
+    t.eq((await api(wk.d.key, 'GET', `/api/bot/messages?chan=${gen}`)).s, 200, 'in the team now');
+    const chats = await api(wk.d.key, 'GET', '/api/bot/chats'); t.ok(chats.d.chats.some((c) => c.id === gen) && !chats.d.chats.some((c) => c.id === priv), 'only its chats');
+    ok(await call('POST', '/api/tm/admin/keys/revoke', { id: wk.d.info.id }, ada.token));
+    t.eq((await api(wk.d.key, 'GET', '/api/bot/me')).s, 401, 'revoked');
+  });
   void crypto;
 });
