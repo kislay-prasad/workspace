@@ -42,7 +42,7 @@
 .mt-cicon.x{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger)}
 .mt-dtitle{margin:0 0 2px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:18px;overflow-wrap:anywhere}
 .mt-dtitle .pill{margin-left:0}
-.mt-livepill,.pill.mt-ok{background:var(--ok);color:#fff;border-color:transparent}
+.mt-livepill,.pill.mt-ok{background:color-mix(in srgb,var(--ok) 16%,var(--bg));color:var(--text);border-color:var(--ok)}
 .mt-dacts{justify-content:flex-start}
 .mt-rsvp{display:flex;flex-wrap:wrap;gap:6px}
 .mt-rsvp .secondary[aria-pressed=true]{background:var(--brand-l);border-color:var(--brand);color:var(--brand-t)}

@@ -12,7 +12,7 @@ const SHOTS = '/tmp/meetings-shots', sleep = (ms) => new Promise((r) => setTimeo
 (async () => {
   const dir = TMP + '/lc-ui-meetings'; fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(SHOTS, { recursive: true });
   const app = createApp({ dataDir: dir, name: 'Meetings test', publicDir: ROOT + '/public' }); const port = await app.start(4520); const B = `http://127.0.0.1:${port}`; const c = app.ctx;
-  const host = c.makeUser('Host'); c.makeOwner(host); const bob = c.makeUser('Bob'), cy = c.makeUser('Cy'); const ht = c.newToken(host), bt = c.newToken(bob), ct = c.newToken(cy);
+  const host = c.makeUser('Host'); c.makeOwner(host); const bob = c.makeUser('Bob'), cy = c.makeUser('Cy'), dan = c.makeUser('Dan'); const ht = c.newToken(host), bt = c.newToken(bob), ct = c.newToken(cy), dt = c.newToken(dan);
   const post = (tok, p, b) => fetch(B + p, { method: 'POST', headers: { 'x-token': tok, 'content-type': 'application/json' }, body: JSON.stringify(b) }).then((r) => r.json());
   const br = await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] }); const errs = []; let pass = 0, fail = 0;
   const axeSrc = process.env.AXE_JS && fs.existsSync(process.env.AXE_JS) ? fs.readFileSync(process.env.AXE_JS, 'utf8') : null; const axeOut = [];
@@ -22,10 +22,11 @@ const SHOTS = '/tmp/meetings-shots', sleep = (ms) => new Promise((r) => setTimeo
     const p = await ctx.newPage(); p.setDefaultTimeout(9000); p.on('pageerror', (e) => errs.push(label + ' pageerror: ' + e.message)); p.on('console', (m) => { if (m.type() === 'error' && !/401|Failed to load resource/.test(m.text())) errs.push(label + ' console: ' + m.text().slice(0, 200)); });
     await p.goto(B + (o.hash || '')); if (tok) await p.waitForSelector('#app:not(.hidden) .item.active'); return p;
   };
-  const step = async (name, fn) => { try { await fn(); pass++; console.log('  ✓', name); } catch (e) { fail++; console.log('  ✗', name, '\n     ', e.message.split('\n').slice(0, 4).join(' | ')); } };
+  let pages = [];
+  const step = async (name, fn) => { try { await fn(); pass++; console.log('  ✓', name); } catch (e) { fail++; console.log('  ✗', name, '\n     ', e.message.split('\n').slice(0, 4).join(' | ')); for (const [i, p] of pages.entries()) await p.screenshot({ path: `${SHOTS}/fail-${pass + fail}-${i}.png` }).catch(() => {}); } };
   const audit = async (p, label) => { if (!axeSrc) return; await p.evaluate(axeSrc); const v = await p.evaluate(async () => (await axe.run(document, { resultTypes: ['violations'] })).violations.map((x) => `${x.id} (${x.nodes.length}) ${x.nodes.slice(0, 2).map((n) => n.target.join(' ')).join(' | ')}`)); axeOut.push([label, v]); if (v.length) throw new Error('axe: ' + v.join('; ')); };
   const shot = (p, name) => p.screenshot({ path: `${SHOTS}/${name}.png` });
-  const H = await open(ht, 'host'), P = await open(bt, 'bob'), C = await open(ct, 'cy');
+  const H = await open(ht, 'host'), P = await open(bt, 'bob'), C = await open(ct, 'cy'), D = await open(dt, 'dan'); pages = [H, P, C, D];
   let mid = null, mchan = null;
 
   console.log('Meetings: scheduling and joining');
@@ -58,10 +59,13 @@ const SHOTS = '/tmp/meetings-shots', sleep = (ms) => new Promise((r) => setTimeo
     const st = await H.evaluate(() => LC.S.calls[LC.callChan()]); if (st.meeting !== mid || st.roles[st.by] !== 'organizer') throw new Error(JSON.stringify({ m: st.meeting, roles: st.roles }));
   });
   await step('lobby: someone not invited waits ("let you in soon"), the organizer admits from the banner', async () => {
-    await C.goto(B + '/#meet=' + mid); await C.waitForSelector('.mt-prejoin'); await C.click('.mt-joinbtn'); await C.waitForSelector('.mt-prejoin.waiting .mt-wait:has-text("let you in soon")'); await shot(C, 'lobby-waiting');
-    await H.waitForSelector('#callUI .mt-lobbybar:has-text("Cy")'); await shot(H, 'lobby-banner'); await H.click('#callUI .cbtn[aria-label="Lobby"]'); await H.waitForSelector('#callUI .cside .mt-lrow:has-text("Cy")'); await audit(H, 'lobby panel');
-    await H.click('#callUI .cside .mt-lrow button:has-text("Admit")'); await C.waitForSelector('#callUI:not(.hidden) .tile', { timeout: 12000 });
-    if (await C.evaluate(() => location.hash)) throw new Error('hash not cleared');
+    await D.goto(B + '/#meet=' + mid); await D.waitForSelector('.mt-prejoin'); await D.click('.mt-joinbtn'); await D.waitForSelector('.mt-prejoin.waiting .mt-wait:has-text("let you in soon")'); await shot(D, 'lobby-waiting');
+    await H.waitForSelector('#callUI .mt-lobbybar:has-text("Dan")'); await shot(H, 'lobby-banner'); await H.click('#callUI .cbtn[aria-label="Lobby"]'); await H.waitForSelector('#callUI .cside .mt-lrow:has-text("Dan")'); await audit(H, 'lobby panel');
+    await H.click('#callUI .cside .mt-lrow button:has-text("Admit")'); await D.waitForSelector('#callUI:not(.hidden) .tile', { timeout: 12000 });
+    if (await D.evaluate(() => location.hash)) throw new Error('hash not cleared');
+  });
+  await step('an (optional) invitee goes straight in: no lobby', async () => {
+    await C.click(`.item[data-chan="${mchan}"] .itemmain`); await C.click('.mt-card button:has-text("Join")'); await C.waitForSelector('.mt-prejoin'); await C.click('.mt-joinbtn'); await C.waitForSelector('#callUI:not(.hidden) .tile', { timeout: 12000 });
   });
   await step('join / leave chime for people already in the meeting', async () => {
     const before = await H.evaluate(() => LC.mt.chimes || 0);
@@ -108,7 +112,7 @@ const SHOTS = '/tmp/meetings-shots', sleep = (ms) => new Promise((r) => setTimeo
     await H.keyboard.press('Escape'); await H.click('#callUI .cbtn[aria-label="More options"]'); await H.click('.popmenu button:has-text("Recap")'); await H.waitForSelector('.modal .mt-recap .mt-rsec:has-text("Friday release?")'); await H.waitForSelector('.modal .mt-recap .mt-rsec:has-text("Decide the date")'); await shot(H, 'recap'); await audit(H, 'recap'); await H.keyboard.press('Escape');
   });
   await step('everyone leaves; the recap tab in the meeting chat has the Q&A', async () => {
-    for (const p of [H, P, C]) await p.evaluate(() => LC.leaveCall()); await P.click('.tab[data-tab="mtrecap"]'); await P.waitForSelector('#tabView .mt-recap:has-text("Can we ship on Friday?")'); await P.click('.tab[data-tab="chat"]');
+    for (const p of [H, P, C, D]) await p.evaluate(() => LC.leaveCall()); await P.click('.tab[data-tab="mtrecap"]'); await P.waitForSelector('#tabView .mt-recap:has-text("Can we ship on Friday?")'); await P.click('.tab[data-tab="chat"]');
   });
 
   console.log('Meetings: links, reminders, companion');
@@ -119,7 +123,7 @@ const SHOTS = '/tmp/meetings-shots', sleep = (ms) => new Promise((r) => setTimeo
   await step('reminder: a ring when the meeting starts, Join opens the before-you-join screen', async () => {
     const st = Date.now() + 60000, r = await post(ht, '/api/meetings/create', { title: 'Coffee chat', start: st, end: st + 1800000, invitees: [bob.id], tz: 'UTC' });
     for (const tk of c.ticks.filter((x) => x.mt === 'reminders')) tk.fn(st + 1000);
-    await P.waitForSelector('.mt-ring:has-text("Coffee chat")'); await shot(P, 'ring'); await audit(P, 'meeting ring'); await P.click('.mt-ring button:has-text("Join")'); await P.waitForSelector('.mt-prejoin h2:has-text("Coffee chat")'); await P.click('.mt-prejoin button:has-text("Cancel")'); void r;
+    await P.waitForSelector('.mt-ring:has-text("Coffee chat")'); await sleep(450); await shot(P, 'ring'); await audit(P, 'meeting ring'); await P.click('.mt-ring button:has-text("Join")'); await P.waitForSelector('.mt-prejoin h2:has-text("Coffee chat")'); await P.click('.mt-prejoin button:has-text("Cancel")'); void r;
   });
   await step('companion device: joins without audio and shows as a companion', async () => {
     await H.evaluate((i) => { LC.meetings.join(i); }, mid); await H.waitForSelector('.mt-prejoin'); await H.click('.mt-joinbtn'); await H.waitForSelector('#callUI:not(.hidden) .tile');

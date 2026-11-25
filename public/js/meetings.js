@@ -120,8 +120,8 @@
       list.replaceChildren(...shown.map((u, i) => el('div', { class: 'mt-opt' + (i === idx ? ' on' : ''), role: 'option', id: id + '-' + i, 'aria-selected': String(i === idx), onmousedown: (e) => { e.preventDefault(); pick(i); } }, LC.avatar(u, 'sm', true), el('span', { text: LC.uname(u.id) }))));
       list.classList.remove('hidden'); input.setAttribute('aria-expanded', 'true'); input.setAttribute('aria-activedescendant', id + '-' + idx);
     };
-    const pick = (i) => { const u = shown[i]; if (!u) return; sel.add(u.id); input.value = ''; idx = 0; drawChips(); draw(); onChange && onChange(); };
-    input.addEventListener('input', () => { idx = 0; draw(); }); input.addEventListener('focus', draw); input.addEventListener('blur', () => setTimeout(close, 120));
+    const pick = (i) => { const u = shown[i]; if (!u) return; sel.add(u.id); input.value = ''; idx = 0; drawChips(); close(); onChange && onChange(); };
+    input.addEventListener('input', () => { idx = 0; draw(); }); input.addEventListener('blur', () => setTimeout(close, 120));
     input.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { if (!shown.length) return draw(); idx = (idx + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length; draw(); e.preventDefault(); }
       else if (e.key === 'Enter') { if (!list.classList.contains('hidden') && shown[idx]) { pick(idx); e.preventDefault(); } }
@@ -503,7 +503,7 @@
     const box = nav.querySelector('.mt-recent'); if (!box || S.pane !== 'meet') return;
     box.replaceChildren(...(recent.length ? recent.slice(0, 15).map((r) => el('div', { class: 'mt-row' }, el('button', { type: 'button', class: 'mt-rowmain', onclick: () => MT.recap && MT.recap(r.id, r.occ) }, el('div', { class: 'mt-rtime' }, el('b', { text: new Date(r.start).getDate() }), el('small', { text: new Date(r.start).toLocaleDateString(lang(), { month: 'short' }) })), el('span', { class: 'itext' }, el('span', { class: 'name', text: r.title }), el('span', { class: 'prev', text: LC.fmtTime(r.start) + (r.end ? ' · ' + MT.dur(r.end - r.start) : ' · ' + t('mt_live')) + ' · ' + t('peopleCount', { n: r.people }) })), LC.icon('clipboard_task', { cls: 'mt-repicon', label: t('mt_recap') })))) : [el('p', { class: 'muted small pad', text: t('mt_noRecent') })]));
   }
-  LC.ext.panes.meet = { icon: 'video_person', label: () => t('mt_rail'), order: 45, render: renderMeetPane, badge: () => MT.upcoming.filter((x) => x.live).length, live: true,
+  LC.ext.panes.meet = { icon: 'video_person', label: () => t('mt_rail'), order: 45, render: renderMeetPane, badge: () => MT.upcoming.filter((x) => x.live).length,
     actions: () => [LC.ibtn('number_symbol', t('mt_joinWithId'), () => LC.meetings.joinWithId()), LC.ibtn('calendar_add', t('mt_schedule'), () => LC.meetings.schedule())] };
   LC.on('callstate', (e) => { if (MT.upcoming.some((x) => x.chan === e.chan)) { for (const x of MT.upcoming) if (x.chan === e.chan) x.live = !!(e.call && e.call.meeting === x.id); if (S.pane === 'meet') LC.renderNav(); } });
 
