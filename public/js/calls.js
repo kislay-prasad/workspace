@@ -561,7 +561,11 @@
     const xp = extPanels().find((p) => p.key === key);
     if (xp) { const side = el('div', { class: 'cside', role: 'group', 'aria-label': xp.label }, panelHead(xp.label, xp.key)); try { xp.render(side, LC.callApi); } catch (e) { console.error('call panel', e); } return side; }
     if (key === 'chat') return chatPanel();
-    const own = X.panels[key]; if (own) { const side = el('div', { class: 'cside', role: 'group', 'aria-label': own.label() }, panelHead(own.label(), key)); try { own.render(side, st); } catch (e) { console.error(e); } return side; }
+    const own = X.panels[key]; if (own) { // keep: true = built once per call and kept between redraws (live previews)
+      if (own.keep && own.node && own.nodeChan === call.chan) return own.node;
+      const side = el('div', { class: 'cside', role: 'group', 'aria-label': own.label() }, panelHead(own.label(), key)); try { own.render(side, st); } catch (e) { console.error(e); }
+      if (own.keep) { own.node = side; own.nodeChan = call.chan; } return side;
+    }
     if (key === 'people') return peoplePanel(st);
     if (key === 'info') return infoPanel(st);
     if (key === 'devices') return devicePanel();
@@ -852,6 +856,7 @@
   function endLocal(quiet) {
     if (!call) return; const was = call; clearInterval(call.levelTimer); clearInterval(call.statsTimer); clearInterval(call.aliveTimer); RT.stop();
     for (const f of X.onEnd) { try { f(was); } catch (e) { console.error(e); } }
+    for (const p of Object.values(X.panels)) p.node = null;
     for (const ep of [...call.peers.keys()]) dropPeer(ep);
     stopStream(call.local); if (call.screen) stopStream(call.screen); if (call.mixed) { try { call.mixed.ctx.close(); } catch {} } if (call.camFx) { try { call.camFx.stop(); } catch {} } if (call.scrFx) { try { call.scrFx.stop(); } catch {} } if (call.probe) call.probe.track.stop();
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
