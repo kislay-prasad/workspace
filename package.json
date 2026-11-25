@@ -1,6 +1,6 @@
 {
   "name": "lanchat",
-  "version": "4.3.0",
+  "version": "4.4.0",
   "description": "Private chat sessions for you and your friends. Host on your own computer; nothing goes through the cloud. Zero dependencies.",
   "main": "server.js",
   "scripts": { "start": "node server.js", "test": "node test.js && node tests/run-api.js" },
