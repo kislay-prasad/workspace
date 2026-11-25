@@ -93,8 +93,103 @@
 .cl-vmrec{display:flex;align-items:center;gap:6px}
 .cl-pick{max-height:280px;overflow:auto}
 
+/* video effects picker (side panel, settings, before joining) */
+.cl-fx{display:flex;flex-direction:column;gap:4px}
+.cl-fxprevwrap{border-radius:8px;overflow:hidden;background:#000;aspect-ratio:16/9;margin:6px 0}
+.cl-fxprev{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
+.cl-fxgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;margin:4px 0 8px}
+.cl-fxopt{display:flex;flex-direction:column;gap:4px;align-items:stretch;padding:3px;border:2px solid transparent;border-radius:8px;background:var(--bg2);color:var(--text);font-size:11px;text-align:center}
+.cl-fxopt canvas{width:100%;aspect-ratio:16/9;height:auto;border-radius:5px;display:block}
+.cl-fxopt span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cl-fxopt:hover{border-color:var(--line2)}.cl-fxopt.on{border-color:var(--brand-t)}
+.cl-fxadd{justify-content:center;align-items:center;min-height:62px}.cl-fxadd .ic{width:22px;height:22px}
+
+/* share tray */
+.cl-sharegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin:6px 0 12px}
+.cl-sharecard{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);text-align:left}
+.cl-sharecard:hover:not(:disabled){border-color:var(--brand);background:var(--brand-l)}.cl-sharecard:disabled{opacity:.55}
+.cl-sharecard img{width:100%;aspect-ratio:16/9;object-fit:contain;background:#000;border-radius:4px}
+.cl-sharecard small{color:var(--muted);font-size:12px}.cl-sharecard b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.cl-shareico{width:40px;height:40px;border-radius:8px;display:grid;place-items:center;background:var(--brand-l);color:var(--brand-t)}.cl-shareico .ic{width:22px;height:22px}
+.cl-modes{display:flex;flex-wrap:wrap;gap:4px 16px}
+
+/* shared content on the stage: zoom, annotations, paused, watermark, request control */
+.cl-zoomwrap{position:absolute;inset:0;transform-origin:0 0}
+.cl-zoomwrap>video{width:100%;height:100%;object-fit:contain;display:block}
+.present.cl-zoomed{cursor:grab}.present.cl-zoomed:active{cursor:grabbing}
+.cl-zoombar{position:absolute;right:12px;bottom:12px;display:flex;gap:2px;background:rgba(0,0,0,.6);border-radius:6px;padding:2px;z-index:4}
+.cl-zoombar .icon,.cl-inkbar .icon{width:30px;height:30px;color:#fff}
+.cl-ink{position:absolute;pointer-events:none;z-index:3;touch-action:none}.cl-ink.cl-active{pointer-events:auto;cursor:crosshair}
+.cl-inkbar{position:absolute;left:12px;bottom:12px;display:flex;align-items:center;gap:2px;background:rgba(0,0,0,.6);border-radius:6px;padding:2px 4px;z-index:4}
+.cl-inkbar .icon.on{background:#3d3e66;color:#c8caff}
+.cl-swatch{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.5);margin:0 2px;padding:0}.cl-swatch.on{border-color:#fff;box-shadow:0 0 0 2px #7f85f5}
+.cl-reqctl{position:absolute;right:56px;top:12px;z-index:4}
+.cl-pausedlayer{position:absolute;inset:0;display:grid;place-items:center;z-index:2;pointer-events:none}
+.cl-freeze{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.cl-pausedpill{position:relative;display:inline-flex;gap:6px;align-items:center;background:rgba(0,0,0,.72);border-radius:16px;padding:6px 14px;font-weight:600}
+.cl-watermark{position:absolute;inset:-20%;display:flex;flex-wrap:wrap;gap:60px 90px;align-content:space-around;justify-content:space-around;transform:rotate(-24deg);pointer-events:none;z-index:3;overflow:hidden}
+.cl-watermark span{color:rgba(255,255,255,.13);font-size:22px;font-weight:600;white-space:nowrap;text-shadow:0 0 2px rgba(0,0,0,.25)}
+.cl-selfprev{position:relative;width:min(560px,90%);aspect-ratio:16/9;background:#000;border-radius:8px;overflow:hidden;margin-top:6px}.cl-selfprev video{width:100%;height:100%;object-fit:contain}
+.selfshare{overflow:auto}
+.cl-boardhost{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#fff;padding:8px}
+.cl-board,.cl-boardext{width:100%;height:100%;display:flex;flex-direction:column;gap:6px;color:#242424}
+.cl-board .boardwrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+.cl-board .boardcv{max-width:100%;max-height:100%;aspect-ratio:10/7;background:#fff;border:1px solid #ddd;border-radius:4px;touch-action:none}
+.cl-boardtools{display:flex;gap:6px;align-items:center;justify-content:center}.cl-boardtools .icon{color:#424242}.cl-boardtools .swatch{width:22px;height:22px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #bbb}.cl-boardtools .swatch.on{box-shadow:0 0 0 2px #5b5fc7}
+.cl-boardext{overflow:auto;background:var(--bg);color:var(--text)}
+.cl-pdfhost{position:absolute;inset:0 0 48px;background:#525659}.cl-pdf{width:100%;height:100%;border:0;display:block;background:#fff}
+.cl-pdfnav{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.65);border-radius:18px;padding:2px 10px;z-index:4}
+.cl-pdfpage{font-variant-numeric:tabular-nums;min-width:64px;text-align:center;font-size:13px}
+.cl-pdfnote{position:absolute;left:50%;top:44px;transform:translateX(-50%);background:#3d3e66;border-radius:12px;padding:2px 10px;font-size:12px;z-index:4}
+
+/* presenter toolbar (top of the stage while you present) and the red "you're sharing" frame */
+.cl-ptool{pointer-events:auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px;background:#1b1b1b;border:1px solid #525252;border-radius:8px;padding:4px 6px;box-shadow:0 8px 20px rgba(0,0,0,.5)}
+.cl-ptitle{display:inline-flex;align-items:center;gap:6px;padding:0 6px;font-size:12px}.cl-ptitle small{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cl-ptbtn{display:inline-flex;align-items:center;gap:4px;height:32px;min-width:32px;padding:0 8px;border:0;border-radius:4px;background:transparent;color:#fff;font-size:12px}.cl-ptbtn:hover{background:#3d3d3d}.cl-ptbtn .ic{width:18px;height:18px}
+.cl-ptbtn.on{color:#c8caff}.cl-ptbtn.danger{background:#c4314b}.cl-ptbtn.danger:hover{filter:brightness(.92);background:#c4314b}
+.cl-ptreq{display:inline-flex;align-items:center;gap:6px;padding:2px 6px;background:#3d3e66;border-radius:6px;font-size:12px}
+.cl-recdot.cl-live{background:#e5383b}
+.callui.cl-sharing::after{content:"";position:fixed;inset:0;border:3px solid #e5383b;pointer-events:none;z-index:9}
+.callui.mini.cl-sharing::after{position:absolute;border-radius:8px}
+
+/* Calls pane (app theme): list column and the history / voicemail area */
+.cl-navbox{padding:4px 12px 8px;display:flex;flex-direction:column;gap:6px}
+.cl-dial{width:100%}.cl-found .callrow{padding-left:4px}
+.cl-pickup{flex-direction:row;align-items:center}.cl-code-in{width:88px;font:600 16px/1 ui-monospace,Consolas,monospace;letter-spacing:.2em;text-align:center}
+.tabview.cl-callshost,.tabview.cl-walkiehost{padding:0}
+.cl-callsmain{display:flex;flex-direction:column;min-height:100%}
+.cl-mainhead{position:sticky;top:0;background:var(--bg);z-index:2}
+.cl-tabs{padding:0 24px}.cl-tabs .badge{margin-left:4px}
+.cl-chips{display:flex;gap:6px;flex-wrap:wrap;padding:12px 24px 4px}
+.cl-chip{border:1px solid var(--line2);background:var(--bg);color:var(--text);border-radius:16px;padding:3px 12px;font-size:13px}.cl-chip:hover{background:var(--hover)}
+.cl-chip.on{background:var(--brand-l);border-color:var(--brand);color:var(--brand-t);font-weight:600}
+.cl-hist{list-style:none;margin:0;padding:6px 16px 16px}
+.cl-hrow{display:flex;align-items:center;gap:12px;padding:8px;border-radius:6px}.cl-hrow:hover{background:var(--hover)}
+.cl-hrow .itext{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.cl-hrow .prev{display:inline-flex;align-items:center;gap:2px;white-space:normal}
+.cl-hico{width:14px;height:14px}.cl-hrow.missed .name,.cl-hrow.missed .cl-hico{color:var(--danger)}
+.cl-vmrow audio{height:32px;max-width:100%;margin-top:4px}
+.cl-vmrow.unheard .name{font-weight:700}
+.cl-new{margin-left:8px;font-size:11px;background:var(--brand);color:var(--on-brand);border-radius:8px;padding:0 6px;font-weight:600;vertical-align:middle}
+.cl-settings h3:first-child{margin-top:0}.cl-settings .rowline select{min-width:0;flex:1}
+.cl-camwrap{width:min(360px,100%);aspect-ratio:16/9;border-radius:8px;overflow:hidden;background:#000;margin:6px 0}
+.cl-campreview{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
+.cl-meter{height:10px;border-radius:5px;background:var(--hover2);overflow:hidden;width:min(360px,100%)}.cl-meter i{display:block;height:100%;width:0;background:var(--ok);transition:width .08s}
+.cl-fxsettings{margin:8px 0}
+
+/* Walkie Talkie */
+.cl-walkie{display:flex;flex-direction:column;align-items:center;gap:10px;padding:24px 16px;text-align:center}
+.cl-whead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center}.cl-whead h2{margin:0;font-size:20px}
+.cl-wstatus{margin:6px 0 0;font-weight:600;color:var(--muted)}.cl-wstatus.live{color:var(--ok)}
+.cl-ptt{width:180px;height:180px;border-radius:50%;border:0;background:var(--brand);color:var(--on-brand);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.25);touch-action:none;user-select:none;transition:transform .08s}
+.cl-ptt .ic{width:56px;height:56px}.cl-ptt:active,.cl-ptt.on{transform:scale(.96);background:var(--ok);color:#fff;box-shadow:0 0 0 10px color-mix(in srgb,var(--ok) 30%,transparent)}
+.cl-ptt.busy{background:var(--hover2);color:var(--muted)}.cl-ptt:disabled{opacity:.45}
+.cl-wpeople{display:flex;flex-wrap:wrap;gap:16px;justify-content:center}.cl-wp{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:13px}.cl-wp.talking .av{box-shadow:0 0 0 4px var(--ok)}
+.cl-wrow.on{background:var(--sel);box-shadow:var(--shadow-s)}.cl-won{width:18px;height:18px;color:var(--ok)}
+
 @media (max-width:760px){
   .ccontrols>.cbtn.cl-phhide{display:none}
+  .cl-tabs,.cl-chips{padding-left:12px;padding-right:12px}.cl-hist{padding:4px 6px 12px}.cl-ptt{width:150px;height:150px}
   .cl-split .caret{display:none}
   .cl-leavegroup{margin-left:4px}.leave span{display:none}.cl-leavegroup .leave{padding:0 10px}
   .cl-banners{top:6px}
