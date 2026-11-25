@@ -9,7 +9,7 @@
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   LC.addStrings('en', {
     cx_seeMore: 'See more', cx_seeLess: 'See less', cx_copyCode: 'Copy code', cx_codeCopied: 'Code copied', cx_important: 'IMPORTANT!', cx_urgent: 'URGENT!',
-    cx_repliesFrom: '{n} replies from {names}', cx_oneReplyFrom: '1 reply from {names}', cx_newReplies: '{n} new', cx_newRepliesLong: '{n} new replies', cx_reply: 'Reply', cx_hideReplies: 'Hide replies',
+    cx_repliesFrom: '{n} replies from {names}', cx_oneReply: '1 reply', cx_oneReplyFrom: '1 reply from {names}', cx_newReplies: '{n} new', cx_newRepliesLong: '{n} new replies', cx_reply: 'Reply', cx_hideReplies: 'Hide replies',
     cx_checkItem: 'Checklist item', cx_copyLink: 'Copy link', cx_linkCopied: 'Link copied', cx_markUnread: 'Mark as unread', cx_notifOff: 'Turn off notifications', cx_notifOn: 'Turn on notifications',
     cx_saveGif: 'Save to My GIFs', cx_gifSaved: 'Saved to My GIFs', cx_post: 'Post', cx_loadingReplies: 'Loading replies…', cx_openLink: 'Open link: {url}',
     cx_stickerPrev: 'Sticker', cx_praisePrev: 'Praise', cx_locPrev: 'Location', cx_gifPrev: 'GIF', cx_memePrev: 'Meme', cx_annPrev: 'Announcement: {t}',
@@ -321,7 +321,7 @@
     if (o.post) body.append(postFooter(m, o));
     else if (m.threadCount && !o.thread) {
       const fresh = LC.threadNew ? LC.threadNew(m) : 0;
-      body.append(el('button', { class: 'thread-sum' + (fresh ? ' cx-fresh' : ''), onclick: () => LC.openThread(m) }, LC.icon('comment'), ' ' + t('replies', { n: m.threadCount }), fresh ? el('span', { class: 'cx-newpill', text: t('cx_newReplies', { n: fresh }), title: t('cx_newRepliesLong', { n: fresh }) }) : null, el('span', { class: 'muted', text: ' · ' + LC.ago(m.threadLast || m.ts) })));
+      body.append(el('button', { class: 'thread-sum' + (fresh ? ' cx-fresh' : ''), onclick: () => LC.openThread(m) }, LC.icon('comment'), ' ' + (m.threadCount === 1 ? t('cx_oneReply') : t('replies', { n: m.threadCount })), fresh ? el('span', { class: 'cx-newpill', text: t('cx_newReplies', { n: fresh }), title: t('cx_newRepliesLong', { n: fresh }) }) : null, el('span', { class: 'muted', text: ' · ' + LC.ago(m.threadLast || m.ts) })));
     }
     const tk = LC.tickState(m); let status = null;
     if (tk) status = el('span', { class: 'ticks ' + tk, role: 'img', 'aria-label': t('tick_' + tk), title: t('tick_' + tk) }, LC.icon(tk === 'seen' ? 'eye' : 'checkmark_circle', { filled: tk === 'delivered' }));

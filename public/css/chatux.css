@@ -127,7 +127,7 @@ mark.cx-hl{background:var(--cx-hl);color:var(--cx-hl-text);border-radius:2px;pad
 .cx-dot{display:inline-block;width:14px;height:14px;border-radius:50%;background:currentColor}
 
 /* ---------- emoji picker ---------- */
-.picker{width:min(372px,calc(100vw - 16px))}
+.picker{width:min(372px,calc(100vw - 16px));max-height:calc(100dvh - 16px);display:flex;flex-direction:column}.picker.hidden{display:none}.cx-ppanel{overflow:auto;min-height:0}
 .cx-phead{display:flex;align-items:center;gap:4px;margin-bottom:4px}.cx-phead .psearch{flex:1;margin:0}
 .cx-tonebtn{font-size:18px}
 .cx-tones{display:flex;gap:2px;justify-content:flex-end;margin:0 0 4px}.cx-tones button{background:none;border:1px solid transparent;border-radius:4px;font-size:20px;width:34px;height:32px}.cx-tones button.on,.cx-tones button:hover{border-color:var(--brand);background:var(--brand-l)}

@@ -202,15 +202,16 @@
       const search = el('input', { type: 'search', class: 'psearch', placeholder: t('cx_searchEmoji'), 'aria-label': t('cx_searchEmoji'), value: st.q, oninput: (e) => { st.q = e.target.value; if (st.tab === 'stickers') st.tab = 'emoji'; draw(); } });
       const tabs = [['emoji', 'emoji', t('cx_tabEmoji')], allowGifs ? ['gifs', 'gif', t('cx_tabGifs')] : null, allowStickers ? ['stickers', 'sticker', t('stickers')] : null].filter(Boolean);
       const body = st.tab === 'gifs' ? gifPanel() : st.tab === 'stickers' ? stickerPanel() : emojiPanel();
-      p.replaceChildren(el('div', { class: 'cx-phead' }, st.tab === 'stickers' ? null : search, o.reactions || st.tab !== 'emoji' ? null : toneBtn), tones,
+      p.replaceChildren(...[st.tab === 'stickers' ? null : el('div', { class: 'cx-phead' }, search, o.reactions || st.tab !== 'emoji' ? null : toneBtn), tones,
         tabs.length > 1 ? el('div', { class: 'ptabs', role: 'tablist', 'aria-label': t('cx_pickerTitle') }, tabs.map(([k, ic, name]) => el('button', { type: 'button', role: 'tab', id: 'cxpt-' + k, 'aria-selected': String(st.tab === k), 'aria-controls': 'cxPickerPanel', class: st.tab === k ? 'on' : '', 'aria-label': name, title: name, onclick: () => { st.tab = k; draw(); } }, LC.icon(ic), el('span', { class: 'cx-ptab', text: name })))) : null,
-        el('div', { class: 'cx-ppanel', id: 'cxPickerPanel', role: tabs.length > 1 ? 'tabpanel' : null, 'aria-labelledby': tabs.length > 1 ? 'cxpt-' + st.tab : null }, ...body));
+        el('div', { class: 'cx-ppanel', id: 'cxPickerPanel', role: tabs.length > 1 ? 'tabpanel' : null, 'aria-labelledby': tabs.length > 1 ? 'cxpt-' + st.tab : null }, ...body)].filter(Boolean));
       if (focusSearch) { const n = p.querySelector('.psearch'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }
+      if (!p.classList.contains('hidden')) place();
     };
+    // keep the picker next to its button and inside the window (tabs have different heights)
+    const place = () => { const r = anchor.getBoundingClientRect(), w = p.offsetWidth, h = p.offsetHeight; p.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.right - w)) + 'px'; p.style.top = (r.top - h - 8 > 8 ? r.top - h - 8 : Math.max(8, Math.min(r.bottom + 8, innerHeight - h - 8))) + 'px'; };
     p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', o.reactions ? t('moreReactions') : t('cx_pickerTitle'));
-    draw(); p.classList.remove('hidden'); p.style.visibility = 'hidden';
-    const r = anchor.getBoundingClientRect(), w = p.offsetWidth, h = p.offsetHeight;
-    p.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.right - w)) + 'px'; p.style.top = (r.top - h - 8 > 8 ? r.top - h - 8 : Math.max(8, Math.min(r.bottom + 8, innerHeight - h - 8))) + 'px'; p.style.visibility = '';
+    draw(); p.classList.remove('hidden'); p.style.visibility = 'hidden'; place(); p.style.visibility = '';
     if (!matchMedia('(pointer:coarse)').matches) setTimeout(() => { const n = p.querySelector('.psearch'); if (n) n.focus(); }, 0);
   };
   document.addEventListener('mousedown', (e) => { const p = $('#picker'); if (!p.classList.contains('hidden') && !p.contains(e.target) && !e.target.closest('[aria-label][data-picker], .tools button, .emojibtn')) closePicker(); });

@@ -101,7 +101,7 @@
       el('label', { class: 'small' }, t('after') + ' ', el('input', { type: 'date', value: view.after, 'aria-label': t('after'), onchange: (e) => { view.after = e.target.value; run(); } })), el('label', { class: 'small' }, t('before') + ' ', el('input', { type: 'date', value: view.before, 'aria-label': t('before'), onchange: (e) => { view.before = e.target.value; run(); } })));
     let seq = 0;
     async function run() {
-      const my = ++seq, qq = view.q.trim(); $('#title').textContent = qq ? t('cx_resultsFor', { q: qq }) : t('search'); filters.classList.toggle('hidden', view.tab !== 'messages' && view.tab !== 'files');
+      const my = ++seq, qq = view.q.trim(), sig = [qq, view.from, view.chan, view.has, view.after, view.before].join('|'); if (counts.sig !== sig) { counts.sig = sig; counts.messages = counts.files = undefined; } $('#title').textContent = qq ? t('cx_resultsFor', { q: qq }) : t('search'); filters.classList.toggle('hidden', view.tab !== 'messages' && view.tab !== 'files');
       tabbar.querySelectorAll('[role=tab]').forEach((b) => b.setAttribute('aria-selected', String(b.id === 'cxrt-' + view.tab)));
       const lq = qq.toLowerCase();
       // people and chats are known locally: count them for the tab labels
