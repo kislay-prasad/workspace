@@ -41,6 +41,8 @@
     tm_teamDeleted: 'That team was deleted.', tm_teamGone: 'You are no longer in {name}.', tm_noAccess: "That link isn't available to you — you may need to join the team first.", tm_joined: 'You joined {name}', tm_requestSent: 'Request sent. A team owner will let you in.',
     tm_cantCreate: 'Only admins can create teams in this session.', tm_guestNoCreate: "Guests can't create teams or channels.", tm_from: 'by {name}', tm_owners: 'Owners', tm_note: 'Message to the owners (optional)', tm_whyJoin: 'Why do you want to join? (optional)',
     tm_noChannelsYet: 'No other channels yet.', tm_openTeam: 'Open', tm_teamHome: 'Team', tm_expiry: 'Expires unless renewed', tm_sharedWithYou: 'Shared with you', tm_addPeople: 'Add people', tm_peopleSel: '{n} selected', tm_nobody: 'Nobody to add.',
+    tm_report: 'Report', tm_reportMsg: 'Report this message', tm_reportPerson: 'Report {name}', tm_reportTitle: 'Report a concern', tm_reportHelp: 'Only the host and admins see reports. The person is not told who reported them.', tm_reason: 'Reason', tm_reportNote: 'Anything else? (optional)', tm_reportSend: 'Send report', tm_reportSent: 'Thanks — the admins were told.',
+    tm_r_harassment: 'Harassment or bullying', tm_r_spam: 'Spam', tm_r_hate: 'Hate speech', tm_r_violence: 'Violence or threats', tm_r_inappropriate: 'Inappropriate content', tm_r_privacy: 'Private information', tm_r_other: 'Something else',
     tm_aboutTeam: 'About this team', tm_created: 'Created {when}', tm_channelPic: 'Channel picture', tm_labelBadge: 'Sensitivity: {name}', tm_err: 'Something went wrong',
   });
   LC.addStrings('hi', { tm_teams: 'टीमें', tm_joinCreate: 'टीम से जुड़ें या बनाएँ', tm_createTeam: 'टीम बनाएँ', tm_join: 'जुड़ें', tm_manageTeam: 'टीम प्रबंधित करें', tm_addChannel: 'चैनल जोड़ें', tm_hide: 'छिपाएँ', tm_show: 'दिखाएँ', tm_leave: 'टीम छोड़ें', tm_members: 'सदस्य', tm_public: 'सार्वजनिक', tm_private: 'निजी', tm_general: 'सामान्य', tm_getLinkChan: 'चैनल का लिंक पाएँ', tm_noTeams: 'आप अभी किसी टीम में नहीं हैं।', role_guest: 'अतिथि' });
@@ -177,9 +179,14 @@
     if (tm && !tm.partial) { setOpen(id, true); LC.setPane('teams'); if (tm.general && S.channels.has(tm.general)) LC.openChat(tm.general); return; }
     LC.setPane('teams'); openDirectory(id);
   }
+  window.addEventListener('hashchange', () => { if (S.me && /^#(c|team)=/.test(location.hash)) deepLink(); });
+  LC.teams = { open: (id) => { const tm = TM.teams.get(id); if (tm && canOwn(tm) && (tm.requests || []).length) return openManage(id, 'requests'); if (tm && !tm.partial && tm.general && S.channels.has(tm.general)) { setOpen(id, true); LC.setPane('teams'); return LC.openChat(tm.general); } LC.setPane('teams'); openDirectory(id); } };
   let info = null;
   const shareBase = async () => { try { info ||= await LC.api('/api/info'); const u = info.urls && info.urls[0]; if (u && !/^(localhost|127\.)/.test(location.hostname) === false) return (info.https && u.secureUrl) || u.url; } catch {} return location.origin; };
   TM.copyLink = async (kind, id) => { const base = await shareBase(); const link = `${base}/#${kind}=${encodeURIComponent(id)}`; LC.toast((await LC.copy(link)) ? t('tm_linkCopied') + ': ' + link : link, { ms: 6000 }); };
+
+  const baseChatInfo = LC.chatInfo;
+  LC.chatInfo = (chan) => { const c = S.channels.get(chan); if (c && c.team) return manageChannel(chan); return baseChatInfo(chan); };
 
   // ---------- guests (and anyone without #general): never fall back to a chat they can't open ----------
   const baseOpen = LC.openChat;
@@ -565,4 +572,18 @@
     return el('div', { class: 'tm-xpost small muted' }, LC.icon('chat_multiple'), ' ' + t('tm_postedIn', { n: m.xpost.chans.length }) + (others.length ? ' · ' + t('tm_alsoIn') + ' ' : ''),
       ...others.flatMap((c, i) => [i ? ', ' : '', el('button', { class: 'link', text: LC.chanInfo(c).longTitle || LC.chanInfo(c).title, onclick: () => LC.openChat(c) })]));
   });
+
+  // ---------- Report a concern (message ⋯ and a person's menu) → admins' Reports inbox ----------
+  const REASONS = ['harassment', 'spam', 'hate', 'violence', 'inappropriate', 'privacy', 'other'];
+  function reportDialog(target) {
+    let reason = 'harassment'; const note = el('textarea', { rows: 3, maxlength: 500, 'aria-label': t('tm_reportNote') }), err = el('div', { class: 'err', role: 'alert' });
+    const what = target.msg ? el('blockquote', { class: 'tm-snap' }, el('b', { text: LC.uname(target.msg.from) }), el('div', { text: LC.snippet(target.msg) })) : el('p', { class: 'muted', text: t('tm_reportPerson', { name: LC.uname(target.user) }) });
+    LC.modal(el('form', { onsubmit: async (e) => { e.preventDefault(); try { await LC.api('/api/tm/report', { msg: target.msg ? target.msg.id : undefined, user: target.user, reason, note: note.value }); LC.closeModal(); LC.toast(t('tm_reportSent')); } catch (x) { err.textContent = x.message; } } },
+      el('h2', {}, LC.icon('flag'), ' ' + t('tm_reportTitle')), what, U.group(t('tm_reason'), U.radios('tm-reason', REASONS.map((r) => [r, t('tm_r_' + r)]), reason, (v) => { reason = v; }, t('tm_reason'))),
+      U.field(t('tm_reportNote'), note), el('p', { class: 'muted small', text: t('tm_reportHelp') }), err,
+      el('div', { class: 'acts' }, el('button', { type: 'button', class: 'secondary', text: t('cancel'), onclick: LC.closeModal }), el('button', { class: 'primary', type: 'submit', text: t('tm_reportSend') }))));
+  }
+  TM.reportDialog = reportDialog;
+  LC.ext.msgMenu.push((m) => (m.from && m.from !== me().id && !m.system && !m.deleted && !(S.users.get(m.from) || {}).bot ? [{ icon: 'flag', label: t('tm_reportMsg'), fn: () => reportDialog({ msg: m }) }] : []));
+  LC.ext.userMenu.push((uid) => (uid && uid !== me().id && S.users.has(uid) && !S.users.get(uid).bot ? ['sep', { icon: 'flag', label: t('tm_reportPerson', { name: LC.uname(uid) }), fn: () => reportDialog({ user: uid }) }] : []));
 })();

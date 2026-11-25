@@ -80,3 +80,33 @@
   .tm-mhead .av.xl{width:56px;height:56px;font-size:22px}
   .tm-chans{padding-left:14px}
 }
+
+/* ---------- Manage dialog: side list of tabs (Teams admin centre style) ---------- */
+.card.wide.tm-admin{width:min(1180px,100%);height:min(820px,calc(100dvh - 24px));display:grid;grid-template-columns:210px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:0 16px;overflow:hidden}
+.tm-admin>.row-between{grid-column:1/-1;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.tm-admin>.tabsbar{flex-direction:column;border-bottom:0;border-right:1px solid var(--line);overflow-y:auto;padding-right:8px;gap:1px}
+.tm-admin>.tabsbar .tabbtn{width:100%;border-radius:6px;padding:7px 10px;white-space:normal;text-align:left}
+.tm-admin>.tabsbar .tabbtn:hover{background:var(--hover)}.tm-admin>.tabsbar .tabbtn.on{background:var(--brand-l)}
+.tm-admin>.tabsbar .tabbtn.on::after{left:0;right:auto;top:8px;bottom:8px;width:3px;height:auto;border-radius:2px}
+.tm-admin>.tabbody{overflow-y:auto;min-height:0;padding-right:4px}
+.tm-sec{border:1px solid var(--line);border-radius:8px;padding:4px 14px 12px;margin:10px 0;background:var(--card)}
+.tm-sec h3{margin-top:10px}.tm-sec h4{margin:12px 0 4px;font-size:13px}
+.tm-num{width:120px}.tm-cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0 14px}
+.tm-labelrow{display:grid;grid-template-columns:minmax(120px,1fr) 44px 170px minmax(120px,2fr) 32px;gap:6px;align-items:center;margin:6px 0}
+.tm-report{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0;background:var(--card)}.tm-report.done{opacity:.8}.tm-report .ic{color:var(--danger)}
+.tm-snap{margin:6px 0;border-left:3px solid var(--line2);padding:4px 10px;background:var(--bg2);border-radius:0 6px 6px 0}
+.tm-poor td{color:var(--danger)}
+.tm-seg summary{display:flex;gap:4px;align-items:center}
+.tm-secret{word-break:break-all;font-size:13px}
+/* ---------- sign-in: branding, invite, PIN ---------- */
+.tm-welcome{white-space:pre-line}.tm-logoimg{object-fit:contain;border-radius:8px}
+.tm-invitenote{margin:0}
+#tmPin,#tmTotp{width:100%;font-size:15px;min-height:40px}
+@media (max-width:760px){
+  .card.wide.tm-admin{display:flex;flex-direction:column;height:calc(100dvh - 24px)}
+  .tm-admin>.tabsbar{flex-direction:row;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden;padding-right:0;flex:none}
+  .tm-admin>.tabsbar .tabbtn{width:auto;white-space:nowrap}
+  .tm-admin>.tabsbar .tabbtn.on::after{left:8px;right:8px;top:auto;bottom:0;width:auto;height:3px}
+  .tm-admin>.tabbody{flex:1}
+  .tm-labelrow{grid-template-columns:1fr 44px;}.tm-labelrow select,.tm-labelrow input:not([type=color]){grid-column:1/-1}
+}
