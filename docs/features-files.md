@@ -57,13 +57,13 @@ Calendar: `POST /api/event {chan, op: add|edit|move|del|delocc, …}` (taken ove
 
 ## Client events and APIs
 Live events: `fl_files { chan }`, `fl_links`, `fl_events { chan }`, `fl_calprefs`; init carries `flCal` (personal calendar settings). Activity items `{ type: 'event', kind: 'rsvp', from, chan, event, title, start, rsvp }`.
-`LC.files` (`open`, `openText`, `details`, `share`, `versions`, `newVersion`, `rename`, `remove`, `openTab(chan, folder)`, `isText`, `kindOf`), `LC.fileCard(f, m)`, `LC.calendar` (`open(date)`, `newEvent(prefill)`, `assistant()`, `peek`, `join`), `LC.calcore` (`expand`, `wall`, `fromWall`, `validTz`). Registries used: `panes.files`, `panes.calendar`, `tabs` (`files`, `calendar` replace the old ones), `msgParts`, `msgMenu`, `activityTypes.event`.
+`LC.files` (`open`, `openText`, `details`, `share`, `versions`, `newVersion`, `rename`, `remove`, `openTab(chan, folder)`, `isText`, `kindOf`), `LC.fileCard(f, m)`, `LC.calendar` (`open(date)`, `newEvent(prefill)`, `assistant()`, `peek`, `join`), `LC.calcore` (`expand`, `wall`, `fromWall`, `validTz`). Registries used: `panes.files`, `panes.calendar`, `tabs` (`files`, `calendar` replace the old ones; both have a `desc` for the apps area's **Add a tab** gallery and show by default in chats that never customised their tabs), `msgParts`, `msgMenu`, `activityTypes.event`.
 
 ## Edits outside my area
-- `lib/app.js` (core, 1 line): `fileCanRead` also asks `hooks.fileRead` (Files-tab uploads, old versions). Garbage collection uses chatux's existing `keepFile` hook.
+- `lib/app.js`: no edit left. `fileCanRead` asks `hooks.fileRead(u, fileId)` (the line the apps area added; I had added the same hook before the merge and now use theirs) for Files-tab uploads and old versions; garbage collection uses chatux's `keepFile` hook.
 - `public/js/render.js` (chatux, 1 line): `attachments()` asks `LC.fileCard(f, m)` first, so documents get the files area's card.
 - `tests/ui-features.js` (1 selector): the Files tab check looks for `.fl-item` instead of `.fcard` (same check, new markup).
-- `docs/EXTENDING.md`: the Files and Calendar events contract paragraphs, and a `fileRead` row in the hooks table.
+- `docs/EXTENDING.md`: the Files and Calendar events contract paragraphs; the `fileRead` row in the hooks table now names both users (apps and files).
 - `public/index.html`: script/link tags only inside the `<!-- area:files -->` blocks. `scripts/icons/files.txt` + regenerated `public/js/icons.js`.
 - Routes taken over or wrapped from my modules (no file edits): `POST /api/event` (re-assigned from `routes-collab.js`; its reminder tick is neutralised by `reminded: true` on every calendar event), `POST /api/admin/reset` (wrapped: "Start fresh" also removes Files-tab files, folders, versions and links). Collab's old calendar redraw on its `events` event is undone by a later handler of mine (no edit to `collab.js`).
 
