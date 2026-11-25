@@ -161,6 +161,7 @@
   };
   document.addEventListener('keydown', (e) => {
     if (!S.me || !$('#app') || $('#app').classList.contains('hidden')) return;
+    if (e.key === 'Escape' && S.app === 'cxsearch' && $('#modal').classList.contains('hidden') && $('#menu').classList.contains('hidden') && !$('.modal.top') && $('#picker').classList.contains('hidden')) { LC.closeApp(); LC.openChat(S.chan || 'general'); return; } // Esc leaves the results page
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f' && !$('#modal:not(.hidden)') && !$('.modal.top')) { e.preventDefault(); LC.openFind(); }
   });
 })();
